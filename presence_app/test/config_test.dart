@@ -183,6 +183,42 @@ void main() {
       );
     });
 
+    test('free members: every 15 min at the most often, never Always; '
+        'Never stays Never', () {
+      LiveConfig free(LiveConfig set) =>
+          set.effective(isAdmin: false, isPremium: false);
+      expect(free(LiveConfig.never), LiveConfig.never);
+      expect(
+        free(LiveConfig.always),
+        const LiveConfig(every: Duration(minutes: 15), free: true),
+      );
+      expect(
+        free(const LiveConfig()),
+        const LiveConfig(every: Duration(minutes: 15), free: true),
+      );
+      expect(
+        free(const LiveConfig(every: Duration(minutes: 60))),
+        const LiveConfig(every: Duration(minutes: 60), free: true),
+      );
+      expect(
+        LiveConfig.ofStep(LiveConfig.freeMinStep).every,
+        LiveConfig.freeMinEvery,
+      );
+      // Admins and premium members aren't free.
+      expect(
+        LiveConfig.always.effective(isAdmin: true, isPremium: false),
+        LiveConfig.always,
+      );
+      expect(const LiveConfig().effective(isAdmin: false).free, isFalse);
+      // Never saved: a free config stores as the plain setting.
+      expect(
+        LiveConfig.fromJson(
+          const LiveConfig(every: Duration(minutes: 15), free: true).toJson(),
+        ),
+        const LiveConfig(every: Duration(minutes: 15)),
+      );
+    });
+
     test('round-trips through storage; odd intervals snap to a step', () {
       for (var i = 0; i < LiveConfig.steps; i++) {
         final live = LiveConfig.ofStep(i);

@@ -22,8 +22,10 @@ abstract class LiveConnection {
   Future<void> subscribe(String topic);
 
   /// Publishes [payload] on [topic] (QoS 1): completes once it's sent,
-  /// without waiting for the broker's acknowledgement (PUBACK).
-  Future<void> publish(String topic, Uint8List payload);
+  /// without waiting for the broker's acknowledgement (PUBACK). [retain]:
+  /// the broker keeps it as the topic's last message, sent to each new
+  /// subscriber (a free device's heartbeat, [LiveSync.beat]).
+  Future<void> publish(String topic, Uint8List payload, {bool retain = false});
 
   /// Disconnects.
   Future<void> close();
@@ -56,6 +58,7 @@ class LiveLink {
     required this.onEvent,
     this.onCopied,
     this.onSync,
+    this.onShare,
     this.mediaKey,
   });
 
@@ -76,6 +79,12 @@ class LiveLink {
   /// Another device of the profile asked every device to sync now (a
   /// `sync` request, [LiveSync.requestSync]): its Sync button.
   final void Function()? onSync;
+
+  /// A free profile's scheduled connection is up ([LiveConfig.free]):
+  /// publishes the events queued here since the last one
+  /// ([LiveSync.publishEvent] sends now), before the connection drains
+  /// and closes. Free devices publish nothing at any other time.
+  final Future<void> Function()? onShare;
 }
 
 /// An event another device of the profile published ([LiveSync.parse]):
@@ -178,6 +187,13 @@ class CopiedMessage {
 ///   one that connects takes the queued messages, and the other gets them
 ///   from the bucket.
 /// - [LiveMode.never]: never connects; nothing is published.
+/// - **Free** profiles ([LiveConfig.free]): scheduled, every 15 min at the
+///   most often (at start, at sign-in, then on schedule). A new event
+///   doesn't connect: events wait on the device and go out with the next
+///   connection ([LiveLink.onShare]); only the Sync button connects early
+///   (at most every [freeSyncEvery]). Device presence comes from a small
+///   retained heartbeat every [beatEvery] instead of pings ([beat],
+///   [ping]).
 ///
 /// The IoT policy only lets an identity connect with IDs that start with
 /// its own (`<identityId>-*`), which both forms do.
@@ -205,6 +221,8 @@ class LiveSync extends ChangeNotifier {
     this.connectTimeout = const Duration(seconds: 15),
     this.ackDelay = const Duration(seconds: 1),
     this.ackEvery = const Duration(seconds: 1),
+    this.beatLinger = const Duration(seconds: 1),
+    this.beatFirst = const Duration(seconds: 5),
   }) : _now = now ?? DateTime.now,
        _clock = clock ?? (now == null ? AwsClock.shared : AwsClock(now: now)),
        _random = random ?? Random.secure();
@@ -263,6 +281,14 @@ class LiveSync extends ChangeNotifier {
 
   /// ...and a backlog goes out one message per this.
   final Duration ackEvery;
+
+  /// How long a connection made just for a heartbeat stays after
+  /// publishing it, so the message leaves before it closes.
+  final Duration beatLinger;
+
+  /// How long after [start] a free device's first heartbeat goes: soon
+  /// enough to ride the start's scheduled connection.
+  final Duration beatFirst;
 
   /// The largest message accepted or sent. AWS IoT allows 128 KB; events'
   /// metadata is a few KB.
@@ -401,6 +427,7 @@ class LiveSync extends ChangeNotifier {
     final generation = ++_generation;
     _failures = 0;
     _loop(generation).ignore();
+    _startBeats(generation);
   }
 
   /// Disconnects (sign-out, another profile, or the app closing).
@@ -408,6 +435,10 @@ class LiveSync extends ChangeNotifier {
     _generation++;
     _link = null;
     _nextAt = null;
+    _wakeWanted = false;
+    _beatTimer?.cancel();
+    _beatTimer = null;
+    _closeWatch();
     _wakeUp();
     _failOutbox();
     // A flush under way ends, failing its acks.
@@ -489,6 +520,19 @@ class LiveSync extends ChangeNotifier {
         _failures = 0;
         _set(LiveSyncState.connected);
         await _flushOutbox(link, connection);
+        // Free: what waited on this device goes out now, and only now.
+        if (scheduled && _config.free) {
+          try {
+            await link.onShare?.call();
+          } catch (e) {
+            debugPrint('Presence: live sync could not share: ${redact(e)}');
+          }
+          if (!current()) {
+            await subscription.cancel();
+            await connection.close().catchError((Object _) {});
+            return;
+          }
+        }
         final next = scheduled
             ? await _runScheduled(connection, subscription, current)
             : await _runAlways(credentials, connection, subscription, current);
@@ -524,12 +568,29 @@ class LiveSync extends ChangeNotifier {
     required bool scheduled,
     required bool Function() current,
   }) async {
-    final credentials = await link.credentials().timeout(
-      connectTimeout,
-      onTimeout: () =>
-          throw TimeoutException('credentials took too long', connectTimeout),
-    );
+    final credentials = await _credentials(link);
     if (!current()) return null;
+    final connection = await _open(
+      credentials,
+      scheduled ? stableClientIdOf(link) : clientIdOf(link),
+      persistent: scheduled,
+    );
+    return (credentials, connection);
+  }
+
+  Future<AwsCredentials> _credentials(LiveLink link) =>
+      link.credentials().timeout(
+        connectTimeout,
+        onTimeout: () =>
+            throw TimeoutException('credentials took too long', connectTimeout),
+      );
+
+  /// Connects as [clientId] with [credentials], within [connectTimeout].
+  Future<LiveConnection> _open(
+    AwsCredentials credentials,
+    String clientId, {
+    required bool persistent,
+  }) async {
     // `ws://localhost:4566`: the local stack's broker; otherwise AWS IoT's
     // host, over wss.
     final local = endpoint.startsWith('ws://') ? Uri.parse(endpoint) : null;
@@ -540,12 +601,8 @@ class LiveSync extends ChangeNotifier {
           credentials: credentials,
           now: _clock.now(),
         );
-    final connecting = _connect!(
-      url,
-      scheduled ? stableClientIdOf(link) : clientIdOf(link),
-      persistent: scheduled,
-    );
-    final connection = await connecting.timeout(
+    final connecting = _connect!(url, clientId, persistent: persistent);
+    return connecting.timeout(
       connectTimeout,
       onTimeout: () {
         // One that connects after all is closed at once.
@@ -553,7 +610,6 @@ class LiveSync extends ChangeNotifier {
         throw TimeoutException('connecting took too long', connectTimeout);
       },
     );
-    return (credentials, connection);
   }
 
   /// Listens to [connection]'s messages, and subscribes to [link]'s events
@@ -610,8 +666,10 @@ class LiveSync extends ChangeNotifier {
     _nextAt = _now().add(wait);
     _set(LiveSyncState.idle);
     // Until the next one, or a new event to send (at once if one
-    // came while this one was closing).
-    if (_outbox.isEmpty) await _sleep(wait);
+    // came while this one was closing). Free: only the Sync button
+    // connects early; what's queued waits for the schedule.
+    if (_config.free ? !_wakeWanted : _outbox.isEmpty) await _sleep(wait);
+    _wakeWanted = false;
     return _Next.connect;
   }
 
@@ -743,6 +801,11 @@ class LiveSync extends ChangeNotifier {
   }) async {
     final link = _link;
     if (link == null || !_canSend) return false;
+    // Free: only during a scheduled connection ([LiveLink.onShare]).
+    if (_config.free &&
+        (_connection == null || _state != LiveSyncState.connected)) {
+      return false;
+    }
     Uint8List payloadWith(Map<String, Object?>? inline) => Uint8List.fromList(
       utf8.encode(
         jsonEncode({
@@ -759,7 +822,14 @@ class LiveSync extends ChangeNotifier {
         }),
       ),
     );
-    final inline = clip == null ? null : clipMessageOf(clip);
+    final inline = clip == null
+        ? null
+        : clipMessageOf(
+            clip,
+            maxThumbnail: _config.free
+                ? freeMaxThumbnailBytes
+                : maxThumbnailBytes,
+          );
     var payload = payloadWith(inline);
     if (inline != null && payload.length > maxMessageBytes) {
       payload = payloadWith(null);
@@ -789,7 +859,12 @@ class LiveSync extends ChangeNotifier {
   /// Sends [payload] on [link]'s [kind] topic: now when connected; on a
   /// schedule, with the next connection, which it starts at once (waiting
   /// up to [publishWait]).
-  Future<bool> _publish(LiveLink link, String kind, Uint8List payload) {
+  Future<bool> _publish(
+    LiveLink link,
+    String kind,
+    Uint8List payload, {
+    bool wake = false,
+  }) {
     final connection = _connection;
     if (connection != null && _state == LiveSyncState.connected) {
       return _send(link, connection, payload, kind: kind);
@@ -800,8 +875,12 @@ class LiveSync extends ChangeNotifier {
       final (_, _, dropped) = _outbox.removeAt(0);
       if (!dropped.isCompleted) dropped.complete(false);
     }
-    // Between scheduled connections: connect now.
-    if (_state == LiveSyncState.idle) _wakeUp();
+    // Between scheduled connections: connect now. Free: only when asked
+    // ([requestSync]); otherwise it waits for the next one.
+    if (_state == LiveSyncState.idle && (!_config.free || wake)) {
+      if (_config.free) _wakeWanted = true;
+      _wakeUp();
+    }
     return sent.future.timeout(publishWait, onTimeout: () => false);
   }
 
@@ -918,6 +997,14 @@ class LiveSync extends ChangeNotifier {
   /// when always connected; on a schedule it connects to send it).
   Future<bool> ping() async {
     final link = _link;
+    // Free: nobody stays connected to answer, so no ping: the beats are
+    // watched instead while someone looks ([watchFor]).
+    if (_config.free) {
+      if (link == null || !enabled || _state == LiveSyncState.off) {
+        return false;
+      }
+      return _watchBeats(link);
+    }
     if (link == null || !_canSend) return false;
     final now = _now();
     final last = _lastPing;
@@ -966,9 +1053,8 @@ class LiveSync extends ChangeNotifier {
     if (link == null || !_canSend) return false;
     final now = _now();
     final last = _lastSyncRequest;
-    if (last != null &&
-        !now.isBefore(last) &&
-        now.difference(last) < syncEvery) {
+    final every = _config.free ? freeSyncEvery : syncEvery;
+    if (last != null && !now.isBefore(last) && now.difference(last) < every) {
       return false;
     }
     _lastSyncRequest = now;
@@ -976,8 +1062,13 @@ class LiveSync extends ChangeNotifier {
       link,
       requestsKind,
       _presencePayload(link, 'sync', now: now),
+      wake: true,
     );
   }
+
+  /// The least time between two sync requests of a free device: each
+  /// connects at once (and shares what's queued).
+  static const Duration freeSyncEvery = Duration(minutes: 5);
 
   /// The least time between two of this device's sync requests.
   static const Duration syncEvery = Duration(seconds: 10);
@@ -1071,6 +1162,197 @@ class LiveSync extends ChangeNotifier {
     _seen[deviceId] = at;
     if (_seen.length > maxSeen) _seen.remove(_seen.keys.first);
     notifyListeners();
+  }
+
+  // Heartbeat (free) -----------------------------------------------------
+
+  /// How often a free device says it runs: a retained `beat` on its own
+  /// topic ([beatTopicOf]), over a connection made just for it (clean
+  /// session, nothing subscribed, closed at once) unless one is open.
+  static const Duration beatEvery = Duration(minutes: 5);
+
+  /// A free device whose last beat is within this is live (green): two
+  /// beats, and a minute's slack.
+  static const Duration beatLiveWithin = Duration(minutes: 11);
+
+  /// How long the beats stay watched after the last [ping] of a free
+  /// device (the All grid and the devices list ping every 30 s).
+  static const Duration watchFor = Duration(seconds: 75);
+
+  /// The beats' topics: `presence/<stage>/<identity>/beats/<device>`.
+  static const String beatsKind = 'beats';
+
+  static String beatTopicOf(String stage, String identityId, String device) =>
+      '${topicOf(stage, identityId, beatsKind)}/$device';
+
+  /// How recently a device must have been heard from to show live (green):
+  /// [beatLiveWithin] for a free profile, 90 s (pings) otherwise.
+  Duration get liveWithin =>
+      _config.free ? beatLiveWithin : const Duration(seconds: 90);
+
+  /// Whether this device shows live: connected, or (free) its last beat
+  /// went within [beatLiveWithin].
+  bool get showsLive {
+    if (state == LiveSyncState.connected) return true;
+    final beat = _lastBeat;
+    return _config.free &&
+        state != LiveSyncState.off &&
+        beat != null &&
+        _now().difference(beat) < beatLiveWithin;
+  }
+
+  DateTime? _lastBeat;
+
+  /// When this device's last heartbeat went ([beat]).
+  DateTime? get lastBeat => _lastBeat;
+
+  Timer? _beatTimer;
+
+  /// The Sync button asked a free device's schedule to connect now.
+  bool _wakeWanted = false;
+
+  /// The connection watching the beats ([ping], free), and until when.
+  LiveConnection? _watch;
+  StreamSubscription<(String, Uint8List)>? _watchMessages;
+  DateTime? _watchUntil;
+  Timer? _watchTimer;
+  bool _watchOpening = false;
+
+  /// Whether the beats are being watched now (for tests).
+  @visibleForTesting
+  bool get watching => _watch != null;
+
+  void _startBeats(int generation) {
+    _beatTimer?.cancel();
+    _beatTimer = null;
+    if (!_config.free || !enabled) return;
+    void tick() {
+      if (generation == _generation) beat().ignore();
+    }
+
+    _beatTimer = Timer(beatFirst, () {
+      if (generation != _generation) return;
+      tick();
+      _beatTimer = Timer.periodic(beatEvery, (_) => tick());
+    });
+  }
+
+  /// Publishes this free device's heartbeat, retained, on its beats topic:
+  /// `{"v":1,"kind":"beat","deviceId","identityId","sentAt"}` (about 150
+  /// bytes: one billed message). Over the scheduled or watching connection
+  /// when one is open; otherwise over one made for it, which subscribes
+  /// to nothing, takes no queued messages (a clean session, another client
+  /// ID) and closes after [beatLinger]. Returns whether it went.
+  Future<bool> beat() async {
+    final link = _link;
+    if (link == null || !enabled || !_config.free) return false;
+    final generation = _generation;
+    final now = _now();
+    final payload = _presencePayload(link, 'beat', now: now);
+    final topic = beatTopicOf(stage, link.identityId, link.deviceId);
+    final open =
+        _watch ?? (_state == LiveSyncState.connected ? _connection : null);
+    try {
+      if (open != null) {
+        await open.publish(topic, payload, retain: true);
+      } else {
+        final connection = await _open(
+          await _credentials(link),
+          '${link.identityId}-${link.deviceId}-b',
+          persistent: false,
+        );
+        try {
+          await connection.publish(topic, payload, retain: true);
+          await Future<void>.delayed(beatLinger);
+        } finally {
+          await connection.close().catchError((Object _) {});
+        }
+      }
+    } catch (e) {
+      debugPrint('Presence: live sync heartbeat failed: ${redact(e)}');
+      return false;
+    }
+    if (generation != _generation) return false;
+    _lastBeat = now;
+    notifyListeners();
+    return true;
+  }
+
+  /// Watches the profile's beats until [watchFor] after now: a clean
+  /// session subscribed to `beats/+` alone, which gets each device's
+  /// retained last beat at once, then new ones as they come. Never on the
+  /// persistent session, which would keep every beat for this device
+  /// while it's away.
+  Future<bool> _watchBeats(LiveLink link) async {
+    _watchUntil = _now().add(watchFor);
+    _watchTimer ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      final until = _watchUntil;
+      if (until == null || _now().isAfter(until)) _closeWatch();
+    });
+    if (_watch != null || _watchOpening) return true;
+    _watchOpening = true;
+    final generation = _generation;
+    try {
+      final connection = await _open(
+        await _credentials(link),
+        '${link.identityId}-${link.deviceId}-w',
+        persistent: false,
+      );
+      if (generation != _generation || _watchUntil == null) {
+        await connection.close().catchError((Object _) {});
+        return false;
+      }
+      _watch = connection;
+      _watchMessages = connection.messages.listen(
+        (m) => _onBeat(link, m.$1, m.$2),
+      );
+      connection.done.then((_) {
+        if (_watch == connection) _closeWatch();
+      }).ignore();
+      await connection.subscribe(
+        '${topicOf(stage, link.identityId, beatsKind)}/+',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Presence: live sync could not watch beats: ${redact(e)}');
+      _closeWatch();
+      return false;
+    } finally {
+      _watchOpening = false;
+    }
+  }
+
+  void _closeWatch() {
+    _watchTimer?.cancel();
+    _watchTimer = null;
+    _watchUntil = null;
+    _watchMessages?.cancel().ignore();
+    _watchMessages = null;
+    final watch = _watch;
+    _watch = null;
+    watch?.close().catchError((Object _) {}).ignore();
+  }
+
+  void _onBeat(LiveLink link, String topic, Uint8List payload) {
+    if (link != _link) return;
+    final prefix = '${topicOf(stage, link.identityId, beatsKind)}/';
+    if (!topic.startsWith(prefix)) return;
+    final message = parsePresence(
+      payload,
+      identityId: link.identityId,
+      kind: 'beat',
+    );
+    if (message == null || topic.substring(prefix.length) != message.deviceId) {
+      debugPrint(
+        'Presence: live sync dropped a malformed beat (${payload.length} '
+        'bytes)',
+      );
+      return;
+    }
+    if (message.deviceId == link.deviceId) return;
+    final now = _now();
+    final sentAt = DateTime.fromMillisecondsSinceEpoch(message.sentAt);
+    _see(message.deviceId, sentAt.isAfter(now) ? now : sentAt);
   }
 
   // Copy acks -----------------------------------------------------------
@@ -1266,11 +1548,18 @@ class LiveSync extends ChangeNotifier {
   /// The most bytes a clip's thumbnail may have in a message.
   static const int maxThumbnailBytes = 48 * 1024;
 
+  /// The most a free device sends ([LiveConfig.free]): a bigger thumbnail
+  /// is left out, so a message bills as at most a few 5 KB units.
+  static const int freeMaxThumbnailBytes = 12 * 1024;
+
   /// [clip] (a clip's record, as stored) for a message: a complete clip's
   /// record without media bytes ([metadataOf]), with its thumbnail as
   /// base64 when it has one of at most [maxThumbnailBytes]; null for a clip
   /// that isn't complete, or isn't a clip.
-  static Map<String, Object?>? clipMessageOf(Map<String, Object?> clip) {
+  static Map<String, Object?>? clipMessageOf(
+    Map<String, Object?> clip, {
+    int maxThumbnail = maxThumbnailBytes,
+  }) {
     final parsed = Records.tryParseClip(clip, safeIds: true);
     if (parsed == null || parsed['state'] != 'complete') return null;
     final thumbnail = clip['thumbnail'];
@@ -1282,7 +1571,7 @@ class LiveSync extends ChangeNotifier {
     return {
       ...metadataOf(parsed),
       if (bytes != null &&
-          bytes.length <= maxThumbnailBytes &&
+          bytes.length <= maxThumbnail &&
           SealFormat.isSealed(bytes))
         'thumbnail': base64Encode(bytes),
     };

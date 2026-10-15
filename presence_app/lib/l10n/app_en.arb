@@ -236,7 +236,7 @@
   "@authPlanFree": {
     "description": "The free plan's name"
   },
-  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free.",
+  "authPlanFreeText": "Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices: US$20 a month, the first week free.",
   "@authPlanFreeText": {
     "placeholders": {
       "free": {
@@ -378,7 +378,7 @@
       }
     }
   },
-  "authSyncFree": "Your devices sync with each other while online",
+  "authSyncFree": "Each device keeps its events; your devices share them every 15 minutes (Premium: instantly)",
   "authThisAccount": "This account",
   "authThisDevice": "this device",
   "authUnavailable": "Sign-in is unavailable.",
@@ -821,7 +821,7 @@
   "connectivityCloudNotSet": "Cloud sync isn't set up in this build",
   "connectivityCloudOn": "Cloud sync on",
   "connectivityCloudOneSide": "Cloud sync is set up on one side only",
-  "connectivityFree": "Free: devices sync over live sync",
+  "connectivityFree": "Free: devices share events every 15 min",
   "connectivityLabel": "Connectivity: {headline}",
   "@connectivityLabel": {
     "placeholders": {
@@ -1256,7 +1256,7 @@
   "healthOidcOff": "sign-in is off",
   "healthOidcSet": "OIDC: Google sign-in set",
   "healthRbacrDev": "RBACR: not used in DEV mode (nobody signs in)",
-  "healthRbacrFree": "RBACR: set; this profile is Free (its devices sync with each other)",
+  "healthRbacrFree": "RBACR: set; this profile is Free (its devices share events every 15 min)",
   "healthRbacrMissing": "RBACR: not set on the auth API; nobody who signs in has a role",
   "healthRbacrPremium": "RBACR: set; this profile is Premium (cloud backup)",
   "healthRbacrSet": "RBACR: set; gives the roles",
@@ -1681,6 +1681,14 @@
       }
     }
   },
+  "settingsLiveFreeNote": "Free: connects every {interval} to share this device's events with your other devices and take theirs. Premium syncs them instantly.",
+  "@settingsLiveFreeNote": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
   "settingsLiveNever": "Never",
   "settingsLiveNeverNote": "Other devices' events arrive with each sync (15 s), and this device's reach them the same way.",
   "settingsLiveScheduledNote": "Connects about every {interval} for what other devices sent meanwhile, and at once to send this device's events.",
@@ -1871,7 +1879,7 @@
   "storeNothingToRestore": "No active subscription to restore.",
   "storeOtherAccount": "This subscription belongs to another Presence account.",
   "storePending": "Purchase pending: Premium starts once the store confirms it.",
-  "storePlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices.",
+  "storePlanFreeText": "Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices.",
   "@storePlanFreeText": {
     "description": "The free plan's text in the iOS and Android apps, where Premium is bought in the store: no web price",
     "placeholders": {

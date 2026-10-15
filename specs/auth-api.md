@@ -24,7 +24,16 @@ them while the health stack imports them. The API's routes:
   "rbacr": true}}`. The mode is DEV when the function has no
   `GOOGLE_WEB_CLIENT_ID`. Throttled to 20 requests/s (burst 50): see
   [Throttling and floods](#throttling-and-floods). `AuthHandler` answers
-  no other route (404);
+  no other route (404). The answer is the same for every caller (nothing
+  of the caller's is in it), so it says `Cache-Control: public,
+  max-age=60` (`AuthHandler.MAX_AGE`), and the site's CDN has a behavior
+  for `/api/auth/anonymous` ahead of `/api/*`
+  ([site.yaml](../presence_infra/site.yaml): Managed-CachingOptimized,
+  which keeps it for the origin's max-age; no viewer header, cookie or
+  query forwarded or in the key), so each edge asks the function at most
+  once a minute. Every other route stays uncached (`no-store`). The app
+  asks it at start, every 15 min, on resume and after a failure
+  ([Maintenance](maintenance.md));
 - **Settings** (`Settings`): `oidc` is whether `GOOGLE_WEB_CLIENT_ID` is
   set, `aws` whether both `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET`
   are (template parameters `IdentityPoolId` and `UserDataBucket`, empty by
@@ -238,7 +247,9 @@ flood costs (Lambda invocations, DynamoDB writes), but a flood from one
 address uses up a route's budget for everyone:
 
 - **`GET /api/auth/anonymous`** (no token, 20 requests/s, burst 50) is
-  the one anybody can flood without even a Google account. While it's
+  the one anybody can flood without even a Google account (the CDN's
+  minute of caching absorbs a flood of the cached path, not one sent to
+  the API's own host, which the origin check refuses). While it's
   flooded, every app start gets 429 from its first check, so the app
   can't start signed-in features until the flood stops: a cheap
   denial of service. Raising the limit only raises the flood needed (and

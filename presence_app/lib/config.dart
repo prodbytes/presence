@@ -517,13 +517,18 @@ enum LiveMode {
 /// Always.
 ///
 /// What it's set to isn't always how live sync connects: that depends on
-/// the user's roles too ([effective]). Admins are always connected; other
-/// users (members) connect at most every 30 s, so Always isn't theirs.
+/// the user's roles too ([effective]). Admins are always connected;
+/// premium members connect at most every 30 s, so Always isn't theirs;
+/// free members at most every 15 min ([freeMinEvery], [free]).
 @immutable
 class LiveConfig {
   /// Not clamped (tests use short intervals); [fromJson] and [ofStep]
   /// snap to [intervals].
-  const LiveConfig({this.mode = LiveMode.scheduled, this.every = defaultEvery});
+  const LiveConfig({
+    this.mode = LiveMode.scheduled,
+    this.every = defaultEvery,
+    this.free = false,
+  });
 
   static const LiveConfig never = LiveConfig(mode: LiveMode.never);
   static const LiveConfig always = LiveConfig(mode: LiveMode.always);
@@ -555,10 +560,26 @@ class LiveConfig {
   /// step after it, is for admins).
   static const int memberMaxStep = steps - 2;
 
+  /// The most often a free member connects: each connection shares the
+  /// events saved since the last one and takes what the broker kept.
+  static const Duration freeMinEvery = Duration(minutes: 15);
+
+  /// The first step a free member may pick besides Never: every
+  /// [freeMinEvery].
+  static const int freeMinStep = 1 + 5;
+
   final LiveMode mode;
 
   /// Between scheduled connections ([LiveMode.scheduled] only).
   final Duration every;
+
+  /// A free profile's live sync (never saved; only from [effective]):
+  /// events go out only with the scheduled connections (at start, at
+  /// sign-in and every [every]), never on their own; nothing else
+  /// connects but the Sync button (rate-limited), and a small heartbeat
+  /// every 5 min tells the profile's devices this one runs
+  /// (`LiveSync.beatEvery`).
+  final bool free;
 
   /// How live sync connects with this setting, for a user who [isAdmin]
   /// or not. Admins: [always], whatever it's set to, so their (often
@@ -566,8 +587,21 @@ class LiveConfig {
   /// becomes every [memberMinEvery], and nothing more often than that.
   /// The setting itself is kept, so an admin who stops being one gets
   /// their own choice back (clamped).
-  LiveConfig effective({required bool isAdmin}) {
+  ///
+  /// Free members ([isPremium] false): Never as set, otherwise every
+  /// [freeMinEvery] at the most often (Always included), as [free].
+  LiveConfig effective({required bool isAdmin, bool isPremium = true}) {
     if (isAdmin) return always;
+    if (!isPremium) {
+      return switch (mode) {
+        LiveMode.never => this,
+        LiveMode.always => const LiveConfig(every: freeMinEvery, free: true),
+        LiveMode.scheduled => LiveConfig(
+          every: every < freeMinEvery ? freeMinEvery : every,
+          free: true,
+        ),
+      };
+    }
     return switch (mode) {
       LiveMode.never => this,
       LiveMode.always => const LiveConfig(every: memberMinEvery),
@@ -625,10 +659,13 @@ class LiveConfig {
 
   @override
   bool operator ==(Object other) =>
-      other is LiveConfig && other.mode == mode && other.every == every;
+      other is LiveConfig &&
+      other.mode == mode &&
+      other.every == every &&
+      other.free == free;
 
   @override
-  int get hashCode => Object.hash(mode, every);
+  int get hashCode => Object.hash(mode, every, free);
 }
 
 /// The Subjects screens.

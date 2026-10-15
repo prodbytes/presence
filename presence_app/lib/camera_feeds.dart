@@ -147,6 +147,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                     profileId: widget.profileId,
                   ),
                   seenOf: live?.seenOf,
+                  within: live?.liveWithin ?? DevicePresence.liveWithin,
                   lastEvents: lastEvents,
                   now: now,
                   liveAvailable: available,
@@ -198,8 +199,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                                   now: now,
                                   liveAvailable: available,
                                   thisDevice: true,
-                                  connected:
-                                      live?.state == LiveSyncState.connected,
+                                  connected: live?.showsLive ?? false,
                                 ),
                               )
                             : null,
@@ -237,6 +237,8 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                               lastEvent: lastEvents[latest.deviceId],
                               now: now,
                               liveAvailable: available,
+                              within:
+                                  live?.liveWithin ?? DevicePresence.liveWithin,
                             ),
                           ),
                           child: DeviceImage(latest: latest),

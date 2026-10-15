@@ -227,7 +227,9 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     still starting doesn't leave a member on the sign-up screen.
   - **A check that failed is retried on its own**, after 5 s, 15 s, 30 s
     and then every minute, until it answers (and at once when the auth
-    API's health check answers again after failing), so an unattended
+    API's health check answers again after failing; that check runs every
+    15 min, on resume and soon after a failure, see
+    [Maintenance](maintenance.md)), so an unattended
     phone that rebooted offline gets its access back without anyone
     pressing Check again. These retries keep the sign-up screen up
     rather than flash the spinner; a sign-out or another account stops

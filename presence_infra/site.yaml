@@ -388,6 +388,19 @@ Resources:
             CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+          # The auth API's anonymous check, before /api/*: the same answer
+          # for every caller (the mode and which settings are set; no token,
+          # nothing per user), which says "Cache-Control: public,
+          # max-age=60", so the edge answers most of the apps' checks.
+          # Nothing of the viewer's is forwarded (no origin request policy:
+          # only the cache key, which has no headers, cookies or query).
+          - PathPattern: /api/auth/anonymous
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized (the origin's max-age)
           # The auth API: nothing cached; every viewer header but Host is
           # forwarded, Authorization (the Google ID token) included.
           - PathPattern: /api/*

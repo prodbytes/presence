@@ -152,11 +152,14 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   follow the usual rules.
 /// - Only a **premium** profile ([premium]: `presence_premium`, from
 ///   rbacr) syncs with the bucket, which refuses the others' credentials.
-///   A **free** profile's devices sync over [live] alone
-///   ([_LivePublisher]): each event saved here is published with its
-///   clip's record and thumbnail, and other devices' come in the same way;
-///   recordings, tagged frames, settings and history stay where they were
-///   made. A change of tier starts over, with new credentials.
+///   A **free** profile's devices sync over [live] alone, every 15 min
+///   ([_LivePublisher], `LiveConfig.free`): each event saved here waits
+///   until live sync's next scheduled connection (at start, at sign-in,
+///   then every 15 min), which publishes it once, final (its clip
+///   complete), with its clip's record and a small thumbnail; other
+///   devices' come in the same way. Recordings, tagged frames, settings
+///   and history stay where they were made. A change of tier starts over,
+///   with new credentials.
 ///
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
@@ -796,12 +799,15 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
     try {
       if (!premium) {
-        // Free: live sync only, never the bucket.
+        // Free: never the bucket, and nothing published here: events
+        // wait on this device for live sync's next scheduled connection
+        // (every 15 min, [LiveLink.onShare]), which publishes them. The
+        // credentials (cached until they expire) only start live sync
+        // and list the profile's devices.
         final session = await backend.connect(idToken);
         if (epoch == _epoch) _noteSlots(session);
         _identity = session.prefix;
         await _liveBridge.start(session, owner);
-        await _publisher.publish(owner, epoch, reconcile ? null : dirty);
         if (epoch != _epoch) return;
         _failures = 0;
         _ticksToSkip = 0;

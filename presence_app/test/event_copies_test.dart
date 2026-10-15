@@ -41,7 +41,11 @@ class RoutedConnection implements LiveConnection {
   Future<void> subscribe(String topic) async => topics.add(topic);
 
   @override
-  Future<void> publish(String topic, Uint8List payload) async {
+  Future<void> publish(
+    String topic,
+    Uint8List payload, {
+    bool retain = false,
+  }) async {
     published.add((topic, payload));
     broker.route(topic, payload);
   }

@@ -76,6 +76,7 @@ List<DeviceLatest> byActivity(
   required Map<String, DateTime> lastEvents,
   required DateTime now,
   required bool liveAvailable,
+  Duration within = DevicePresence.liveWithin,
 }) {
   (bool, DateTime) rank(DeviceLatest d) {
     final answered = seenOf?.call(d.deviceId);
@@ -86,6 +87,7 @@ List<DeviceLatest> byActivity(
           lastEvent: event,
           now: now,
           liveAvailable: liveAvailable,
+          within: within,
         ).level ==
         PresenceLevel.live;
     if (live) return (true, event);

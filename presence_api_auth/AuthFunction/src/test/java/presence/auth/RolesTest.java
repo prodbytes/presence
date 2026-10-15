@@ -76,7 +76,8 @@ class RolesTest {
         var response = handler.handleRequest(anonymous(), null);
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
-        assertEquals("no-store", response.getHeaders().get("Cache-Control"));
+        // The same for everyone: the CDN keeps it a minute.
+        assertEquals("public, max-age=60", response.getHeaders().get("Cache-Control"));
         assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
                 + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false}}", response.getBody());
     }

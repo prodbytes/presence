@@ -247,9 +247,13 @@ void main() {
       client
         ..anonymousError = null
         ..settings = (oidc: false, aws: false, rbacr: null);
-      await tester.pump(const Duration(seconds: 60));
+      // A failed check is retried soon (5 s), not only at the next one.
+      await tester.pump(const Duration(seconds: 5));
       await tester.pump();
       expect(client.anonymousCalls, 4);
+      await tester.pump(const Duration(seconds: 55));
+      await tester.pump();
+      expect(client.anonymousCalls, 5);
       expect(status('api'), 'OK');
       expect(status('oidc'), 'Mismatch');
 
@@ -290,7 +294,7 @@ void main() {
       // Closed: no more checks, but the history stays.
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 120));
-      expect(client.anonymousCalls, 4);
+      expect(client.anonymousCalls, 5);
       expect(history.checks, hasLength(3));
     });
 

@@ -90,7 +90,7 @@
   },
   "authCheckingRoles": "Checking roles…",
   "authNoRoles": "No roles yet",
-  "authSyncFree": "Your devices sync with each other while online",
+  "authSyncFree": "Each device keeps its events; your devices share them every 15 minutes (Premium: instantly)",
   "authBackupOff": "Cloud backup is off",
   "authUploading": "Uploading…",
   "authBackedUp": "Clips and events are backed up",
@@ -225,7 +225,7 @@
       }
     }
   },
-  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free.",
+  "authPlanFreeText": "Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices: US$20 a month, the first week free.",
   "@authPlanFreeText": {
     "placeholders": {
       "free": {

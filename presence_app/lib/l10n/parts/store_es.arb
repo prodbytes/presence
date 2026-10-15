@@ -1,6 +1,6 @@
 {
   "@@locale": "es",
-  "storePlanFreeText": "Gratis: hasta {free} dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta {premium} dispositivos.",
+  "storePlanFreeText": "Gratis: cada dispositivo guarda sus eventos, y hasta {free} dispositivos los comparten cada 15 minutos. Premium los sincroniza al instante, con copia en la nube y hasta {premium} dispositivos.",
   "storePlanMonthly": "Premium mensual",
   "storePlanYearly": "Premium anual",
   "storePlanPrice": "{plan}: {price} / {period}",

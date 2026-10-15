@@ -547,7 +547,7 @@ abstract class AppLocalizations {
   /// No description provided for @authPlanFreeText.
   ///
   /// In en, this message translates to:
-  /// **'Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US\$20 a month, the first week free.'**
+  /// **'Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices: US\$20 a month, the first week free.'**
   String authPlanFreeText(int free, int premium);
 
   /// The paid plan's name
@@ -775,7 +775,7 @@ abstract class AppLocalizations {
   /// No description provided for @authSyncFree.
   ///
   /// In en, this message translates to:
-  /// **'Your devices sync with each other while online'**
+  /// **'Each device keeps its events; your devices share them every 15 minutes (Premium: instantly)'**
   String get authSyncFree;
 
   /// No description provided for @authThisAccount.
@@ -1675,7 +1675,7 @@ abstract class AppLocalizations {
   /// No description provided for @connectivityFree.
   ///
   /// In en, this message translates to:
-  /// **'Free: devices sync over live sync'**
+  /// **'Free: devices share events every 15 min'**
   String get connectivityFree;
 
   /// No description provided for @connectivityLabel.
@@ -2653,7 +2653,7 @@ abstract class AppLocalizations {
   /// No description provided for @healthRbacrFree.
   ///
   /// In en, this message translates to:
-  /// **'RBACR: set; this profile is Free (its devices sync with each other)'**
+  /// **'RBACR: set; this profile is Free (its devices share events every 15 min)'**
   String get healthRbacrFree;
 
   /// No description provided for @healthRbacrMissing.
@@ -3514,6 +3514,12 @@ abstract class AppLocalizations {
   /// **'Every {interval}'**
   String settingsLiveEvery(String interval);
 
+  /// No description provided for @settingsLiveFreeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Free: connects every {interval} to share this device\'s events with your other devices and take theirs. Premium syncs them instantly.'**
+  String settingsLiveFreeNote(String interval);
+
   /// No description provided for @settingsLiveNever.
   ///
   /// In en, this message translates to:
@@ -3961,7 +3967,7 @@ abstract class AppLocalizations {
   /// The free plan's text in the iOS and Android apps, where Premium is bought in the store: no web price
   ///
   /// In en, this message translates to:
-  /// **'Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices.'**
+  /// **'Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices.'**
   String storePlanFreeText(int free, int premium);
 
   /// The monthly store subscription's name, before its price

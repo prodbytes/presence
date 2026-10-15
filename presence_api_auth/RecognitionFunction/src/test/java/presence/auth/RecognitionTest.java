@@ -130,6 +130,37 @@ class RecognitionTest {
     }
 
     @Test
+    void aFreeCallerIsRefusedBeforeAnyProfileWrite() {
+        // The profiles tables: records each call; nobody is linked yet.
+        var calls = new ArrayList<String>();
+        var store = (Profiles.Store) java.lang.reflect.Proxy.newProxyInstance(Profiles.Store.class.getClassLoader(),
+                new Class<?>[]{Profiles.Store.class}, (proxy, method, args) -> {
+                    calls.add(method.getName());
+                    return switch (method.getName()) {
+                        case "create", "link" -> true;
+                        case "profile" -> new Profiles.Profile((String) args[0], "", "google#1", "a@b.c", null);
+                        default -> null;
+                    };
+                });
+        var caller = Caller.of(Map.of("idp", "google", "idp_sub", "1", "email", "a@b.c",
+                "email_verified", "true"));
+        var free = RecognitionApi.access(new Profiles(store), new Roles(email -> java.util.Set.of("free")))
+                .apply(caller);
+        assertEquals(new RecognitionApi.Access(null, false), free);
+        // Only read: who it's linked to (no one), no profile made or signed in.
+        assertEquals(List.of("linked"), calls);
+        assertEquals(403, RecognitionApi.refusal(caller, free).getStatusCode());
+        assertTrue(RecognitionApi.refusal(caller, free).getBody().contains("premium only"));
+
+        calls.clear();
+        var premium = RecognitionApi.access(new Profiles(store), new Roles(email -> java.util.Set.of("premium")))
+                .apply(caller);
+        assertTrue(premium.premium());
+        assertTrue(calls.contains("create") && calls.contains("link"), calls.toString());
+        assertNull(RecognitionApi.refusal(caller, premium));
+    }
+
+    @Test
     void neverTrained() throws IOException {
         var status = json(training.handleRequest(request("GET /api/recognition/status", null, true), null));
         assertEquals("dinov2-large", status.get("model"));

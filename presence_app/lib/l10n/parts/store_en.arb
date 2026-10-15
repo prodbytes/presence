@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "storePlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices.",
+  "storePlanFreeText": "Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices.",
   "@storePlanFreeText": {
     "description": "The free plan's text in the iOS and Android apps, where Premium is bought in the store: no web price",
     "placeholders": {

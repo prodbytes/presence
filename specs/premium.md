@@ -1,9 +1,11 @@
 # Premium and free
 
 A member (`presence_user`) is either **premium** or **free**. Premium
-profiles sync with the cloud (S3) and over live sync, and up to **50
-devices** show each other's events; free profiles' devices sync with each
-other over [live sync](live-sync.md) (MQTT) only, and only the profile's
+profiles sync with the cloud (S3) and over live sync, instantly, and up to
+**50 devices** show each other's events. Free profiles cost almost nothing
+in AWS ([Free in AWS](#free-in-aws)): each device keeps its events and
+processes them itself, and the devices share them over [live
+sync](live-sync.md) (MQTT) only **every 15 minutes**; only the profile's
 **first 2 devices** show each other's events. The account sheet says which
 the account is, and a free member [upgrades to Premium](upgrade.md) there:
 a Stripe subscription on the web (US$20 a month, the first week free), an
@@ -85,8 +87,8 @@ The bucket enforces it, not just the app:
 
 | | Premium | Free |
 |---|---|---|
-| New and changed events reach the profile's other devices | within a second (live sync), and every 15 s from the bucket | within a second, while both are connected (or within a scheduled device's next connection, while its persistent session keeps them) |
-| A clip's record and thumbnail | from the bucket | in the live message (thumbnails up to 48 KB) |
+| New and changed events reach the profile's other devices | within a second (live sync), and every 15 s from the bucket | new ones only, once, final, within about 15 min: the sender's next scheduled connection, then the receiver's (its persistent session keeps them meanwhile); changes after that never |
+| A clip's record and thumbnail | from the bucket | in the live message (thumbnails up to 12 KB) |
 | Recordings | from the bucket, when played | only on the device that made them |
 | Tagged frames | from the bucket | only on the device that made them |
 | History on a new device (two weeks) | from the bucket | none: only what's published after it connects |
@@ -96,16 +98,29 @@ The bucket enforces it, not just the app:
 | Devices whose events show ([below](#devices)) | the first 50 | the first 2 |
 
 - **Free sync** (`_LivePublisher`, [cloud_sync_free.dart](../presence_app/lib/cloud/cloud_sync_free.dart)):
-  - A free profile's pass never touches the bucket. It gets credentials
-    (for live sync) and starts live sync, then publishes the profile's
-    events saved since the last pass. On the first pass for the profile,
-    it publishes those of the last 24 h not published yet.
-  - Each event goes once per version (`live/<event id>` in the synced
-    store): again when it changes, or when its clip completes.
+  - A free profile's pass never touches the bucket, and publishes
+    nothing. It gets credentials (cached until they expire, about an hour:
+    only for live sync and the profile's device list) and starts live
+    sync.
+  - Live sync runs on a free schedule (`LiveConfig.free`, from
+    `LiveConfig.effective(isPremium: false)`): it connects at start, at
+    sign-in, then every 15 min (or 30 or 60, as set; never more often,
+    never Always), and nothing else connects it but the Sync button (at
+    most every 5 min) and the [heartbeat](device-presence.md#free-devices-heartbeat).
+    A new event doesn't: it waits on the device.
+  - Each scheduled connection, once up, publishes the profile's events
+    saved here in the last 24 h that weren't published yet
+    (`LiveLink.onShare`), then drains what the broker kept and closes.
+  - Each event goes **once** (`live/<event id>` in the synced store), when
+    it's final: no clip, or its clip complete (or failed); one whose clip
+    has no record yet goes after 10 min. A change after it went isn't
+    sent.
   - A message carries the event, plus the clip's record and thumbnail
-    once the clip is complete (`LiveSync.clipMessageOf`). The clip goes
-    without its thumbnail when that would pass 48 KB or the 64 KB message
-    limit, and the event goes alone when the clip itself doesn't fit.
+    once the clip is complete (`LiveSync.clipMessageOf`). A free device
+    leaves out a thumbnail over **12 KB** (`freeMaxThumbnailBytes`, so a
+    message bills as a few 5 KB units), and the clip goes without it when
+    it would pass the 64 KB message limit; the event goes alone when the
+    clip itself doesn't fit.
   - Receiving devices store the clip as if fetched (`LiveEvent.clip`,
     `RemoteRecords.clips`). Its thumbnail must be a JPEG or PNG of at most
     48 KB, and the record must be the event's clip and complete; otherwise
@@ -128,6 +143,42 @@ The bucket enforces it, not just the app:
 - Playing a free profile's clip that came from another device: its
   recording isn't here and can't be fetched (`CloudSync.fetchRecording`
   answers false at once).
+
+## Free in AWS
+
+A free member's devices use their own storage and compute (local events,
+the on-device pipeline); the cloud does almost nothing for them:
+
+- **No S3** (the role's bucket statements need the `premium` tag), **no
+  cloud recognition** (403 before any write: `RecognitionApi`), **no
+  ingest** (streamer chunks go to the bucket).
+- **Live sync, every 15 min**: a scheduled connection (persistent
+  session) shares what waited and takes what was kept.
+- **A heartbeat every 5 min** ([Device presence](device-presence.md#free-devices-heartbeat)):
+  a retained ~150-byte message on the device's own topic, over a
+  connection made just for it.
+- **The auth API**: credentials about hourly (to sign the MQTT
+  connections), and the anonymous check every 15 min, mostly answered by
+  the CDN ([Auth API](auth-api.md)).
+
+AWS IoT Core bills $1 per million messages (5 KB units; CONNECT,
+SUBSCRIBE, PUBLISH, a retained publish twice, each delivery) and $0.08 per
+million connection-minutes (one-minute minimum). Per free device and
+month, at 2 clips an hour:
+
+| | Messages | Cost |
+|---|---|---|
+| Heartbeat (8,640: CONNECT + PUBLISH + RETAINED) | ~25,900 | ~$0.026 |
+| Scheduled connections (2,880: CONNECT + 3 SUBSCRIBE) | ~11,500 | ~$0.012 |
+| Events (1,440, ≤ 17 KB: 4 units out, 4 delivered to one other device) | ~11,500 | ~$0.012 |
+| Connection-minutes (~11,500) | | ~$0.001 |
+| Auth API (720 credentials, Lambda; 2,880 anonymous checks, mostly CDN) | | < $0.005 |
+
+About **$0.05 per free device per month** (2 devices ≈ $0.10; before:
+≈ $0.64 for 2, when every event published at once and connected on its
+own). The heartbeat alone is ≈ $0.026 per device (10 free devices ≈
+$0.26). Every free device more adds its events' deliveries to each other
+device (devices²), so a profile is held to 2 devices that show.
 
 ## Devices
 
@@ -180,8 +231,9 @@ they publish, receive and store events as before. Their events are
   upgrade; an admin never is, even if its roles lack `presence_premium`:
   - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
     and up to 50 devices sync."
-  - **Free**: "Free: up to 2 devices sync with each other while online.
-    Premium adds cloud backup and up to 50 devices", then by platform
+  - **Free**: "Free: each device keeps its events, and up to 2 devices
+    share them every 15 minutes. Premium syncs them instantly, with cloud
+    backup and up to 50 devices", then by platform
     ([Upgrade to Premium](upgrade.md)): on the web ": US$20 a month, the
     first week free." with **Premium monthly** and **Premium yearly**
     buttons to the plan's Stripe checkout; on iOS and Android the App
@@ -203,12 +255,12 @@ they publish, receive and store events as before. Their events are
   shows up to 50." and an **Upgrade** button: to the Stripe checkout on
   the web, to the Profile tab's store plans on iOS and Android, none
   elsewhere.
-- **The connectivity check**: "Free: devices sync over live sync" instead
-  of "Cloud sync on".
+- **The connectivity check**: "Free: devices share events every 15 min"
+  instead of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see
   [Log](log.md)):
   - ✅ when the auth API has rbacr, saying whether this profile is Premium
-    (cloud backup) or Free (its devices sync with each other);
+    (cloud backup) or Free (its devices share events every 15 min);
   - ⚠️ when the API has cloud sync but no rbacr, so nobody can be premium.
     This counts as a failed check (the health warning pill);
   - ⚪ when the API doesn't say (not answered yet, or older), when there's
@@ -260,12 +312,13 @@ they publish, receive and store events as before. Their events are
   credentials (within the hour), or sooner if they see a device they
   don't know while there's room.
 
-- **Free sync isn't a backup.** A device that's off, or not connected, when
-  another publishes doesn't get that event later, beyond what a scheduled
-  device's persistent session keeps. A new device starts empty, and a
-  recording is lost with its device.
-- **Free profiles' events change only while connected.** A tag, a deletion
-  or a device deletion reaches the other devices only if they hear it then.
+- **Free sync isn't a backup.** A device off for longer than its
+  persistent session lasts (1 h, AWS IoT's default) misses what others
+  published meanwhile. A new device starts empty, and a recording is lost
+  with its device.
+- **Free events are shared once, late.** An event reaches the other
+  devices within about 15 min, once final; a later tag, deletion or device
+  deletion doesn't reach them.
 - **A premium device in a free owner's profile** uploads to the folder the
   free devices can't read. Its clips reach them through its live messages,
   but its recordings and tagged frames don't.

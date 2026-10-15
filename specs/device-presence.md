@@ -2,9 +2,10 @@
 
 Which of the profile's devices are running right now: a colored dot next
 to each device in the Camera tab's [All grid](camera.md#all-devices) and
-in the account sheet's [devices list](sign-in.md). Devices ping each other
-over [live sync](live-sync.md) (MQTT, AWS IoT Core) on the profile's
-reserved `requests` and `acks` topics.
+in the account sheet's [devices list](sign-in.md). Premium devices ping
+each other over [live sync](live-sync.md) (MQTT, AWS IoT Core) on the
+profile's reserved `requests` and `acks` topics; free devices send a
+small retained heartbeat instead ([below](#free-devices-heartbeat)).
 
 ## The dot
 
@@ -12,15 +13,19 @@ reserved `requests` and `acks` topics.
 drawn by `PresenceDot` (10 dp, Gruvbox colors):
 
 - 🟢 **Green, live:** the device answered a ping within the last **90 s**
-  (`DevicePresence.liveWithin`: three rounds of the 30 s pings). Reason
-  "Live — answered 5 s ago".
+  (`DevicePresence.liveWithin`: three rounds of the 30 s pings); for a
+  free profile, its last heartbeat is within **11 min**
+  (`LiveSync.beatLiveWithin`: two 5-min beats and a minute; the callers
+  pass `LiveSync.liveWithin` as `within`). Reason "Live — answered 5 s
+  ago".
 - 🟡 **Yellow, recently known:** heard from (a ping or pong, older), or
   its latest synced event, within **24 h** (`DevicePresence.recentWithin`).
   Reason "Last seen 3 h ago".
 - 🔴 **Red, old:** last heard from or last event 24 h ago or more, or
   never. Reason "Last seen 4 d ago" or "Never seen".
-- **This device** is green while connected to live sync ("Live — this
-  device, connected to live sync"); otherwise yellow ("This device — not
+- **This device** is green while connected to live sync, or (free) while
+  its last heartbeat went within 11 min (`LiveSync.showsLive`) ("Live —
+  this device, connected to live sync"); otherwise yellow ("This device — not
   connected to live sync now", or "… — live status unavailable"). In the
   account sheet's devices list it follows the sheet's
   [connectivity](sign-in.md) row instead (`Connectivity.presence`, passed
@@ -88,7 +93,48 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   pings its persistent session kept at its next connection (within its
   interval plus 10 s), so at every 1 min it can still show green.
 
-### Validation
+### Free devices: heartbeat
+
+A free profile's devices connect to live sync only every 15 min
+([Live sync](live-sync.md#free)), so nobody is there to answer a ping.
+Instead (`LiveSync.beat`, only with `LiveConfig.free`):
+
+- **Each free device beats every 5 min** (`beatEvery`; the first 5 s
+  after live sync starts, to ride the start's connection): a **retained**
+  message on its own topic `presence/<stage>/<identityId>/beats/<deviceId>`,
+  `{"v":1,"kind":"beat","deviceId","identityId","sentAt"}`, about 150
+  bytes (one billed 5 KB unit). It goes over the scheduled or watching
+  connection when one is open; otherwise over a connection made just for
+  it: a **clean session** as `<identityId>-<deviceId>-b`, subscribed to
+  nothing (so it takes no queued events and shares none), closed a second
+  after. Separate from event sharing, which stays at start, sign-in and
+  every 15 min.
+- **Watching, only while someone looks:** for a free device, `ping()`
+  (the All grid and the devices list call it when they show and every
+  30 s) opens a watching connection instead, a clean session as
+  `<identityId>-<deviceId>-w` subscribed to `beats/+` alone, kept until
+  **75 s** after the last ping (`watchFor`), then closed. AWS IoT sends
+  each device's retained last beat as it subscribes, so the dots are
+  right at once, and new beats as they come. Never on the persistent
+  session, which would keep every beat for the device while it's away
+  (deliveries grow with devices²).
+- **Recording:** a beat counts at its `sentAt` (never later than now) in
+  `seenOf`, as a ping or pong does. One whose topic isn't its own device
+  ID, of another identity, or malformed (as below, kind `beat`) is
+  dropped; this device's own is ignored.
+- **Retained, not plain** (checked against AWS IoT's pricing: a retained
+  publish bills twice, as a PUBLISH and as a RETAINED; deliveries,
+  CONNECT and SUBSCRIBE bill as messages too): a plain beat would be 2
+  units per beat instead of 3, but a viewer opening the grid would see no
+  beat for up to 5 min. With retained beats the dots are right as soon
+  as the grid or list opens, for ~$0.009 more per device and month.
+- **Cost, per free device and month:** 8,640 beats × 3 units (CONNECT,
+  PUBLISH, RETAINED) ≈ 25,900 messages ≈ **$0.026**, plus 8,640
+  connection-minutes ≈ $0.0007. **10 free devices ≈ $0.27 a month.**
+  Watching adds, per viewer, one delivery per device per beat (≈ 12 an
+  hour each) only while the grid or list is open.
+
+## Validation
 
 `LiveSync.parsePresence` drops a presence message over **1 KB**, not JSON,
 not version 1, whose `kind` doesn't match its topic (`ping` on
@@ -104,11 +150,15 @@ from its sender too (at its `sentAt`, never later than now).
 
 ## Permissions
 
-Nothing new: the identity role's `own-live-sync` statements and the IoT
-policy `presence-live-sync` already allow `iot:Publish`/`iot:Receive` on
+The identity role's `own-live-sync` statements and the IoT policy
+`presence-live-sync` allow `iot:Publish`/`iot:Receive` on
 `topic/presence/<Stage>/<identity>/*` and `iot:Subscribe` on
-`topicfilter/presence/<Stage>/<identity>/*`, which cover `requests` and
-`acks`. A profile still reaches only its own topics.
+`topicfilter/presence/<Stage>/<identity>/*`, which cover `requests`,
+`acks` and `beats/<device>` (and the `beats/+` filter). A retained
+publish also needs **`iot:RetainPublish`**, granted only on
+`topic/presence/<Stage>/<identity>/beats/*` in both. A profile still
+reaches only its own topics; client IDs `<identity>-<device>-b` and
+`-w` match `client/<identity>-*`.
 
 ## Verified
 
@@ -133,10 +183,25 @@ policy `presence-live-sync` already allow `iot:Publish`/`iot:Receive` on
   ping when it shows; without live sync, yellow from events and "live
   status unavailable".
 
+Free (`live_sync_test.dart`, "free (LiveConfig.free)"): a beat is
+retained on the device's own beats topic, over a clean connection of its
+own that subscribes to nothing and closes, under 512 bytes, and makes
+this device show live for 11 min; beats start soon after live sync; a
+ping watches `beats/+` on a clean `-w` connection, records another
+device's beat at its `sentAt`, drops a beat on another device's topic or
+of another identity and ignores its own, reuses the watch for more pings
+and for its own beat, and closes it on stop; a premium device never
+beats. `device_presence_test.dart`: a 9-min-old beat is green with the
+free threshold, 12 min yellow.
+
 ## Known limitations
 
 - Not yet verified against AWS IoT (the fake broker stands in, as for the
-  rest of live sync).
+  rest of live sync), including retained messages on a wildcard
+  subscription and `iot:RetainPublish`.
+- A deleted free device's retained beat stays on its topic (it isn't
+  cleared); it's ignored, as the list and grid show only devices with
+  events.
 - Green needs both devices on live sync; a device on a long schedule
   (say every 30 min) answers late, so it shows yellow most of the time.
 - A device whose clock runs far behind shows older than it is when heard

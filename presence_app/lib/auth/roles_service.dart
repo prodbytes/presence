@@ -225,6 +225,8 @@ class RolesService extends ChangeNotifier {
       Duration(minutes: 1),
     ],
     this.maintenanceCheckInterval,
+    this.apiCheckInterval,
+    this.resumeCheckAfter = const Duration(minutes: 1),
   }) : oidcClient = oidcClient ?? hasOidcClient {
     _start();
   }
@@ -250,13 +252,27 @@ class RolesService extends ChangeNotifier {
 
   /// How often rbacr is asked whether Presence's system is in maintenance
   /// ([checkMaintenance]), so a running app (an unattended phone) follows
-  /// a root switching it in rbacr, and the auth API whether it answers
-  /// ([checkApi]) (the app: every minute); null never asks after the
-  /// start check.
+  /// a root switching it in rbacr (the app: every minute; rbacr isn't
+  /// AWS); null never asks after the start check.
   final Duration? maintenanceCheckInterval;
+
+  /// How often the auth API is asked whether it answers ([checkApi],
+  /// `GET /api/auth/anonymous`, which runs in AWS): the app every 15 min,
+  /// besides when it comes back to the foreground ([onResume]) and soon
+  /// after a check fails ([retryDelays]); null never asks after the start
+  /// check, unless one fails.
+  final Duration? apiCheckInterval;
+
+  /// [onResume] checks the auth API only when the last check is older
+  /// than this.
+  final Duration resumeCheckAfter;
 
   Timer? _retry;
   Timer? _maintenanceCheck;
+  Timer? _apiCheckTimer;
+
+  /// A retry ([_retryCheck]) is checking: its failure schedules the next.
+  bool _retrying = false;
 
   /// Checks the roles again after a failed roles check, so an unattended
   /// device that started offline gets its access back without anyone
@@ -342,8 +358,9 @@ class RolesService extends ChangeNotifier {
   }
 
   /// Asks the auth API again (`GET /api/auth/anonymous`) whether it
-  /// answers and which settings it has: every [maintenanceCheckInterval],
-  /// and the Log tab's health panel. Updates [apiError], [apiSettings] and
+  /// answers and which settings it has: every [apiCheckInterval], when
+  /// the app resumes ([onResume]), soon after a failed check, and the Log
+  /// tab's health panel. Updates [apiError], [apiSettings] and
   /// [apiCheckedAt]; the
   /// [mode] stays the one the start check decided. Does nothing until
   /// then, and joins a check already running.
@@ -379,6 +396,21 @@ class RolesService extends ChangeNotifier {
     if (access != null) _apiSettings = access.settings;
     _apiCheckedAt = DateTime.now();
     notifyListeners();
+    // Failed: checked again soon, then less often, until it answers
+    // (unless a retry is already waiting).
+    if (error != null && !_retrying && !(_retry?.isActive ?? false)) {
+      _retryCheck(0);
+    }
+  }
+
+  /// The app came back to the foreground: checks the auth API, unless it
+  /// was asked within [resumeCheckAfter].
+  void onResume() {
+    final last = _apiCheckedAt;
+    if (last != null && DateTime.now().difference(last) < resumeCheckAfter) {
+      return;
+    }
+    checkApi();
   }
 
   Future<void> _start() async {
@@ -416,11 +448,13 @@ class RolesService extends ChangeNotifier {
     _apiSettings = access.settings;
     // Unanswered: check again, sooner then less often, until it answers.
     if (_apiError != null) _retryCheck(0);
+    // rbacr's maintenance switch, and the auth API (AWS), on their own
+    // timers: the API far less often.
     if (maintenanceCheckInterval case final every?) {
-      _maintenanceCheck = Timer.periodic(every, (_) {
-        checkApi();
-        checkMaintenance();
-      });
+      _maintenanceCheck = Timer.periodic(every, (_) => checkMaintenance());
+    }
+    if (apiCheckInterval case final every?) {
+      _apiCheckTimer = Timer.periodic(every, (_) => checkApi());
     }
     if (access.mode == ExecutionMode.dev) {
       _set(AccessState.granted, access.roles);
@@ -565,7 +599,12 @@ class RolesService extends ChangeNotifier {
     if (retryDelays.isEmpty || _disposed) return;
     final delay = retryDelays[attempt.clamp(0, retryDelays.length - 1)];
     _retry = Timer(delay, () async {
-      await checkApi();
+      _retrying = true;
+      try {
+        await checkApi();
+      } finally {
+        _retrying = false;
+      }
       if (_disposed) return;
       if (_apiError != null) {
         _retryCheck(attempt + 1);
@@ -586,6 +625,7 @@ class RolesService extends ChangeNotifier {
     _retry?.cancel();
     _rolesRetry?.cancel();
     _maintenanceCheck?.cancel();
+    _apiCheckTimer?.cancel();
     auth.removeListener(_onAuthChanged);
     super.dispose();
   }

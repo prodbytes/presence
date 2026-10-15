@@ -277,6 +277,23 @@ void main() {
   group('DevicePresence', () {
     final now = DateTime(2026, 10, 6, 12);
 
+    test('a free device: green while its last beat is within 11 min', () {
+      DevicePresence at(Duration age, Duration within) => DevicePresence.of(
+        answeredAt: now.subtract(age),
+        now: now,
+        liveAvailable: true,
+        within: within,
+      );
+      const free = LiveSync.beatLiveWithin;
+      expect(at(const Duration(minutes: 9), free).level, PresenceLevel.live);
+      expect(at(const Duration(minutes: 12), free).level, PresenceLevel.recent);
+      // Pings (premium): 90 s.
+      expect(
+        at(const Duration(minutes: 9), DevicePresence.liveWithin).level,
+        PresenceLevel.recent,
+      );
+    });
+
     DevicePresence of({
       Duration? answered,
       Duration? event,

@@ -171,9 +171,21 @@ Resources:
               audience:
                 - presence
 
+  # PaymentsFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  PaymentsFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-PaymentsFunction
+      RetentionInDays: 30
+
   PaymentsFunction:
     Type: AWS::Serverless::Function
     Properties:
+      # Its own log group, kept 30 days (PaymentsFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref PaymentsFunctionLogs
       CodeUri: PaymentsFunction
       Handler: presence.payments.PaymentsHandler::handleRequest
       Runtime: java25

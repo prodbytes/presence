@@ -311,7 +311,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String authPlanFreeText(int free, int premium) {
-    return 'Free: up to $free devices sync with each other while online. Premium adds cloud backup and up to $premium devices: US\$20 a month, the first week free.';
+    return 'Free: each device keeps its events, and up to $free devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to $premium devices: US\$20 a month, the first week free.';
   }
 
   @override
@@ -451,7 +451,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get authSyncFree => 'Your devices sync with each other while online';
+  String get authSyncFree =>
+      'Each device keeps its events; your devices share them every 15 minutes (Premium: instantly)';
 
   @override
   String get authThisAccount => 'This account';
@@ -1006,7 +1007,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cloud sync is set up on one side only';
 
   @override
-  String get connectivityFree => 'Free: devices sync over live sync';
+  String get connectivityFree => 'Free: devices share events every 15 min';
 
   @override
   String connectivityLabel(String headline) {
@@ -1627,7 +1628,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get healthRbacrFree =>
-      'RBACR: set; this profile is Free (its devices sync with each other)';
+      'RBACR: set; this profile is Free (its devices share events every 15 min)';
 
   @override
   String get healthRbacrMissing =>
@@ -2179,6 +2180,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String settingsLiveFreeNote(String interval) {
+    return 'Free: connects every $interval to share this device\'s events with your other devices and take theirs. Premium syncs them instantly.';
+  }
+
+  @override
   String get settingsLiveNever => 'Never';
 
   @override
@@ -2455,7 +2461,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String storePlanFreeText(int free, int premium) {
-    return 'Free: up to $free devices sync with each other while online. Premium adds cloud backup and up to $premium devices.';
+    return 'Free: each device keeps its events, and up to $free devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to $premium devices.';
   }
 
   @override
