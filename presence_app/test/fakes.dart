@@ -520,6 +520,10 @@ class FakeRolesClient implements RolesClient {
 
   /// The profile ID `GET /api/auth/profile` answers with.
   String? profile = 'automatic_paranoid_axolotl';
+
+  /// Whether the profile's owner is premium, as the auth API says; null:
+  /// it doesn't say.
+  bool? ownerPremium;
   Object? error;
   final tokens = <String>[];
 
@@ -543,7 +547,11 @@ class FakeRolesClient implements RolesClient {
   Future<UserAccess> fetch(String idToken) async {
     tokens.add(idToken);
     if (error case final e?) throw e;
-    return (roles: inMaintenance ? const <String>[] : roles, profile: profile);
+    return (
+      roles: inMaintenance ? const <String>[] : roles,
+      profile: profile,
+      ownerPremium: ownerPremium,
+    );
   }
 
   @override

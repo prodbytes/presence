@@ -64,8 +64,14 @@ typedef AnonymousAccess = ({
 
 /// The signed-in user's roles and their profile's ID
 /// (`automatic_paranoid_axolotl`), the same at every sign-in with the same
-/// account, on every device. Null if the API didn't say.
-typedef UserAccess = ({List<String> roles, String? profile});
+/// account, on every device. Null if the API didn't say. [ownerPremium]:
+/// whether the profile's owner is premium, so every device of the profile
+/// is ([RolesService.isProfilePremium]); null if the API didn't say.
+typedef UserAccess = ({
+  List<String> roles,
+  String? profile,
+  bool? ownerPremium,
+});
 
 /// Where the app stands for the signed-in user.
 enum AccessState {
@@ -161,7 +167,26 @@ class HttpRolesClient implements RolesClient {
     return (
       roles: roles.toList()..sort(),
       profile: answered is String && answered.isNotEmpty ? answered : null,
+      ownerPremium: _ownerPremium(profile, roles),
     );
+  }
+
+  /// Whether the profile's owner is premium: it shares premium with a
+  /// linked account; the owner is by its own [roles] (`shared` is `[]`
+  /// for it). Null when `accounts` doesn't say which one this is.
+  static bool? _ownerPremium(Map<String, Object?> profile, Set<String> roles) {
+    final shared = profile['shared'];
+    if (shared is List && shared.contains(premiumRole)) return true;
+    final accounts = profile['accounts'];
+    if (accounts is! List) return null;
+    for (final account in accounts) {
+      if (account is Map && account['current'] == true) {
+        final owner = account['owner'];
+        if (owner is! bool) return null;
+        return owner && roles.contains(premiumRole);
+      }
+    }
+    return null;
   }
 
   Future<Map<String, Object?>> _profile(String idToken) async {
@@ -358,6 +383,13 @@ class RolesService extends ChangeNotifier {
   /// it is free: live sync only.
   bool get isPremium => hasAccess && _roles.contains(premiumRole);
 
+  /// [isPremium], and so is every other device of the profile: its owner
+  /// is premium (a linked account can be premium on its own while its
+  /// owner is free, and then the owner's devices are free). Without the
+  /// auth API saying who owns it, [isPremium].
+  bool get isProfilePremium => isPremium && (_ownerPremium ?? true);
+  bool? _ownerPremium;
+
   /// Has access and is on Pro ([proRole]): Premium with more devices.
   bool get isPro => hasAccess && _roles.contains(proRole);
 
@@ -504,6 +536,7 @@ class RolesService extends ChangeNotifier {
     if (auth.user?.id != _profileUser) {
       _profile = null;
       _profileUser = null;
+      _ownerPremium = null;
     }
     if (auth.user == null) {
       // rbacr can't be asked without a token.
@@ -537,6 +570,7 @@ class RolesService extends ChangeNotifier {
         _profile = id;
         _profileUser = user;
       }
+      _ownerPremium = access.ownerPremium;
       _set(
         access.roles.contains(userRole)
             ? AccessState.granted

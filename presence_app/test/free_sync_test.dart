@@ -340,4 +340,106 @@ void main() {
       },
     );
   });
+
+  group('a premium account\'s live messages', () {
+    late EventStore store;
+    late StreamController<Set<String>?> changes;
+    late FakeRolesClient client;
+    late RolesService roles;
+    late FakeBroker broker;
+    late LiveSync live;
+    late CloudSync sync;
+    const profile = 'automatic_paranoid_axolotl';
+
+    setUp(() async {
+      store = await EventStore.open(newIdbFactoryMemory());
+      changes = StreamController<Set<String>?>.broadcast();
+      final auth = FakeAuthService();
+      client = FakeRolesClient(const [userRole, premiumRole]);
+      roles = RolesService(auth: auth, client: client);
+      broker = FakeBroker();
+      live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        minRetry: const Duration(milliseconds: 5),
+      );
+      sync = CloudSync(
+        auth: auth,
+        roles: roles,
+        backend: FakeCloudBackend(),
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        live: live,
+      );
+      await auth.signIn();
+      await until(() => roles.hasAccess);
+      await sync.idle();
+      await until(() => live.state == LiveSyncState.connected);
+    });
+
+    tearDown(() {
+      sync.dispose();
+      live.dispose();
+      roles.dispose();
+      changes.close();
+      store.close();
+    });
+
+    Iterable<Map<String, Object?>> eventsSent() => [
+      for (final c in broker.connections)
+        for (final (topic, payload) in c.published)
+          if (topic == eventsTopic)
+            (jsonDecode(utf8.decode(payload)) as Map).cast<String, Object?>(),
+    ];
+
+    /// Saves a clip event with a complete clip and its thumbnail; the
+    /// message its upload publishes.
+    Future<Map<String, Object?>> publishClip() async {
+      await IdbMediaStore(store)
+          .saveBytes('clip-1-full', sealed(List.filled(100, 1)));
+      await store.putClip(clipRecord(thumbnail: thumbnail()));
+      await store.putEvent({
+        'id': 'event-1',
+        'profileId': profile,
+        'type': 'clip_requested',
+        'time': DateTime.now().millisecondsSinceEpoch,
+        'clipId': 'clip-1',
+      });
+      changes.add({'event-1'});
+      await sync.idle();
+      await until(() => eventsSent().isNotEmpty);
+      return eventsSent().last;
+    }
+
+    test('a premium profile\'s carry no clip nor thumbnail: its devices take '
+        'them from the bucket', () async {
+      expect(sync.profilePremium, isTrue);
+      final sent = await publishClip();
+      expect((sent['event']! as Map)['clipId'], 'clip-1');
+      expect(sent.containsKey('clip'), isFalse);
+      expect(utf8.encode(jsonEncode(sent)).length, lessThan(5 * 1024));
+      // Shared again (a tap on its copies indicator): the same.
+      final n = eventsSent().length;
+      expect(await sync.shareCopies('event-1'), isTrue);
+      await until(() => eventsSent().length > n);
+      expect(eventsSent().last.containsKey('clip'), isFalse);
+    });
+
+    test('in a free owner\'s profile, they carry the clip and its thumbnail '
+        'for the free devices', () async {
+      client.ownerPremium = false;
+      await roles.refresh();
+      await sync.idle();
+      expect(sync.premium, isTrue);
+      expect(sync.profilePremium, isFalse);
+      await until(() => live.state == LiveSyncState.connected);
+      final sent = await publishClip();
+      final clip = sent['clip']! as Map;
+      expect(clip['id'], 'clip-1');
+      expect(clip['thumbnail'], isA<String>());
+    });
+  });
 }

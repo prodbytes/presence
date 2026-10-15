@@ -6393,7 +6393,87 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Maintenance](maintenance.md), [Sign-in](sign-in.md),
        [Cloud recognition](cloud-recognition.md), [Deploy](deploy.md).
 
-446. **Fewer S3 LISTs for premium sync.** (2026-10-15)
+446. **Recognition's warm-ups in prod only, none for training, and a
+     smaller health function.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit). Measured: recognition's warm-ups cost some US$4.6 a month in
+       fixed cost (three functions, infer, train and describe, times two
+       stages, each loading the 1.2 GB model every 5 minutes, and
+       instances still recycling about every 2 hours); training runs in
+       the background, and the RC stage has little traffic. The health
+       function was still sized (1024 MB) for Route 53's health checks,
+       which were removed.
+     - Changed:
+       - The training function's `Warm` schedule is gone.
+       - A `Stage` parameter (`prod`, `rc`) on the auth API template,
+         passed by `scripts/deploy.sh` (`STAGE`), and a `WarmUp` condition
+         (prod, not `LocalCloud`): identify's and describe's `Warm` rules
+         are `ENABLED` in prod and `DISABLED` in the RC stage and the
+         local stack.
+       - `HealthFunction`: 512 MB (from 1024; nu01-monitor polls every
+         5 minutes and waits 10 s), and its comments no longer mention
+         Route 53.
+       - Expected saving: about US$2.9 a month of fixed cost (measured).
+     - Specs: [Cloud recognition](cloud-recognition.md#warm-up),
+       [Health check](health-check.md).
+
+447. **One device recognizes each synced clip.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit): every device that can recognize (the web app, Android with
+       2 GB or more) recognized every synced clip under a day old that
+       nobody searched for subjects (a Pi or Blink streamer's, an older
+       iPhone build's, a low-memory device's), each downloading the whole
+       recording and calling cloud identify and breeds and coats, so with
+       3 such devices the work and the egress were tripled.
+     - Changed: [Recognition](recognition.md): one device is elected for
+       each synced clip (`SubjectRecognizer.electionRank`). The candidates
+       are the profile's devices that can recognize (their latest event's
+       OS and memory) heard from within a day (an event, or live sync's
+       `seenOf`); the clip's own device goes first if it can recognize,
+       the rest in the order of SHA-1(event ID / device ID). Each waits
+       its rank times 5 minutes (rank 0 at once), then leaves the clip if
+       a `subjectSearch` arrived meanwhile, else downloads it and runs it:
+       the next one takes over when one is off. A device's own new clips
+       still run at once. [Cloud recognition](cloud-recognition.md) notes
+       it. Tests in `recognition_test` (rank 0 runs at once and the other
+       device is second; rank 1 waits and leaves the clip when a result
+       arrives; takes over when none does; candidates and the recorder
+       first).
+
+448. **Premium live messages without the thumbnail.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit): a premium clip's live message carried its sealed thumbnail
+       as base64 (up to 48 KB, 7–13 billed 5 KB units), delivered to every
+       device of the profile, the sender included, though premium devices
+       take thumbnails from the bucket.
+     - Changed:
+       - A premium profile's live messages carry no `clip` (record nor
+         thumbnail), on the upload's publish and on a republish
+         (`CloudSync.profilePremium`); the clip isn't read from storage
+         for them. Nothing on a premium receiver used it: `_onLive` takes
+         the clip from the bucket, and the All grid, event cards and
+         notifications show the stored (fetched) clip's thumbnail.
+       - A premium account in a free owner's profile still sends it, for
+         the owner's free devices: `RolesService.isProfilePremium` (the
+         owner is premium: `shared` holds `presence_premium`, or this is
+         the owner, from the auth API's `accounts`); unknown, the
+         account's own tier. Free is unchanged (12 KB thumbnails, once).
+       - The sender's own echo (MQTT 3.1.1 has no no-local) is dropped
+         right after its envelope is read, before the event and clip are
+         parsed or the thumbnail decoded. Its delivery is still billed.
+       - Savings: a premium clip's completion bills `1 + N` units instead
+         of about `9 × (1 + N)` (up to 13×): at 2 clips an hour per
+         device, about $0.04 instead of $0.39 a month at N = 5, about
+         $3.70 instead of $33 at N = 50.
+       - Tests: `free_sync_test` (premium: no clip, upload and republish,
+         under 5 KB; free owner: clip and thumbnail), `roles_test`
+         (`ownerPremium` from `shared` and `accounts`;
+         `isProfilePremium`). `flutter analyze` is clean; `flutter test`
+         passes.
+     - Specs: [Live sync](live-sync.md#message-sizes-and-cost),
+       [Premium and free](premium.md).
+
+449. **Fewer S3 LISTs for premium sync.** (2026-10-15)
      - Asked: keep premium consumption from being excessive (premium cost
        audit): S3 LISTs ($0.005 per 1000, 12 times a GET) were still the
        biggest S3 request cost, about 6 per own clip and 7 per received

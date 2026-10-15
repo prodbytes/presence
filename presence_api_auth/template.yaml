@@ -196,6 +196,13 @@ Parameters:
     AllowedPattern: '[a-z0-9][a-z0-9_.:-]{0,62}'
     Description: >
       RBACR_SYSTEM: the rbacr system the app's roles are in.
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, rc]
+    Description: >
+      The stage (scripts/deploy.sh's STAGE). Only prod keeps recognition's
+      models warm (WarmUp): the RC stage has little traffic.
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
@@ -215,6 +222,11 @@ Conditions:
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
   HasFeedbackTable: !Not [!Equals [!Ref FeedbackTable, '']]
   HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
+  # Recognition's warm-ups (infer and describe) run in prod only, never in
+  # the RC stage or the local stack (specs/cloud-recognition.md, "Warm-up").
+  WarmUp: !And
+    - !Equals [!Ref Stage, prod]
+    - !Equals [!Ref LocalCloud, 'false']
 
 Globals:
   Function:
@@ -1074,14 +1086,9 @@ Resources:
               Resource: !Sub
                 - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      # No warm-up: training runs in the background, so a cold start's
+      # model load doesn't matter (specs/cloud-recognition.md, "Warm-up").
       Events:
-        # Keeps an instance's model loaded (specs/cloud-recognition.md,
-        # "Warm-up"): a new one takes over a minute, past the API's 30 s.
-        Warm:
-          Type: Schedule
-          Properties:
-            Schedule: rate(5 minutes)
-            Input: '{"rawPath": "/warmup"}'
         Status:
           Type: HttpApi
           Properties:
@@ -1160,11 +1167,13 @@ Resources:
       Events:
         # Keeps an instance's model loaded (specs/cloud-recognition.md,
         # "Warm-up"): a new one takes over a minute, past the API's 30 s.
+        # Prod only (WarmUp): elsewhere the rule exists but stays disabled.
         Warm:
           Type: Schedule
           Properties:
             Schedule: rate(5 minutes)
             Input: '{"rawPath": "/warmup"}'
+            State: !If [WarmUp, ENABLED, DISABLED]
         Identify:
           Type: HttpApi
           Properties:
@@ -1231,11 +1240,13 @@ Resources:
       Events:
         # Keeps an instance's model loaded (specs/cloud-recognition.md,
         # "Warm-up"): a new one takes over a minute, past the API's 30 s.
+        # Prod only (WarmUp): elsewhere the rule exists but stays disabled.
         Warm:
           Type: Schedule
           Properties:
             Schedule: rate(5 minutes)
             Input: '{"rawPath": "/warmup"}'
+            State: !If [WarmUp, ENABLED, DISABLED]
         Describe:
           Type: HttpApi
           Properties:

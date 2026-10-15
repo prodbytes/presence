@@ -241,8 +241,10 @@ class _Uploader {
               .cast<String, Object?>();
           publishedKey = key;
           // Its clip goes along, for the profile's devices without the
-          // bucket (an account linked to a free owner's profile).
-          if (record['clipId'] case final String clipId) {
+          // bucket (an account linked to a free owner's profile); not
+          // when they all have it: they take the clip from there.
+          if (record['clipId'] case final String clipId
+              when !_sync.profilePremium) {
             publishedClip = await store.getClip(clipId);
           }
         }

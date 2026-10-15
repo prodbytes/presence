@@ -169,6 +169,66 @@ void main() {
       expect(none.profile, isNull);
     });
 
+    test('HttpRolesClient: whether the profile\'s owner is premium', () async {
+      Future<bool?> ownerPremium(List<String> held, String profile) async =>
+          (await HttpRolesClient(
+            Uri.parse('https://presence.test/'),
+            rbacr: FakeRbacrClient()
+              ..answer = (
+                email: 'a@example.com',
+                root: false,
+                roles: {'presence': held},
+              ),
+            client: MockClient((_) async => http.Response(profile, 200)),
+          ).fetch('t')).ownerPremium;
+      const owner =
+          '{"profile":"p","shared":[],"accounts":['
+          '{"email":"a@example.com","owner":true,"current":true}]}';
+      const linked =
+          '{"profile":"p","shared":["presence_user"],"accounts":['
+          '{"email":"o@example.com","owner":true,"current":false},'
+          '{"email":"a@example.com","owner":false,"current":true}]}';
+      // The owner: by its own roles.
+      expect(await ownerPremium(['premium'], owner), isTrue);
+      expect(await ownerPremium(['free'], owner), isFalse);
+      // Linked: by what the owner shares, whatever its own roles.
+      expect(await ownerPremium(['premium'], linked), isFalse);
+      expect(
+        await ownerPremium([
+          'free',
+        ], '{"profile":"p","shared":["presence_user","presence_premium"]}'),
+        isTrue,
+      );
+      // Not said.
+      expect(await ownerPremium(['premium'], '{"profile":"p"}'), isNull);
+      expect(
+        await ownerPremium(['premium'], '{"profile":"p","accounts":[]}'),
+        isNull,
+      );
+    });
+
+    test('isProfilePremium: premium, and so is the owner', () async {
+      final auth = FakeAuthService();
+      final client = FakeRolesClient(const [userRole, premiumRole]);
+      final roles = RolesService(auth: auth, client: client);
+      addTearDown(roles.dispose);
+      await settle();
+      await auth.signIn();
+      await settle();
+      expect(roles.hasAccess, isTrue);
+      // The API didn't say: as premium.
+      expect(roles.isProfilePremium, isTrue);
+      client.ownerPremium = false;
+      await roles.refresh();
+      expect(roles.isPremium, isTrue);
+      expect(roles.isProfilePremium, isFalse);
+      client
+        ..ownerPremium = true
+        ..roles = const [userRole];
+      await roles.refresh();
+      expect(roles.isProfilePremium, isFalse);
+    });
+
     test('HttpRolesClient fails when rbacr or the auth API does', () async {
       HttpRolesClient client(FakeRbacrClient rbacr, int status) =>
           HttpRolesClient(
