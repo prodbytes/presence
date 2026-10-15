@@ -246,7 +246,8 @@ their data.
 - [Origin check](origin-check.md): the APIs (auth, payments, health)
   answer only through the site's CloudFront, which adds a secret header
   (`x-presence-origin-verify`); direct calls to their `execute-api` hosts
-  get 403. Enforced from the deploy after the site starts sending it.
+  get 403. Enforced from the deploy after the site starts sending it
+  (live in prod). App attestation is on the [roadmap](../ROADMAP.md).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

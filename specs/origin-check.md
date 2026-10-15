@@ -17,8 +17,8 @@ call `https://presence.nu01.com/api/...` (or the RC site).
   user's own [session token](sessions.md), exactly as the app does. Nothing a client
   holds can prove the call came from the app's code; only attestation
   could (Play Integrity, App Attest, a WAF browser challenge), which isn't
-  done. A key the app fetched at start would add nothing: a script fetches
-  it the same way.
+  done yet: it's on the [roadmap](../ROADMAP.md). A key the app fetched at
+  start would add nothing: a script fetches it the same way.
 
 ## How
 
@@ -76,8 +76,11 @@ directly, as before ([Local CDN](local-cdn.md)).
   with the check in every handler (the tests set no secret).
 - `cfn-lint` passes on the four templates; `deploy.sh` parses (`bash -n`);
   the derived secret is stable and differs by stage.
-- **Not yet run in AWS**: the first deploy, the second (enforcing) and
-  its smoke test.
+- **Live in AWS** (prod, checked 2026-10-15): the deploy logs "origin
+  secret enforced". Direct calls get 403 from the auth API's host
+  (`/api/auth/anonymous`) and the health check's (`/health`), and 401 from
+  the payments host (no token, refused before the origin check). The same
+  routes answer through `https://presence.nu01.com`.
 
 ## Known limitations
 
@@ -88,4 +91,5 @@ directly, as before ([Local CDN](local-cdn.md)).
 - The secret is readable by anyone in the AWS account who can read the
   functions' configuration or the distribution's.
 - Requests through the site with a valid token aren't told apart from the
-  app's (above).
+  app's (above). App attestation that would tell them apart is on the
+  [roadmap](../ROADMAP.md).
