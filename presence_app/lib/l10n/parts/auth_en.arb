@@ -264,73 +264,14 @@
       }
     }
   },
-  "authPastLimit": "This device is past your plan's first {limit}: it doesn't sync, so only its own events show here.",
-  "@authPastLimit": {
-    "placeholders": {
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authMoreHidden": "{count, plural, =1{1 more device doesn't sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don't sync, and their events are hidden: {plan} syncs your first {limit}.}}",
-  "@authMoreHidden": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authUpgradePremium": "Upgrade to Premium",
   "authUpgrade": "Upgrade",
-  "authOthersHidden": "This device doesn't sync, and your other devices' events are hidden on it: {plan} syncs your first {limit} devices.",
-  "@authOthersHidden": {
-    "placeholders": {
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authDevicesHidden": "{count, plural, =1{1 device's events are hidden: {plan} shows your first {limit} devices.} other{{count} devices' events are hidden: {plan} shows your first {limit} devices.}}",
-  "@authDevicesHidden": {
+  "authThisDeviceHidden": "This device doesn't sync",
+  "authHiddenCount": "{count, plural, =1{1 device hidden} other{{count} devices hidden}}",
+  "@authHiddenCount": {
+    "description": "Under the Profile tab's device list: how many devices the plan hides.",
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
-  "@authPremiumShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authProShowsUpTo": "{text} Pro shows up to {limit}.",
-  "@authProShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
         "type": "int"
       }
     }

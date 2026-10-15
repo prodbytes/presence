@@ -92,6 +92,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('lean: no upsell or hidden-devices notice, even past the '
+      'limit', (tester) async {
+    // Only one device of the profile shows: the others are hidden.
+    log.visibleDevices = {'a_b_c'};
+    await show(tester, const Size(1500, 900));
+    expect(find.textContaining('Upgrade'), findsNothing);
+    expect(find.textContaining('Premium'), findsNothing);
+    expect(find.textContaining('Pro '), findsNothing);
+    expect(find.textContaining('hidden'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
   testWidgets('very wide: the page stops growing and is centered', (
     tester,
   ) async {

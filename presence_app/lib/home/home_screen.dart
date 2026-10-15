@@ -12,7 +12,6 @@ import '../auth/delete_account.dart';
 import '../auth/rbacr_client.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/help_view.dart';
-import '../auth/plan_notice.dart';
 import '../auth/payments_client.dart';
 import '../auth/store_billing.dart';
 import '../auth/profile_client.dart';
@@ -629,28 +628,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   filters: _filters,
                   onSync: switch (widget.sync) {
                     final sync? => sync.syncAll,
-                    null => null,
-                  },
-                  notice: switch (widget.sync) {
-                    final sync? => ListenableBuilder(
-                      listenable: Listenable.merge([
-                        sync,
-                        widget.log,
-                        ?widget.payments,
-                      ]),
-                      builder: (context, _) => DeviceLimitNotice(
-                        log: widget.log,
-                        slots: sync.deviceSlots,
-                        profileId: widget.roles.profile,
-                        thisDevice: widget.deviceId,
-                        email: widget.auth.user?.email,
-                        links: widget.payments?.links,
-                        // The store's plans are on the Profile tab.
-                        onUpgrade: _tabs.shows(HomeTab.profile)
-                            ? () => _tabs.animateTo(HomeTab.profile)
-                            : null,
-                      ),
-                    ),
                     null => null,
                   },
                 ),
