@@ -6133,3 +6133,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        - Fixed the stale Android row of the encoding table. Specs:
          [Data formats](data-formats.md), [Android](android.md),
          [iOS](ios.md).
+
+438. **Cut recognition's cost per clip.** (2026-10-15)
+     - Asked: from the per-user cost estimate (cloud recognition up to
+       about $17 a month for a heavy profile), cut the compute per clip on
+       the app's side: identify only clips with someone to identify, at
+       most 2 identify crops and 4 describe crops a clip, the best ones,
+       and never identify a clip again that already has a result.
+     - Changed: a new clip now sends identify its **2 surest** people and
+       pets over the whole clip (was the first 4 seen), and describe its
+       **4 surest** cats and dogs (was the first 8), by the detector's
+       score, 2 a frame as before. Auto, asked for on the player, keeps 4
+       and 8; training's labels are unchanged (4 a request). Already so,
+       unchanged: identify is only called when the detector saw someone
+       who could be a known subject and someone known isn't tagged yet,
+       and a clip is identified once (new clips when recorded, synced
+       ones only without `subjectSearch`; restores, re-syncs and edits
+       don't call it). The Lambdas take 1–8 crops and embed only those
+       sent, unchanged. Spec: [Cloud recognition](cloud-recognition.md).
