@@ -88,6 +88,15 @@ class RemoteRecords {
 
 enum CloudSyncState { off, syncing, synced, error }
 
+/// How a recording's download from the cloud went
+/// ([CloudSync.fetchRecording]): [stored] in the `MediaStore` now;
+/// [missing] (signed out, a free profile, not in the cloud, or the
+/// download failed: playing again tries again); or [archived]: in the
+/// cloud, but moved to S3 Glacier Deep Archive by the bucket's lifecycle
+/// (67 days after upload), so S3 won't serve it until it's restored, which
+/// the app doesn't do yet.
+enum RecordingFetch { stored, missing, archived }
+
 /// Syncs the signed-in user's clips (videos, thumbnails, details) and
 /// events with their folder in the cloud, straight from the device.
 ///
@@ -950,12 +959,16 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
   /// Downloads the recording [mediaId] of clip [clipId] from the signed-in
   /// profile's folder into the `MediaStore`, for playing a clip fetched
-  /// from the cloud whose recording isn't here yet. Returns whether it's
-  /// stored now; false when signed out, or it isn't in the cloud, or the
-  /// download failed; and for a free profile, which has no bucket: its
-  /// recordings are only on the device that made them.
-  Future<bool> fetchRecording(String clipId, String mediaId) async =>
-      premium && await _recordings.fetchRecording(clipId, mediaId);
+  /// from the cloud whose recording isn't here yet. Returns
+  /// [RecordingFetch.stored] when it's stored now; [RecordingFetch.missing]
+  /// when signed out, or it isn't in the cloud, or the download failed,
+  /// and for a free profile, which has no bucket: its recordings are only
+  /// on the device that made them; [RecordingFetch.archived] when it's in
+  /// cold storage (S3 Glacier Deep Archive), not playable until restored.
+  Future<RecordingFetch> fetchRecording(String clipId, String mediaId) async =>
+      premium
+      ? await _recordings.fetchRecording(clipId, mediaId)
+      : RecordingFetch.missing;
 
   @override
   Future<bool> putInCloud(String id) => _actions.put(id);

@@ -673,6 +673,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get cameraClip => 'Clipe';
 
   @override
+  String get cameraClipArchived =>
+      'Arquivado: este vídeo está em armazenamento a frio';
+
+  @override
   String get cameraClipCameraOff => 'Câmera desligada';
 
   @override
@@ -1168,6 +1172,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get eventCloudArchived => 'Arquivado na nuvem (não neste dispositivo)';
 
   @override
+  String get eventCloudColdStorage =>
+      'A gravação está em armazenamento a frio: não pode ser reproduzida da nuvem';
+
+  @override
   String get eventCloudDelete => 'Excluir';
 
   @override
@@ -1219,6 +1227,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get eventCopiesCloud => 'Nuvem';
+
+  @override
+  String get eventCopiesCloudColdStorage => 'Nuvem (armazenamento a frio)';
 
   @override
   String get eventCopiesLiveOff =>

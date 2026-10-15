@@ -184,12 +184,49 @@ an Athena table are in [Recording and data formats](data-formats.md).
     fails the same way), and trying again retries. A download that meets
     expired credentials (or a request AWS refused as signed at the wrong
     time) is made again at once with new credentials (or the corrected
-    clock);
+    clock); one that's **archived** says so instead (see **Archived
+    recordings** below);
   - **asked for a copy** ([Event copies](event-copies.md), "Tap to sync a
     copy to every device"): a device that already has the event unchanged
     downloads its pending recording then (`_Recordings.fetchPending`),
     so it holds it in full and acks it;
   - one download per recording at a time (`_Recordings._inFlight`).
+- **Archived recordings (cold storage):** the bucket's lifecycle moves
+  objects over 128 KB and under 500 MB (clip recordings, a streamer's
+  media and ingest chunks) to **S3 Glacier Deep Archive 67 days after
+  upload**, and erases everything 365 days after upload; smaller objects
+  (event JSON, clip records, thumbnails, tagged frames) stay readable
+  until then. S3 answers a GET of an archived object **HTTP 403 with the
+  error code `InvalidObjectState`**, which the app tells from refused
+  credentials by the error's XML `<Code>` (`S3Exception.code`,
+  `archived`; `credentialsRejected` is `AccessDenied`, `ExpiredToken` or
+  `InvalidToken` only, by their words only when the body has no code):
+  - an archived object **never counts as rejected credentials**: nothing
+    renews them (`backend.reset`), and sync never stops or backs off
+    because of one;
+  - **playing a clip** whose recording is archived:
+    `CloudSync.fetchRecording` returns `RecordingFetch.archived` (it
+    returns `stored`, `missing` or `archived`), the load
+    (`Persistence._restoreMedia`) fails with `RecordingArchived`, and the
+    player shows **"Archived: this video is in cold storage"** (in the
+    theme's aqua, not the failure's red) instead of "Couldn't load this
+    clip". The key is remembered as archived while the app runs
+    (`_Recordings._archived`), so playing it again asks S3 nothing; its
+    `fetch:` entry stays (it's still in the cloud). Frame reading
+    (tagging, Auto, recognition) fails the same way, as for any
+    recording that can't be had;
+  - **in a pass** (the full fetch, changed events, wanted clips, the
+    media keys), an archived object is skipped like a gone one
+    (`_Fetcher._getOrSkip`, `_getIfThere`): a thumbnail or tagged frame
+    that can't be read is left out, logged, and the pass goes on. A
+    pass never downloads recordings, and the full fetch covers 15 days,
+    so only an old event changed elsewhere (its tagged frames) could meet
+    one; synced-clip recognition takes clips under a day old; a copy
+    asked for (`fetchPending`) goes through `fetchRecording`;
+  - **restoring from the archive isn't supported yet**: an archived
+    recording can't be played from the cloud (a device that downloaded it
+    before still plays its own copy). The [event copies](event-copies.md)
+    indicators say a clip older than 67 days is in cold storage.
 - **Changes from other devices:** an event the device has that another
   device changed since (a tag added, renamed or removed, a suggestion
   confirmed, object tags) comes down again in the same pass, within the
@@ -445,6 +482,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Errors:**
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
+  - an archived object (403 `InvalidObjectState`) isn't an error of the
+    credentials or of the pass: see **Archived recordings**;
   - if S3 refuses a request as signed at the wrong time, see **Clock**;
   - if the auth API rejects the session token (401, for example once
     the session has ended and couldn't be refreshed), or Cognito rejects its token (`NotAuthorizedException`),
@@ -517,8 +556,11 @@ In [presence_infra/](../presence_infra):
     - objects then move by themselves between the Frequent, Infrequent
       (after 30 days unread) and Archive Instant Access (after 90 days)
       tiers, and all stay readable at once;
-    - the opt-in Archive and Deep Archive tiers are off: they need a restore
-      before a read, which would break the fetch after sign-in;
+    - Intelligent-Tiering's own opt-in Archive and Deep Archive tiers are
+      off (they'd archive by idle time, including recent clips); instead a
+      lifecycle rule moves objects over 128 KB to the Glacier Deep Archive
+      class at 67 days, by age (above), which the app knows how to show
+      ("Archived recordings");
     - objects under 128 KB, such as event JSON, stay in the Frequent tier
       with no monitoring fee.
   - CORS allows `GET`, `PUT`, `HEAD` and `DELETE` from `https://presence.nu01.com`,
@@ -553,9 +595,17 @@ In [presence_infra/](../presence_infra):
   fetched; a damaged recording reference is dropped; a clock-skewed
   request is made again, and a persistent one says the clock is off; a
   recording download that meets expired credentials succeeds with new
-  ones in the same run), `s3_test.dart` (the clock corrected from
+  ones in the same run; an archived recording, the fake S3 answering 403
+  `InvalidObjectState`, is `RecordingFetch.archived`, not asked for
+  again, and neither renews the credentials nor stops sync, nor do
+  archived objects met by a pass), `persistence_test.dart` (an archived
+  cloud clip, played, shows "Archived: this video is in cold storage",
+  its load fails with `RecordingArchived`, the credentials kept),
+  `s3_test.dart` (the clock corrected from
   `ServerTime` or the `Date` header, the next request signed with it,
-  other errors leave it), `profile_test.dart` (one credentials fetch for
+  other errors leave it; `InvalidObjectState` is archived, never
+  rejected credentials, even with other codes' words in its message;
+  the credentials rejected by their codes), `profile_test.dart` (one credentials fetch for
   callers at once; a cleared one isn't kept) and
   `record_integrity_test.dart` (the codec).
 - Settings: `cloud_sync_test.dart` (the settings listing only on the

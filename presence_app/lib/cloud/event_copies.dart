@@ -91,6 +91,7 @@ class CopiesSummary {
     required this.holders,
     required this.cloud,
     required this.liveOn,
+    this.coldStorage = false,
   });
 
   /// The holders, this device first, then the cloud, then other devices.
@@ -102,6 +103,11 @@ class CopiesSummary {
   /// Whether live sync is on here (otherwise other devices' copies are
   /// only partly known).
   final bool liveOn;
+
+  /// Whether the cloud's copy is archived: a clip whose recording is in
+  /// cold storage ([EventCopies.inColdStorage]), kept but not playable
+  /// from the cloud.
+  final bool coldStorage;
 
   int get count => holders.length;
 
@@ -126,7 +132,14 @@ class CopiesSummary {
 
   /// The holders by name, and why the count may be short.
   String get tooltip {
-    final who = holders.isEmpty ? 'No copy known' : holders.join(', ');
+    final who = holders.isEmpty
+        ? 'No copy known'
+        : [
+            for (final h in holders)
+              h == EventCopies.cloudHolder && coldStorage
+                  ? 'Cloud (cold storage)'
+                  : h,
+          ].join(', ');
     return liveOn
         ? who
         : "$who\nLive sync is off: other devices' copies are unknown";
@@ -159,6 +172,19 @@ class EventCopies extends ChangeNotifier {
 
   /// How the cloud shows among the holders.
   static const String cloudHolder = 'Cloud';
+
+  /// How long after upload a clip's recording stays readable in the cloud:
+  /// the bucket's lifecycle then moves it (an object over 128 KB) to S3
+  /// Glacier Deep Archive, where it's kept, but can't be downloaded until
+  /// restored (not supported yet). Everything is erased 365 days after
+  /// upload.
+  static const Duration coldStorageAfter = Duration(days: 67);
+
+  /// Whether a clip recorded at [time] has its recording in cold storage
+  /// in the cloud by [now]: older than [coldStorageAfter] (it was uploaded
+  /// soon after it was recorded).
+  static bool inColdStorage(DateTime time, {DateTime? now}) =>
+      (now ?? DateTime.now()).difference(time) > coldStorageAfter;
 
   /// By event ID, least recently changed first.
   final _holders = <String, EventHolders>{};
@@ -197,8 +223,15 @@ class EventCopies extends ChangeNotifier {
   EventHolders? of(String id) => _holders[id];
 
   /// The holders of event [id], recorded on device [origin] (which holds
-  /// it: it recorded it).
-  CopiesSummary summaryOf(String id, {String? origin}) {
+  /// it: it recorded it). [clipTime]: when it's a clip, when it was
+  /// recorded; the cloud's copy is in cold storage once that's
+  /// [inColdStorage] by [now].
+  CopiesSummary summaryOf(
+    String id, {
+    String? origin,
+    DateTime? clipTime,
+    DateTime? now,
+  }) {
     final known = _holders[id] ?? const EventHolders();
     final me = _deviceId;
     final mine = origin != null && origin == me;
@@ -215,6 +248,8 @@ class EventCopies extends ChangeNotifier {
       ],
       cloud: known.cloud,
       liveOn: _liveOn,
+      coldStorage:
+          known.cloud && clipTime != null && inColdStorage(clipTime, now: now),
     );
   }
 

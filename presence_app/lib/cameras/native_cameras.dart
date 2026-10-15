@@ -252,6 +252,10 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   bool _waiting = false;
   bool _loadFailed = false;
 
+  /// The load failed as the recording is archived ([RecordingArchived]):
+  /// in cold storage in the cloud, not playable. Said instead of a failure.
+  bool _archived = false;
+
   /// Getting the recording ready: downloading it from the cloud when it
   /// hasn't come down yet.
   bool _loading = false;
@@ -307,6 +311,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       _waiting = false;
       _loading = true;
       _loadFailed = false;
+      _archived = false;
     });
     // A newer load (or closing the player) makes this one stale: what it
     // made is disposed, and it changes nothing.
@@ -322,13 +327,14 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       }
       opening = VideoPlayerController.file(File(path));
       await opening.initialize();
-    } catch (_) {
+    } catch (e) {
       opening?.dispose();
       if (path != null) media.releaseUrl(path);
       if (!stale()) {
         setState(() {
           _loading = false;
           _loadFailed = true;
+          _archived = e is RecordingArchived;
         });
       }
       return;
@@ -500,9 +506,20 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
             ),
           if (_loadFailed)
             Center(
-              child: Text(
-                context.l10n.cameraClipLoadFailed,
-                style: const TextStyle(color: Color(0xFFFB4934)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _archived
+                      ? context.l10n.cameraClipArchived
+                      : context.l10n.cameraClipLoadFailed,
+                  key: Key(_archived ? 'clip-archived' : 'clip-load-failed'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _archived
+                        ? const Color(0xFF83A598)
+                        : const Color(0xFFFB4934),
+                  ),
+                ),
               ),
             ),
           if (_current != null && !_onFull && !_waiting)

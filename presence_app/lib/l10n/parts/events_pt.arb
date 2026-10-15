@@ -140,6 +140,8 @@
   "eventTagsNone": "Etiquetas de objetos: buscadas, nada visto",
   "eventTagsFound": "Etiquetas de objetos: {labels}",
   "eventCloudArchived": "Arquivado na nuvem (não neste dispositivo)",
+  "eventCloudColdStorage": "A gravação está em armazenamento a frio: não pode ser reproduzida da nuvem",
+  "eventCopiesCloudColdStorage": "Nuvem (armazenamento a frio)",
   "eventRecognitionTapToRerun": "Toque para executar o reconhecimento",
   "eventRecognitionRerunning": "Executando o reconhecimento…",
   "eventCloudTapToPut": "Toque para enviá-lo à nuvem",

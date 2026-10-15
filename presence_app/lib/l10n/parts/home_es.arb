@@ -70,6 +70,7 @@
   "cameraAgeDays": "hace {days} d",
   "cameraAskedFreshGrab": "Se pidió una imagen nueva",
   "cameraClipLoadFailed": "No se pudo cargar este clip",
+  "cameraClipArchived": "Archivado: este video está en almacenamiento en frío",
   "cameraClipPreview": "Vista previa",
   "cameraClipRecordingNext": "Grabando los próximos {seconds} s…",
   "healthApiChecking": "API de autenticación: comprobando",

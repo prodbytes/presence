@@ -1132,6 +1132,12 @@ abstract class AppLocalizations {
   /// **'Clip'**
   String get cameraClip;
 
+  /// No description provided for @cameraClipArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived: this video is in cold storage'**
+  String get cameraClipArchived;
+
   /// No description provided for @cameraClipCameraOff.
   ///
   /// In en, this message translates to:
@@ -1924,6 +1930,12 @@ abstract class AppLocalizations {
   /// **'Archived in the cloud (not on this device)'**
   String get eventCloudArchived;
 
+  /// No description provided for @eventCloudColdStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Its recording is in cold storage: it can\'t be played from the cloud'**
+  String get eventCloudColdStorage;
+
   /// No description provided for @eventCloudDelete.
   ///
   /// In en, this message translates to:
@@ -2007,6 +2019,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cloud'**
   String get eventCopiesCloud;
+
+  /// No description provided for @eventCopiesCloudColdStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud (cold storage)'**
+  String get eventCopiesCloudColdStorage;
 
   /// No description provided for @eventCopiesLiveOff.
   ///

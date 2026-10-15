@@ -671,6 +671,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraClip => 'Clip';
 
   @override
+  String get cameraClipArchived => 'Archived: this video is in cold storage';
+
+  @override
   String get cameraClipCameraOff => 'Camera off';
 
   @override
@@ -1159,6 +1162,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventCloudArchived => 'Archived in the cloud (not on this device)';
 
   @override
+  String get eventCloudColdStorage =>
+      'Its recording is in cold storage: it can\'t be played from the cloud';
+
+  @override
   String get eventCloudDelete => 'Delete';
 
   @override
@@ -1210,6 +1217,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventCopiesCloud => 'Cloud';
+
+  @override
+  String get eventCopiesCloudColdStorage => 'Cloud (cold storage)';
 
   @override
   String get eventCopiesLiveOff =>

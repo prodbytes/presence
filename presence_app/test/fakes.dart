@@ -368,6 +368,18 @@ class FakeCloudBackend implements CloudBackend, DeviceRegistry {
   /// Keys whose download fails (relative to the folder), while listed.
   final failGets = <String>{};
 
+  /// Keys archived in S3 Glacier Deep Archive (relative to the folder):
+  /// listed, but a get() answers 403 `InvalidObjectState`, as S3 does.
+  final archived = <String>{};
+
+  /// What S3 answers a GET of an archived object.
+  static final archivedError = S3Exception(
+    403,
+    '<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>InvalidObjectState'
+    '</Code><Message>The operation is not valid for the object\'s storage '
+    'class</Message><StorageClass>DEEP_ARCHIVE</StorageClass></Error>',
+  );
+
   /// The keys uploaded as streams (recordings), in order.
   final streamed = <String>[];
 
@@ -494,6 +506,10 @@ class FakeCloudSession implements CloudSession, DeviceSlotsSession {
     await backend.beforeGet?.call(key);
     if (backend.failGetsOnce.remove(key) case final e?) throw e;
     if (backend.failGets.contains(key)) throw StateError('Failed $key');
+    if (backend.archived.contains(key) &&
+        backend.uploads.containsKey('$prefix/$key')) {
+      throw FakeCloudBackend.archivedError;
+    }
     final object = backend.uploads['$prefix/$key'];
     if (object == null) {
       // As S3 answers a role that may list the folder; or, with

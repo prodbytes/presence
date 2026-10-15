@@ -315,7 +315,10 @@ void main() {
       expect(backend.downloads, isEmpty);
       expect(backend.listings, isEmpty);
       // Its recording is on the device that made it.
-      expect(await sync.fetchRecording('clip-1', 'clip-1-full'), isFalse);
+      expect(
+        await sync.fetchRecording('clip-1', 'clip-1-full'),
+        RecordingFetch.missing,
+      );
       expect(backend.downloads, isEmpty);
     });
 
