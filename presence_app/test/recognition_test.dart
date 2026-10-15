@@ -880,20 +880,24 @@ void main() {
       );
     }
 
-    SubjectRecognizer recognizer(FakeVision vision, FakeSampler sampler) =>
-        SubjectRecognizer(
-          bus: bus,
-          log: log,
-          config: config,
-          runtime: FakeRuntime(),
-          sampler: sampler,
-          loadVision: () async => vision,
-          // Reference frames hold their number.
-          decode: (jpeg) async {
-            final width = 1000 + jpeg.first;
-            return RgbaImage(width, 1, Uint8List(width * 4));
-          },
-        );
+    SubjectRecognizer recognizer(
+      FakeVision vision,
+      FakeSampler sampler, {
+      Duration electionStep = SubjectRecognizer.defaultElectionStep,
+    }) => SubjectRecognizer(
+      bus: bus,
+      log: log,
+      config: config,
+      runtime: FakeRuntime(),
+      sampler: sampler,
+      electionStep: electionStep,
+      loadVision: () async => vision,
+      // Reference frames hold their number.
+      decode: (jpeg) async {
+        final width = 1000 + jpeg.first;
+        return RgbaImage(width, 1, Uint8List(width * 4));
+      },
+    );
 
     test(
       "a synced clip nobody searched for subjects is recognized here: "
@@ -982,6 +986,134 @@ void main() {
       expect(hidden.annotations.objects, isNull, reason: 'hidden: left');
       expect(shown.annotations.objects, isNotNull);
       expect(sampler.samples, 1);
+    });
+
+    group('one device recognizes each synced clip', () {
+      const step = Duration(milliseconds: 40);
+      late DateTime now;
+
+      setUp(() {
+        now = DateTime.now();
+        // Two of the profile's devices that can recognize, seen lately:
+        // this one ("me") and another.
+        log.addHistory([
+          AppEvent.appStarted(time: now, id: 'started', deviceId: 'other')
+            ..os = 'Android'
+            ..memoryMb = 4096,
+          AppEvent.appStarted(time: now, id: 'me-started', deviceId: 'me')
+            ..os = 'Web (Chrome, macOS)',
+        ]);
+      });
+
+      /// A Raspberry Pi streamer's clip, [id] (it can't recognize).
+      ClipRequested piClip(String id) =>
+          ClipRequested(clip(), id: id, time: now)
+            ..deviceId = 'pi'
+            ..os = 'Linux'
+            ..memoryMb = 512;
+
+      /// The first of the Pi's clips where this device ([me]) is [rank].
+      ClipRequested electing(SubjectRecognizer me, int rank) {
+        for (var n = 0; ; n++) {
+          final c = piClip('clip-$n');
+          if (me.electionRank(c, now: now) == rank) return c;
+        }
+      }
+
+      test('the first device runs it at once; the other is second', () async {
+        final sampler = FakeSampler(2);
+        final me = recognizer(FakeVision({}, {}), sampler, electionStep: step)
+          ..deviceId = 'me';
+        final other = recognizer(FakeVision({}, {}), FakeSampler(2))
+          ..deviceId = 'other';
+        addTearDown(me.dispose);
+        addTearDown(other.dispose);
+        final c = electing(me, 0);
+        expect(other.electionRank(c, now: now), 1, reason: 'one goes first');
+        me.recognizeSynced([c], now: now);
+        await Future<void>.delayed(Duration.zero);
+        await me.idle;
+        expect(sampler.samples, 1);
+        expect(c.annotations.subjectSearch, isNotNull);
+      });
+
+      test('the second waits, and leaves it when the first one\'s result '
+          'syncs here', () async {
+        final sampler = FakeSampler(2);
+        final me = recognizer(FakeVision({}, {}), sampler, electionStep: step)
+          ..deviceId = 'me';
+        addTearDown(me.dispose);
+        final c = electing(me, 1);
+        log.addHistory([c]);
+        me.recognizeSynced([c], now: now);
+        await Future<void>.delayed(Duration.zero);
+        await me.idle;
+        expect(sampler.samples, 0, reason: 'waiting its turn');
+        // The first device's result, synced here.
+        c.annotations.setSubjectSearch(
+          SubjectSearch(
+            SubjectSearchOutcome.searched,
+            now.millisecondsSinceEpoch,
+          ),
+        );
+        await Future<void>.delayed(step * 2);
+        await me.idle;
+        expect(sampler.samples, 0, reason: 'done elsewhere');
+      });
+
+      test('the second takes over when no result comes', () async {
+        final sampler = FakeSampler(2);
+        final me = recognizer(FakeVision({}, {}), sampler, electionStep: step)
+          ..deviceId = 'me';
+        addTearDown(me.dispose);
+        final c = electing(me, 1);
+        me.recognizeSynced([c], now: now);
+        // Asked again meanwhile (another sync): still once.
+        me.recognizeSynced([c], now: now);
+        await Future<void>.delayed(Duration.zero);
+        expect(sampler.samples, 0);
+        await Future<void>.delayed(step * 2);
+        await me.idle;
+        expect(sampler.samples, 1, reason: 'the first one is off');
+      });
+
+      test('a recording device that can recognize goes first; this '
+          "device's own clips are its own; others don't count", () {
+        final me = recognizer(FakeVision({}, {}), FakeSampler(2))
+          ..deviceId = 'me';
+        addTearDown(me.dispose);
+        log.addHistory([
+          // Seen two days ago: not counted.
+          AppEvent.appStarted(
+            time: now.subtract(const Duration(days: 2)),
+            id: 'stale',
+            deviceId: 'stale',
+          )..os = 'Web (Chrome, macOS)',
+          // Too little memory, and a Blink camera: they can't recognize.
+          AppEvent.appStarted(time: now, id: 'small', deviceId: 'small')
+            ..os = 'Android'
+            ..memoryMb = 1024,
+          AppEvent.appStarted(time: now, id: 'blink', deviceId: 'blink')
+            ..os = 'Blink',
+        ]);
+        final c = electing(me, 0);
+        expect(
+          me.electionRank(c, now: now),
+          0,
+          reason: 'only "other" and this device count',
+        );
+        final fromOther = ClipRequested(clip(), id: c.id, time: now)
+          ..deviceId = 'other'
+          ..os = 'Android';
+        expect(me.electionRank(fromOther, now: now), 1, reason: 'after it');
+        final mine = ClipRequested(clip(), id: 'mine', time: now)
+          ..deviceId = 'me'
+          ..os = 'Android';
+        expect(me.electionRank(mine, now: now), 0);
+        // This device's ID not known yet: at once, as before.
+        me.deviceId = null;
+        expect(me.electionRank(electing(me, 0), now: now), 0);
+      });
     });
 
     test('tags the sure, asks about the unsure, on their best frame', () async {
