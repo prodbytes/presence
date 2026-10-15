@@ -6755,7 +6755,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        $0.24 per device, $7.51 a month (Route 53 $6.28).
      - Specs: [Cost report](cost-report.md) (new), [README](README.md).
 
-461. **Create cost-allocation tags to separate RC and GA, and apply them.**
+461. **(From a barrel roll) The RC and GA releases failed on the streamer
+     test `TestLoginWithAPINFromTheApp`.** (2026-10-15)
+    - The test was a time bomb: its fake Blink clips are dated 2026-10-14
+      12:00 UTC, and the first fetch starts at now minus the 24-hour
+      backfill, so from a day later the clips fell outside it and `Since`
+      no longer matched. It failed on every run.
+    - The blink tests now set the `Now` clock: it starts at 2026-10-14
+      13:00 UTC and runs at real speed, so the PIN wait still times out
+      normally.
+    - Specs: [Blink cameras](blink.md) (Tests).
+
+462. **Create cost-allocation tags to separate RC and GA, and apply them.**
      (2026-10-15)
      - Found: every Presence stack already carries the stack tags
        `project=presence` and `tenancy=GA`/`RC`/`shared` (deploy.sh,
