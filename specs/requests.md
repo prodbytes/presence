@@ -6393,7 +6393,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Maintenance](maintenance.md), [Sign-in](sign-in.md),
        [Cloud recognition](cloud-recognition.md), [Deploy](deploy.md).
 
-446. **One device recognizes each synced clip.** (2026-10-15)
+446. **Recognition's warm-ups in prod only, none for training, and a
+     smaller health function.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit). Measured: recognition's warm-ups cost some US$4.6 a month in
+       fixed cost (three functions, infer, train and describe, times two
+       stages, each loading the 1.2 GB model every 5 minutes, and
+       instances still recycling about every 2 hours); training runs in
+       the background, and the RC stage has little traffic. The health
+       function was still sized (1024 MB) for Route 53's health checks,
+       which were removed.
+     - Changed:
+       - The training function's `Warm` schedule is gone.
+       - A `Stage` parameter (`prod`, `rc`) on the auth API template,
+         passed by `scripts/deploy.sh` (`STAGE`), and a `WarmUp` condition
+         (prod, not `LocalCloud`): identify's and describe's `Warm` rules
+         are `ENABLED` in prod and `DISABLED` in the RC stage and the
+         local stack.
+       - `HealthFunction`: 512 MB (from 1024; nu01-monitor polls every
+         5 minutes and waits 10 s), and its comments no longer mention
+         Route 53.
+       - Expected saving: about US$2.9 a month of fixed cost (measured).
+     - Specs: [Cloud recognition](cloud-recognition.md#warm-up),
+       [Health check](health-check.md).
+
+447. **One device recognizes each synced clip.** (2026-10-15)
      - Asked: keep premium consumption from being excessive (premium cost
        audit): every device that can recognize (the web app, Android with
        2 GB or more) recognized every synced clip under a day old that
