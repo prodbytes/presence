@@ -6116,3 +6116,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Without the prefetch it is about $30. Shared fixed costs (KMS keys,
        Secrets Manager, Route 53) come to about $5–10 a month in total.
      - Changed: nothing. Spec: none changed.
+
+437. **Cut the S3 LIST cost: poll the bucket less, relying on live
+     sync.** (2026-10-15)
+     - Asked (from the per-user cost estimate, where the LIST every 15 s
+       was most of the ~$10–12 of S3 requests): make the S3 poll a
+       backstop instead of the main path while live sync works, keeping
+       15 s without it.
+     - Changed: while live sync is connected, or idle between scheduled
+       connections, cloud sync's timer starts a pass only 2 min after the
+       last one (`CloudSync.liveInterval`; the timer still ticks every
+       15 s, and any pass restarts the 2 min). Off, Never, no IoT endpoint,
+       or failing (its error state and the reconnects after it), it passes
+       every 15 s as before. Received events and completed clips, saves,
+       the Sync button and Retry still start passes at once; a back-off
+       after failures lasts at least the 2 min while live sync works. A
+       wanted clip not in the bucket yet is now looked for for 10 minutes
+       after the first miss, instead of 40 passes (80 min at 2 min).
+       LISTs per device drop from about 345,000 to about 54,000 a month
+       (about $9 to $1.40 for 5 devices). Specs: [Cloud sync](cloud-sync.md),
+       [Live sync](live-sync.md).

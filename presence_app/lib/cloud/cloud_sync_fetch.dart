@@ -28,15 +28,14 @@ class _Fetcher {
   final Map<String, int> _wantedFailures = {};
   static const int _maxWantedTries = 5;
 
-  /// Passes that found a wanted clip not in the bucket yet, by clip ID: it
-  /// stays wanted for [_maxWantedMisses] of them, since its device uploads
-  /// the record only once the clip completes (after the event). Found in
-  /// time, it shows; else it's wanted again when its event changes, and at
-  /// each full fetch.
-  final Map<String, int> _wantedMisses = {};
-
-  /// About ten minutes of passes (every 15 s).
-  static const int _maxWantedMisses = 40;
+  /// When a pass first found a wanted clip not in the bucket yet, by clip
+  /// ID: it stays wanted for [_wantedFor] after that, since its device
+  /// uploads the record only once the clip completes (after the event).
+  /// Found in time, it shows; else it's wanted again when its event
+  /// changes, and at each full fetch. A time, not a count of passes, as
+  /// how often they run depends on live sync ([CloudSync.liveInterval]).
+  final Map<String, DateTime> _wantedMisses = {};
+  static const Duration _wantedFor = Duration(minutes: 10);
 
   /// Forgets what was damaged and wanted, as for a new user.
   void reset() {
@@ -493,8 +492,8 @@ class _Fetcher {
             !_damaged.containsKey(
               pass.objectKey(CloudSync.clipRecordKey(id, time)),
             )) {
-          final misses = _wantedMisses[id] = (_wantedMisses[id] ?? 0) + 1;
-          if (misses < _maxWantedMisses) continue;
+          final since = _wantedMisses[id] ??= _sync._now();
+          if (_sync._now().difference(since) < _wantedFor) continue;
         }
         // Here now, or damaged there, or not come in time.
         fetched.add(id);
