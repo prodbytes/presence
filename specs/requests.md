@@ -6650,3 +6650,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Clips](clips.md), [Recording and data
        formats](data-formats.md), [Cloud sync](cloud-sync.md).
+
+455. **Estimate the cost per device: expected, pessimistic, optimistic.**
+     (2026-10-15)
+     - Answered (no code changed): AWS us-east-1 list prices, per camera
+       device per month once the bucket is in steady state (a year in),
+       with the lifecycle as it is now (Intelligent-Tiering, Deep Archive
+       after 67 days, erased at 365).
+       - **Optimistic, about $2:** 10 clips a day of 6 MB (scheduled plus
+         a little motion), one device, few recognized.
+       - **Expected, about $4:** 50 clips a day of 8 MB, one other
+         Android device prefetching every recording, 10 a day recognized.
+       - **Pessimistic, about $37:** motion at its 5-minute cooldown (296
+         clips a day) of 12.7 MB (web), two devices prefetching, every
+         clip identified and described.
+       - The fixed part is listing: about 11,500 `ListObjectsV2` a day
+         per device running the app, about $1.78 a month, whatever it
+         records. Past that, egress of prefetched recordings ($0.09/GB)
+         and recognition (about $0.0005-0.001 a clip on arm64 Lambda at
+         3008 MB) grow with clips; storage is about $1.48 a month per GB
+         uploaded a day. Live sync (IoT) and PUTs are cents.
+       - Replaces #138's storage-only figure, made before cold storage.
