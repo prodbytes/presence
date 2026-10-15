@@ -2,7 +2,9 @@
 
 Signed-in users' **clips (videos), events and each device's settings
 sync with S3**, straight from
-the device, both ways: at start and **every 15 s**, events only on the
+the device, both ways: at start and **every 15 s** (every **2 min**
+while [live sync](live-sync.md) works, which announces new events at
+once), events only on the
 device go up, events only in the user's folder come down, and events
 another device changed (such as a tag removed) come down again and
 replace what's on screen, so every device of a user shows the same
@@ -89,9 +91,27 @@ an Athena table are in [Recording and data formats](data-formats.md).
   with a signed-in `presence_user` (a new sign-in, or a session restored
   at launch, e.g. a reload), whenever the user changes, **every 15 s**
   (`CloudSync.interval`), and 0.5 s after an event is saved or a clip's
-  recording completes (`Persistence.changes`). After a failed pass the
+  recording completes (`Persistence.changes`).
+- **While live sync works, the timer's passes are a backstop.** When
+  [live sync](live-sync.md) is connected, or idle between scheduled
+  connections (its broker keeps what comes meanwhile), the timer starts a
+  pass only **2 min** after the last pass (`CloudSync.liveInterval`, the
+  timer still ticking every 15 s): other devices' new events and
+  completed clips are announced over live sync, and each one starts a
+  pass at once for its clip (see [Live sync](live-sync.md)). Without live
+  sync (no IoT endpoint in the build, set to Never, or failing: its error
+  state, and the reconnect attempts after it) the timer passes every 15 s
+  as before; a reconnect attempt doesn't change which applies. Saves
+  here, received events, the **Sync** button and **Retry** start passes
+  at once either way, and any pass restarts the 2 min. 2 min is live
+  sync's own slowest retry and its devices' "seen lately" window, and the
+  slowest default scheduled connection (every minute) still comes within
+  it; with live sync set to connect every 5 min or more, events missed
+  by it can take up to 2 min to come from the bucket.
+- After a failed pass the
   timer **backs off**: each failure in a row doubles the wait (15 s,
-  30 s, 1 min, 2 min, then 4 min at most, `CloudSync.maxBackoff`), and
+  30 s, 1 min, 2 min, then 4 min at most, `CloudSync.maxBackoff`; at
+  least the 2 min while live sync works), and
   saves during the wait don't start passes either (they're kept for the
   next). A successful pass, **Retry** or a new sign-in ends it. Passes
   stop after a credentials failure (see **Errors**).
@@ -195,7 +215,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - **A new event fetched before its clip's record is up** (its device
     uploads the record only once the clip completes, after the event)
     wants its clip too. A wanted clip not in the bucket yet is looked for
-    at each pass for about ten minutes (40 passes), then again when its
+    at each pass for **10 minutes** after the first pass that missed it
+    (a time, not a count of passes, since passes come every 15 s or
+    every 2 min; before 2026-10-15 it was 40 passes), then again when its
     event changes or at the next full fetch. Until it comes the event is
     kept as "Clip recording missing" (a system event, hidden by default),
     and it shows with its clip as soon as the clip arrives. Before
@@ -203,8 +225,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
     was dropped at its first miss, so a phone's clip could stay missing
     on the web for up to an hour.
   - **How soon:** within 15 s for events of today and yesterday (UTC),
-    the partitions every pass lists; within an hour for older ones in
-    the window, at the hourly full listing (see below).
+    the partitions every pass lists (at once over live sync, and within
+    2 min from the bucket for what it missed, while it works); within an
+    hour for older ones in the window, at the hourly full listing (see
+    below).
   - Events synced before ETags were kept: one this device uploaded is
     recognized by its bytes; one it downloaded (stored with its profile
     ID, so different bytes) is downloaded once more, to learn its ETag.
@@ -220,13 +244,18 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `CloudSync.fetchingHistory` is set, and the events list shows a
     spinner below its cards (see [Events](events.md));
   - every other pass, only **today's and yesterday's** partitions, where
-    other devices' new events land: about 11,500 listings a day per
-    device, roughly $0.06 a day at S3's $0.005 per 1000, against $0.43 for
-    listing the whole window every 15 s.
+    other devices' new events land. Every 15 s that's about 11,500
+    listings a day per device (about 345,000 a month, $1.73 at S3's
+    $0.005 per 1000; $0.43 a day for listing the whole window every
+    15 s). While live sync works, every 2 min: about 1,440 a day (43,200
+    a month, about $0.22), plus the hourly full listings (15 an hour,
+    about 10,800 a month, $0.05) and a listing per wanted clip per pass.
+    For 5 devices that's about $1.40 a month instead of about $9.
 - A new device (or one whose storage was cleared) therefore starts with
   two weeks of history, rather than everything in the bucket. Events from
   other devices of the same profile (any of its linked Google accounts,
-  hence the same Cognito identity) come down within 15 s, and so do
+  hence the same Cognito identity) come down within 15 s (over live
+  sync at once, and from the bucket within 2 min while it works), and so do
   their changes to today's and yesterday's events. Older data stays in the bucket until it
   expires, and on the devices that recorded it.
 - **Upload:** what's stored and not yet uploaded goes up. Clips go

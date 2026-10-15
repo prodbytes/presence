@@ -1269,6 +1269,116 @@ void main() {
       expect(await store.clipIds(), contains('restarted-clip'));
     });
 
+    /// Another cloud sync of the same profile with its own live sync,
+    /// connected; its timer ticks every [interval].
+    Future<(CloudSync, LiveSync)> another({
+      Duration interval = const Duration(seconds: 15),
+      Duration liveInterval = const Duration(minutes: 2),
+      DateTime Function()? now,
+    }) async {
+      final own = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        minRetry: const Duration(milliseconds: 5),
+        maxRetry: const Duration(hours: 1),
+      );
+      final other = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: const Stream.empty(),
+        debounce: Duration.zero,
+        interval: interval,
+        liveInterval: liveInterval,
+        live: own,
+        now: now,
+        onRemote: (r) async => remote.add(r),
+      );
+      addTearDown(() {
+        other.dispose();
+        own.dispose();
+      });
+      await other.idle();
+      await until(() => own.state == LiveSyncState.connected);
+      await other.idle();
+      return (other, own);
+    }
+
+    test('while live sync works the timer\'s passes are a backstop, every '
+        'liveInterval; while it fails, every interval again', () async {
+      final (other, own) = await another(
+        interval: const Duration(milliseconds: 10),
+        liveInterval: const Duration(hours: 1),
+      );
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isEmpty, reason: 'no timer passes');
+
+      // A received event still starts a pass at once, for its clip.
+      broker.last.deliver(
+        eventsTopic,
+        messageOf({
+          'id': 'backstop',
+          'profileId': '1',
+          'type': 'clip_requested',
+          'time': now(),
+          'clipId': 'backstop-clip',
+        }),
+      );
+      await until(() => backend.listings.isNotEmpty, reason: 'a pass ran');
+      await other.idle();
+
+      // Live sync fails (and retries): the timer passes every interval,
+      // as without it.
+      broker.refuse = 1000;
+      broker.last.drop();
+      await until(() => own.state == LiveSyncState.error);
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isNotEmpty, reason: 'timer passes');
+    });
+
+    test('a received clip not in the bucket yet is looked for at each pass '
+        'for 10 minutes', () async {
+      var clock = DateTime.now().toUtc();
+      final (other, _) = await another(now: () => clock);
+      final time = clock.millisecondsSinceEpoch;
+      final recordKey = CloudSync.clipRecordKey('slow-clip', time);
+      broker.last.deliver(
+        eventsTopic,
+        messageOf({
+          'id': 'slow',
+          'profileId': '1',
+          'type': 'clip_requested',
+          'time': time,
+          'clipId': 'slow-clip',
+        }),
+      );
+      await until(() => backend.listings.contains(recordKey));
+      await other.idle();
+
+      // Still recording there, 9 minutes on: still looked for.
+      clock = clock.add(const Duration(minutes: 9));
+      backend.listings.clear();
+      other.retry();
+      await other.idle();
+      expect(backend.listings, contains(recordKey));
+
+      // Past 10 minutes: looked for once more, then no longer (until its
+      // event changes, or the next full fetch).
+      clock = clock.add(const Duration(minutes: 2));
+      other.retry();
+      await other.idle();
+      backend.listings.clear();
+      other.retry();
+      await other.idle();
+      expect(backend.listings, isNot(contains(recordKey)));
+    });
+
     test('signing out disconnects', () async {
       await auth.signOut();
       expect(live.state, LiveSyncState.off);

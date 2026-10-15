@@ -422,6 +422,11 @@ class _WebRecorder implements PoolRecorder {
           // A keyframe every 5 s, so clips can be cut close to their start
           // without re-encoding (browsers that don't know it ignore it).
           videoKeyFrameIntervalDuration: 5000,
+          // About 1.2 Mbps video and 32 kbps audio (the default is ~3.4
+          // Mbps): storage and transfer scale with clip size. Hints only;
+          // browsers that ignore them keep their default.
+          videoBitsPerSecond: 1200000,
+          audioBitsPerSecond: 32000,
         ),
       ) {
     _recorder

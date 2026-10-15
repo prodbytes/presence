@@ -6117,7 +6117,62 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Secrets Manager, Route 53) come to about $5–10 a month in total.
      - Changed: nothing. Spec: none changed.
 
-437. **Cut the S3 transfer cost: recordings aren't prefetched.**
+437. **Lower the recording bit rate.** (2026-10-15)
+     - Asked: lower the recording bit rate to cut storage and transfer
+       cost (from the per-user cost estimate).
+     - Changed: one modest target on every app platform, 720p at about
+       1.2 Mbps video and 32 kbps mono audio (the Raspberry Pi streamer is
+       unchanged):
+       - Android: H.264 at 1.2 Mbps (was 1.5), 0.8 Mbps below 1280 wide
+         (was 1); audio unchanged (16 kHz mono AAC, 32 kbps).
+       - iOS: H.264 at 1.2 Mbps average (was 2.5); clip audio AAC mono at
+         32 kbps (was 64 kbps, the microphone's channels).
+       - Web: `MediaRecorder` asked for 1.2 Mbps video and 32 kbps audio
+         (was the browser's default, ~3.4 Mbps); browsers that ignore the
+         hints keep their default.
+       - Fixed the stale Android row of the encoding table. Specs:
+         [Data formats](data-formats.md), [Android](android.md),
+         [iOS](ios.md).
+
+438. **Cut recognition's cost per clip.** (2026-10-15)
+     - Asked: from the per-user cost estimate (cloud recognition up to
+       about $17 a month for a heavy profile), cut the compute per clip on
+       the app's side: identify only clips with someone to identify, at
+       most 2 identify crops and 4 describe crops a clip, the best ones,
+       and never identify a clip again that already has a result.
+     - Changed: a new clip now sends identify its **2 surest** people and
+       pets over the whole clip (was the first 4 seen), and describe its
+       **4 surest** cats and dogs (was the first 8), by the detector's
+       score, 2 a frame as before. Auto, asked for on the player, keeps 4
+       and 8; training's labels are unchanged (4 a request). Already so,
+       unchanged: identify is only called when the detector saw someone
+       who could be a known subject and someone known isn't tagged yet,
+       and a clip is identified once (new clips when recorded, synced
+       ones only without `subjectSearch`; restores, re-syncs and edits
+       don't call it). The Lambdas take 1–8 crops and embed only those
+       sent, unchanged. Spec: [Cloud recognition](cloud-recognition.md).
+
+439. **Cut the S3 LIST cost: poll the bucket less, relying on live
+     sync.** (2026-10-15)
+     - Asked (from the per-user cost estimate, where the LIST every 15 s
+       was most of the ~$10–12 of S3 requests): make the S3 poll a
+       backstop instead of the main path while live sync works, keeping
+       15 s without it.
+     - Changed: while live sync is connected, or idle between scheduled
+       connections, cloud sync's timer starts a pass only 2 min after the
+       last one (`CloudSync.liveInterval`; the timer still ticks every
+       15 s, and any pass restarts the 2 min). Off, Never, no IoT endpoint,
+       or failing (its error state and the reconnects after it), it passes
+       every 15 s as before. Received events and completed clips, saves,
+       the Sync button and Retry still start passes at once; a back-off
+       after failures lasts at least the 2 min while live sync works. A
+       wanted clip not in the bucket yet is now looked for for 10 minutes
+       after the first miss, instead of 40 passes (80 min at 2 min).
+       LISTs per device drop from about 345,000 to about 54,000 a month
+       (about $9 to $1.40 for 5 devices). Specs: [Cloud sync](cloud-sync.md),
+       [Live sync](live-sync.md).
+
+440. **Cut the S3 transfer cost: recordings aren't prefetched.**
      (2026-10-15)
      - Asked: cut the S3 transfer cost by not prefetching recordings
        (from the per-user cost estimate, request 436: each device

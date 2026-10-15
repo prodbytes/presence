@@ -121,8 +121,9 @@ final class SampleRing {
         outputSettings: [
           AVFormatIDKey: kAudioFormatMPEG4AAC,
           AVSampleRateKey: asbd.mSampleRate,
-          AVNumberOfChannelsKey: asbd.mChannelsPerFrame,
-          AVEncoderBitRateKey: 64_000,
+          // Mono at 32 kbps: enough for speech and room sound.
+          AVNumberOfChannelsKey: 1,
+          AVEncoderBitRateKey: 32_000,
         ],
         sourceFormatHint: audioFormat)
       input.expectsMediaDataInRealTime = false

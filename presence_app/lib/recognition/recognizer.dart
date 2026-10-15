@@ -116,12 +116,12 @@ class RecognitionResult {
 /// ahead of the new clips waiting; a new clip already searched that way
 /// isn't searched again.
 ///
-/// For a premium profile with a trained cloud model ([cloud]), up to
+/// For a premium profile with a trained cloud model ([cloud]), the surest
 /// [maxIdentifyCrops] of the people and pets seen are also sent to cloud
 /// recognition (DINOv2-L), and each subject's confidence is the higher of
 /// the two, the tag placed where the surer one saw them.
 ///
-/// For a premium profile ([describer]), trained or not, up to
+/// For a premium profile ([describer]), trained or not, the surest
 /// [maxCloudCrops] of the cats and dogs seen are also sent for their breeds
 /// and coats (SigLIP2): "Persian", "black cat". That request runs on its
 /// own, beside the subjects' (neither waits for the other), and its labels
@@ -181,15 +181,21 @@ class SubjectRecognizer {
   /// frame) and still pick it, when none contains it.
   static const double maxTagDistance = 0.15;
 
-  /// The most people and pets of a clip sent to cloud recognition (one
-  /// request), from the first frames they're seen on, at most
-  /// [cloudCropsPerFrame] a frame.
-  static const int maxCloudCrops = CloudRecognitionClient.maxBatch;
+  /// The most cats and dogs of a new clip sent for their breeds and coats
+  /// (one request): the surest seen over the clip, at most
+  /// [cloudCropsPerFrame] a frame. Each crop is compute paid per clip, so a
+  /// new clip sends few; Auto, asked for, sends up to
+  /// [maxCloudCropsOnRequest].
+  static const int maxCloudCrops = 4;
+  static const int maxCloudCropsOnRequest = CloudRecognitionClient.maxBatch;
   static const int cloudCropsPerFrame = 2;
 
-  /// The most people and pets of a clip sent to identify (DINOv2, slower
-  /// than the breeds' model): [CloudRecognitionClient.maxSubjectBatch].
-  static const int maxIdentifyCrops = CloudRecognitionClient.maxSubjectBatch;
+  /// The most people and pets of a new clip sent to identify (DINOv2, some
+  /// 3 s a crop): the surest seen over the clip. Auto, asked for, sends up
+  /// to [maxIdentifyCropsOnRequest].
+  static const int maxIdentifyCrops = 2;
+  static const int maxIdentifyCropsOnRequest =
+      CloudRecognitionClient.maxSubjectBatch;
 
   /// Cloud recognition, for premium profiles; null: on the device only.
   final CloudIdentifier? cloud;
@@ -545,6 +551,13 @@ class SubjectRecognizer {
     // The cats and dogs to ask breeds and coats of.
     final describe = objectsOn && (describer?.available ?? false);
     final petCrops = <_PetCrop>[];
+    // The surest crops seen over the clip are kept, fewer on a new clip
+    // (each crop is paid for) than on one asked for.
+    final identifyCap = onRequest
+        ? maxIdentifyCropsOnRequest
+        : maxIdentifyCrops;
+    final petCap = onRequest ? maxCloudCropsOnRequest : maxCloudCrops;
+    var cropIds = 0;
     final started = DateTime.now();
     var frames = 0;
     await for (final frame in _sampler.sample(
@@ -569,34 +582,44 @@ class SubjectRecognizer {
           )).add(score);
         }
       }
-      if (describe && petCrops.length < maxCloudCrops) {
-        for (final d in analysis.pets.take(cloudCropsPerFrame)) {
-          if (petCrops.length >= maxCloudCrops) break;
-          petCrops.add(
+      if (describe) {
+        final pets = [...analysis.pets]
+          ..sort((a, b) => b.score.compareTo(a.score));
+        for (final d in pets.take(cloudCropsPerFrame)) {
+          final at = _keepAt(petCrops, petCap, d.score);
+          if (at == null) break;
+          _keep(
+            petCrops,
+            at,
             _PetCrop(
-              id: '${petCrops.length}',
+              id: '${cropIds++}',
               species: CloudCrop.speciesOf(d.kind) ?? 'cat',
               pixels: CloudCrop.of(frame.image, d.box),
               ms: frame.position.inMilliseconds,
+              score: d.score,
             ),
           );
         }
       }
       TagFrame? tagFrame;
-      if (useCloud && lookForSubjects && cloudCrops.length < maxIdentifyCrops) {
+      if (useCloud && lookForSubjects) {
         final seen = [...analysis.seen]
           ..sort((a, b) => b.detection.score.compareTo(a.detection.score));
         for (final s in seen.take(cloudCropsPerFrame)) {
-          if (cloudCrops.length >= maxIdentifyCrops) break;
+          final at = _keepAt(cloudCrops, identifyCap, s.detection.score);
+          if (at == null) break;
           tagFrame ??= await _tagFrame(event, frame);
           if (tagFrame == null) break;
-          cloudCrops.add(
+          _keep(
+            cloudCrops,
+            at,
             _CloudCrop(
-              id: '${cloudCrops.length}',
+              id: '${cropIds++}',
               kind: CloudCrop.kindOf(s.detection.kind),
               pixels: CloudCrop.of(frame.image, s.detection.box),
               spot: s.spot,
               frame: tagFrame,
+              score: s.detection.score,
             ),
           );
         }
@@ -1055,13 +1078,14 @@ class SubjectRecognizerScope extends InheritedWidget {
 
 /// A person or pet of a clip, cropped for cloud recognition: where to tag
 /// them, and on which frame.
-class _CloudCrop {
+class _CloudCrop implements _Scored {
   _CloudCrop({
     required this.id,
     required this.kind,
     required this.pixels,
     required this.spot,
     required this.frame,
+    required this.score,
   });
 
   final String id;
@@ -1069,22 +1093,53 @@ class _CloudCrop {
   final Uint8List pixels;
   final (double, double) spot;
   final TagFrame frame;
+  @override
+  final double score;
+}
+
+/// A crop kept for cloud recognition, by its detection's score.
+abstract interface class _Scored {
+  double get score;
+}
+
+/// Where a crop of [score] goes in [kept] (at most [cap], the surest):
+/// its end while there's room, else the least sure's place if it's surer
+/// than that one; null if it isn't kept.
+int? _keepAt(List<_Scored> kept, int cap, double score) {
+  if (kept.length < cap) return kept.length;
+  var least = 0;
+  for (var i = 1; i < kept.length; i++) {
+    if (kept[i].score < kept[least].score) least = i;
+  }
+  return score > kept[least].score ? least : null;
+}
+
+/// Puts [crop] in [kept] at [at] (from [_keepAt]).
+void _keep<T extends _Scored>(List<T> kept, int at, T crop) {
+  if (at == kept.length) {
+    kept.add(crop);
+  } else {
+    kept[at] = crop;
+  }
 }
 
 /// A cat or dog seen on a clip, to ask its breed and coat of: its crop,
 /// "cat" or "dog", and when (ms into the recording).
-class _PetCrop {
+class _PetCrop implements _Scored {
   _PetCrop({
     required this.id,
     required this.species,
     required this.pixels,
     required this.ms,
+    required this.score,
   });
 
   final String id;
   final String species;
   final Uint8List pixels;
   final int ms;
+  @override
+  final double score;
 }
 
 /// Who a subject is taken to be on a clip: their [name] (as on their

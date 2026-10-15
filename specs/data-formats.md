@@ -19,12 +19,15 @@ record) says which part of the file the clip is; players start there. See
 | Video codec | **VP8** (`video/webm;codecs=vp8,opus`), else VP9, else the browser's default | **H.264** (AVC), hardware | **H.264** High, hardware, no B-frames |
 | Size | the camera's default (none is asked for) | up to 1280×720 | 1280×720, frames turned to portrait |
 | Frame rate | up to 30 fps, down to 10 in low light (a hint) | variable, up to 30 fps (5–30) | 30 fps, 10 in low light |
-| Video bit rate | the browser's default | 2.5 Mbit/s at 1280 px wide, else 1.5 | 2.5 Mbit/s average |
+| Video bit rate | 1.2 Mbit/s (a hint; browsers that ignore it use their default, ~3.4) | 1.2 Mbit/s at 1280 px wide, else 0.8; variable where offered | 1.2 Mbit/s average |
 | Keyframes | every 5 s (asked for; ignored by some browsers) | every 1 s | every 1 s |
-| Audio | **Opus**, when there's a microphone | **AAC-LC**, mono, 64 kbit/s, the microphone's rate (44.1 kHz) | **AAC**, 64 kbit/s, the microphone's rate and channels |
+| Audio | **Opus**, when there's a microphone, 32 kbit/s (a hint) | **AAC-LC**, mono, 32 kbit/s at 16 kHz (else 64 kbit/s at 44.1 kHz) | **AAC**, mono, 32 kbit/s, the microphone's rate |
 | Rotation | upright | an MP4 rotation flag (sensor orientation) | upright (portrait frames) |
 
-- Measured on the bucket on 2026-10-02: 92 web clips (WebM), 12.7 MB on
+- One target on every platform (since 2026-10-15, to cut storage and
+  transfer cost): 720p at about 1.2 Mbit/s video and 32 kbit/s mono
+  audio, about 4.6 MB for a 30 s clip (less for a still scene). Before,
+  measured on the bucket on 2026-10-02: 92 web clips (WebM), 12.7 MB on
   average (6.8–14.9 MB), about 3.4 Mbit/s for a 30 s clip.
 - **Every image and recording is sealed** (encrypted with its device's
   key, AES-256-GCM in chunks; see [Media encryption](encryption.md)) in

@@ -2,10 +2,14 @@
 
 The devices of a [profile](profiles.md) tell each other about **new and
 changed events within about a second**, over **MQTT** (AWS IoT Core, MQTT
-3.1.1 over WebSockets), instead of waiting for the next 15 s listing of the
+3.1.1 over WebSockets), instead of waiting for the next listing of the
 bucket. [Cloud sync](cloud-sync.md) still does everything it did: **S3 stays
 where events and all their media are kept**, and a device that misses a
-message gets the event from the bucket as before. Nothing is deleted.
+message gets the event from the bucket. Nothing is deleted. While live
+sync works (connected, or idle between scheduled connections) cloud
+sync's timer lists the bucket only every **2 min** instead of every
+15 s, as a backstop (`CloudSync.liveInterval`): listings are billed per
+request, and live sync brings new events first.
 
 This is phase 1, plus **copy acknowledgements**: a device that has stored
 a full copy of another device's event (with its media) says so with a
@@ -96,9 +100,10 @@ owned by `CloudSync`:
   - **Its clip comes from the bucket:** when the event's clip isn't here, a
     pass starts at once and looks for the clip's record and thumbnail
     (`_Fetcher.fetchWanted`). The clip stays **wanted** until it's here
-    or the bucket is found not to have it: a fetch that fails (a network
-    error) is tried again at the next pass, at most 5 times in a row, and
-    doesn't fail the pass (rejected credentials do: the pass renews them).
+    or the bucket is found not to have it (looked for at each pass for
+    10 minutes): a fetch that fails (a network error) is tried again at
+    the next pass, at most 5 times in a row, and doesn't fail the pass
+    (rejected credentials do: the pass renews them).
     Wanting a clip again while a pass looks for it isn't undone by that
     pass. Each full fetch (the first pass after a sign-in or a restart,
     then hourly) wants again the clips of the profile's events in the
@@ -392,7 +397,11 @@ query holds the session token.
     isn't put back (nor published) by the pass; an event received while
     signing out (its frame still downloading) isn't taken; a wanted clip
     whose fetch fails comes at the next pass; after a restart, the first
-    pass fetches the clip of an event whose clip never came; signing out
+    pass fetches the clip of an event whose clip never came; a clip not in
+    the bucket yet is looked for at each pass for 10 minutes, then no
+    longer; while live sync is connected the timer's passes come only
+    every `liveInterval` (a received event still starts one at once), and
+    while it fails (and retries) every `interval` again; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.
 - `event_copies_test.dart`: `copied` acks (validation, batching, own
@@ -435,7 +444,8 @@ query holds the session token.
 - A device whose clip is recording shows "Recording on another device…"
   until the clip completes there; one that misses the completion message
   gets the clip at the next listing that sees the event changed (within
-  15 s for today's and yesterday's events). After a restart before the
+  2 min for today's and yesterday's events while live sync works, 15 s
+  otherwise). After a restart before the
   clip arrives, the event shows as a clip whose recording is missing
   until the first pass fetches the clip (`_rewantClips`), and then with
   it.

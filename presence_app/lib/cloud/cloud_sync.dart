@@ -121,6 +121,11 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   what changed (null).
 /// - A pass runs at start (sign-in, or a session restored at launch), every
 ///   [interval] (15 s), and soon after each new event or completed clip.
+///   While [live] works (connected, or idle between scheduled
+///   connections), the timer's passes are only a backstop, every
+///   [liveInterval] (2 min) since the last pass: live sync announces other
+///   devices' events and completed clips, and each one starts a pass at
+///   once. Listing is billed per request, so this cuts most of it.
 ///   After a failed pass the timer backs off: each failure in a row
 ///   doubles the wait, up to [maxBackoff] intervals.
 /// - When credentials can't be had (the auth API or Cognito fails), syncing
@@ -168,6 +173,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     this.settings,
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(seconds: 15),
+    this.liveInterval = const Duration(minutes: 2),
     this.restoreWindow = const Duration(days: 14),
     this.keep,
     this.maxFetch = 1000,
@@ -218,6 +224,10 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   final CloudBackend backend;
   final Duration debounce;
   final Duration interval;
+
+  /// How often the timer's passes run while [live] works ([_liveUp]),
+  /// rather than every [interval]: a backstop for what live sync missed.
+  final Duration liveInterval;
 
   /// How far back a fetch goes: a new device gets the last two weeks, not
   /// months of video. Older events stay in the cloud (until the bucket
@@ -277,6 +287,16 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// the next try.
   int _failures = 0;
   int _ticksToSkip = 0;
+
+  /// Timer ticks since the last pass started: while [_liveUp], the timer
+  /// starts one only every [liveInterval].
+  int _idleTicks = 0;
+
+  /// Whether [live] works: connected, or idle between scheduled
+  /// connections (the broker keeps what comes meanwhile). Unchanged while
+  /// it connects; off, Never or failing, the timer passes every
+  /// [interval] as without it.
+  bool _liveUp = false;
 
   /// Lets frames through during long loops ([_breathe]).
   int _steps = 0;
@@ -562,6 +582,14 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
         live.enabled &&
         live.config.mode != LiveMode.never &&
         live.state != LiveSyncState.off;
+    switch (live?.state) {
+      case LiveSyncState.connected || LiveSyncState.idle:
+        _liveUp = copies.liveOn;
+      case LiveSyncState.connecting:
+        break;
+      case _:
+        _liveUp = false;
+    }
     notifyListeners();
   }
 
@@ -585,11 +613,15 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   void _startPeriodic() {
     _periodic?.cancel();
     _periodic = Timer.periodic(interval, (_) {
+      _idleTicks++;
       // Backing off after failures.
       if (_ticksToSkip > 0) {
         _ticksToSkip--;
         return;
       }
+      // Live sync works: only a backstop, every [liveInterval] (or the
+      // back-off, when longer).
+      if (_liveUp && interval * _idleTicks < liveInterval) return;
       _schedule(immediately: true);
     });
   }
@@ -685,6 +717,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       _again = true;
       return;
     }
+    _idleTicks = 0;
     _running = _run().whenComplete(() {
       _running = null;
       if (_again && !_disposed) {
