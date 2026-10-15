@@ -274,9 +274,6 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     up in this build); 🔴 when a check failed. Its tooltip reads "This
     device — <headline>" ("Live sync idle", "Offline: can't reach the
     server"…).
-  - **Profile:** the [profile](profiles.md) ID
-    (`automatic_paranoid_axolotl`), the profile's only name, selectable to
-    copy, in `titleMedium` (16 sp).
   - **Devices** ("3 devices"): every [device ID](devices-users-places.md#devices)
     found on the profile's events (`profileDevices`), the events synced
     from the profile's cloud folder included, so the same account's other
@@ -286,8 +283,11 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
-    long. A row is small: each ID is selectable, in `bodySmall` (12 sp),
-    "this device" too, its details in `labelSmall` (11 sp), its OS icon 16
+    long. A row is small: each ID is selectable, 11 sp
+    (`ProfileDevices.deviceIdSize`) on one line beside its presence dot,
+    scaled down to fit when it's still too long (at a large system font)
+    rather than broken mid-word; "this device" and "hidden" go under it in
+    `bodySmall` (12 sp), its details in `labelSmall` (11 sp), its OS icon 16
     px; with access the ID is
     in the accent color and a tap **shows the device's events**: the
     sheet closes and Monitoring opens with the search set to the ID (see
@@ -352,6 +352,10 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     account, or with it the whole profile for its owner, then signs out
     (see [Account deletion](account-deletion.md)); for signed-in users
     without access too.
+  - **Profile:** at the bottom, above About, discreet: "Profile
+    `automatic_paranoid_axolotl`" in `labelSmall` (11 sp), muted, centred,
+    the [profile](profiles.md) ID (the profile's only name) selectable to
+    copy.
   - The account sheet ends with a short paragraph on what Presence is and
     a link to its source code (see [About](about.md)).
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
