@@ -65,6 +65,39 @@ should be named.
 - A clip that can't be played (its recording not here yet) shows the flag
   without "· Identify", and tapping it does nothing.
 
+## Who is this?
+
+The flag waits on the clip's card; this asks. When recognition can't
+name a person or pet it saw, a **"Who is this?"** event
+(`SubjectRequest`, [lib/recognition/subject_request.dart](../presence_app/lib/recognition/subject_request.dart))
+in the events asks the user to tag them, as "Is this Rex?" asks when it
+is unsure.
+
+- **When.** At the end of an automatic recognition run on a clip (a new
+  clip, a synced or streamer clip this device searches), once its search
+  for subjects has ended, if the clip is **unidentified** (above) and no
+  "Is this Rex?" was asked on it: that question already asks for a name.
+  Not after **Auto** in the player, which shows the identify hint there.
+  **Once per clip**: not again if the clip is searched again, or a
+  request about it is already in the history (any device's).
+- **The event** (`type: subject_request`): `clipEventId`, `sorts`
+  (`person`, `pet`, or both) and `ms`, where the first of them was seen.
+  Saved, synced, and deleted with its clip like a suggestion; linked to
+  its clip on restore. A grab, so it shows with system events hidden,
+  and the search finds it by "Who is this?", its detail and its camera.
+- **The card**, top to bottom: the clip's thumbnail (180 px wide,
+  tapping it identifies); the person-add icon and **"Who is this?"**;
+  "A person was seen" ("A pet was seen", "A person and a pet were seen")
+  · camera · time; and **Identify** (key `request-identify`), which opens
+  the player paused where they were first seen, with the identify hint,
+  as the flag's **Identify** does.
+- **Answered** once the clip isn't unidentified any more (named in the
+  player, from the flag, by recognition, or on another device): the
+  question's place shows "✓ **Named Ana, Rex**" with their color squares,
+  and Identify goes. Removing the names brings the question back.
+- Its clip not here yet: "The clip isn't here yet" instead of Identify;
+  its clip gone: "The clip is missing".
+
 ## Verified
 
 - `event_flags_test.dart`: an unknown person flagged, its first sighting
@@ -79,6 +112,13 @@ should be named.
   player paused at the sighting with the hint and Name subject, and a
   name added there clears hint and flag; a clip that can't play shows it
   without Identify; it fits at 320 dp and 1400 dp.
+  `recognition_test.dart`: "Who is this?" asked once about a clip with an
+  unnamed person and dog (both sorts, the first sighting's time, not an
+  earlier car's), a grab, found by the search; not again on a second run
+  or Auto; not for a named clip, a clip with only a bicycle, or on Auto;
+  the event round-trips and rejects unknown sorts; its card asks,
+  Identify opens the player at the sighting with the hint, a name
+  answers it ("Named Ana"), and without its clip it says so.
 
 ## Known limitations
 
@@ -90,5 +130,7 @@ should be named.
   the flag.
 - Clips without object tags (recorded before them, or with them off) are
   never flagged until Auto tags them.
+- "Who is this?" is asked only by the device that ran recognition, and
+  only in the events: there are no push notifications.
 - The name prompt is free text: picking an existing subject means typing
   their name; it doesn't list the known subjects.

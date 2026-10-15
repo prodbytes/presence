@@ -17,6 +17,7 @@ import '../identity/device_id.dart';
 import '../identity/device_os.dart';
 import '../location/device_location.dart';
 import '../recognition/suggestion.dart';
+import '../recognition/subject_request.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -499,12 +500,11 @@ class Persistence implements DeviceSettings {
     List<Map<String, Object?>> records,
     Set<String> old,
   ) async {
-    // A suggestion goes with the clip it asks about.
+    // A question ("Is this Rex?", "Who is this?") goes with its clip.
     final ids = {
       ...old,
       for (final r in records)
-        if (r['type'] == SubjectSuggestion.suggestionType &&
-            old.contains(r['clipEventId']))
+        if (_asksAboutClip(r) && old.contains(r['clipEventId']))
           if (r['id'] case final String id) id,
     };
     final clips = [
@@ -819,12 +819,11 @@ class Persistence implements DeviceSettings {
             if (r['id'] case final String id) id,
       };
       if (ofDevice.isEmpty) return 0;
-      // A suggestion goes with the clip it asks about.
+      // A question ("Is this Rex?", "Who is this?") goes with its clip.
       final ids = {
         ...ofDevice,
         for (final r in records)
-          if (r['type'] == SubjectSuggestion.suggestionType &&
-              ofDevice.contains(r['clipEventId']))
+          if (_asksAboutClip(r) && ofDevice.contains(r['clipEventId']))
             if (r['id'] case final String id) id,
       };
       await _softDelete(store, records, ids);
@@ -869,11 +868,11 @@ class Persistence implements DeviceSettings {
           if (r['id'] case final String id when ids.contains(id) && live(r)) id,
       };
       if (found.isEmpty) return 0;
-      // A suggestion goes with the clip it asks about.
+      // A question ("Is this Rex?", "Who is this?") goes with its clip.
       final records = [
         for (final r in all)
           if (found.contains(r['id']) ||
-              (r['type'] == SubjectSuggestion.suggestionType &&
+              (_asksAboutClip(r) &&
                   found.contains(r['clipEventId']) &&
                   live(r)))
             r,
@@ -1186,12 +1185,15 @@ class Persistence implements DeviceSettings {
         debugPrint('Presence: skipped event ${record['id']}: $e');
       }
     }
-    // Suggestions point at their clips' events.
+    // Questions (suggestions, requests) point at their clips' events.
     final clipEvents = {
       for (final e in [...?_log?.events, ...events])
         if (e is ClipRequested) e.id: e,
     };
     for (final e in events.whereType<SubjectSuggestion>()) {
+      e.clip ??= clipEvents[e.clipEventId];
+    }
+    for (final e in events.whereType<SubjectRequest>()) {
       e.clip ??= clipEvents[e.clipEventId];
     }
     return events;
@@ -1241,6 +1243,11 @@ class Persistence implements DeviceSettings {
     if (record['type'] == SubjectSuggestion.suggestionType) {
       if (SubjectSuggestion.fromRecord(record) case final suggestion?) {
         return suggestion;
+      }
+    }
+    if (record['type'] == SubjectRequest.requestType) {
+      if (SubjectRequest.fromRecord(record) case final request?) {
+        return request;
       }
     }
     return AppEvent.fromRecord(record) ??
@@ -1396,3 +1403,9 @@ class _ClipWriter {
     return text.contains('Quota') ? 'storage is full' : 'storage error';
   }
 }
+
+/// Whether [record] is a question about a clip ("Is this Rex?", "Who is
+/// this?"), which goes wherever its clip (`clipEventId`) goes.
+bool _asksAboutClip(Map<String, Object?> record) =>
+    record['type'] == SubjectSuggestion.suggestionType ||
+    record['type'] == SubjectRequest.requestType;

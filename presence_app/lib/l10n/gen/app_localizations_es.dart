@@ -1351,6 +1351,26 @@ class AppLocalizationsEs extends AppLocalizations {
       'Toca para ejecutar el reconocimiento';
 
   @override
+  String get eventRequestClipNotHere => 'El clip aún no está aquí';
+
+  @override
+  String get eventRequestIdentify => 'Identificar';
+
+  @override
+  String eventRequestNamed(String names) {
+    return 'Nombrado: $names';
+  }
+
+  @override
+  String get eventRequestSeenBoth => 'Se vieron una persona y una mascota';
+
+  @override
+  String get eventRequestSeenPerson => 'Se vio a una persona';
+
+  @override
+  String get eventRequestSeenPet => 'Se vio una mascota';
+
+  @override
   String get eventSubjectsAllTagged =>
       'Personas y mascotas: todos los conocidos ya están nombrados';
 
@@ -1439,6 +1459,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eventTitleStartup => 'Clip de inicio';
+
+  @override
+  String get eventTitleWhoIsThis => '¿Quién es?';
 
   @override
   String get eventWhere => 'Dónde';

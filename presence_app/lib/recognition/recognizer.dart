@@ -13,6 +13,7 @@ import '../clips.dart';
 import '../config.dart';
 import '../crypto/media_seal.dart';
 import '../device_memory.dart';
+import '../event_flags.dart';
 import '../events.dart';
 import '../subjects.dart';
 import 'cloud_recognition.dart';
@@ -21,6 +22,7 @@ import 'image.dart';
 import 'matching.dart';
 import 'memory.dart';
 import 'runtime.dart';
+import 'subject_request.dart';
 import 'suggestion.dart';
 import 'vision.dart';
 import 'vision_platform_native.dart'
@@ -609,6 +611,7 @@ class SubjectRecognizer {
     if (!references && !objectsOn) {
       // Searched for subjects, as far as there's anyone to look for.
       _noteSubjects(event, RecognitionOutcome.noReferences);
+      if (!onRequest) _requestNames(event);
       return const RecognitionResult(RecognitionOutcome.noReferences);
     }
     final media = await _full(event.clip);
@@ -656,6 +659,7 @@ class SubjectRecognizer {
     var lookForSubjects = outcome == RecognitionOutcome.searched;
     if (!lookForSubjects && !objectsOn) {
       _noteSubjects(event, outcome);
+      if (!onRequest) _requestNames(event);
       return RecognitionResult(outcome);
     }
 
@@ -840,6 +844,9 @@ class SubjectRecognizer {
     }
     // The frames all searched: the subjects' search ran to the end.
     if (subjectsOn) _noteSubjects(event, outcome);
+    // Someone seen and nobody can say who, nor asked "Is this Rex?": ask
+    // "Who is this?". Not after Auto: the player already says so.
+    if (subjectsOn && !onRequest && asks.isEmpty) _requestNames(event);
     debugPrint(
       'Presence: recognized ${tagged.length} subject(s), asked about '
       '${asks.length}, saw ${kept.length} kind(s) of object, on $frames '
@@ -892,6 +899,30 @@ class SubjectRecognizer {
       '${crops.length} pet(s) of ${event.id}',
     );
     return best.keys.toList();
+  }
+
+  /// The clips asked "Who is this?" about, this run of the app.
+  final Set<String> _requested = {};
+
+  /// Asks who's on [event] (a [SubjectRequest]) while a person or pet seen
+  /// on it isn't named, once per clip.
+  void _requestNames(ClipRequested event) {
+    final unidentified = unidentifiedOf(event.annotations);
+    if (unidentified == null || _disposed) return;
+    final asked =
+        _requested.contains(event.id) ||
+        log.events.any((e) => e is SubjectRequest && e.clipEventId == event.id);
+    if (asked) return;
+    _requested.add(event.id);
+    _bus.publish(
+      SubjectRequest(
+        clipEventId: event.id,
+        sorts: unidentified.sorts,
+        ms: unidentified.ms,
+        clip: event,
+        cameraId: event.cameraId,
+      ),
+    );
   }
 
   /// Notes on [event] that its search for subjects ran to the end, as
