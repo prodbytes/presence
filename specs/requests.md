@@ -6732,3 +6732,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter test` passes (1050).
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
+
+459. **Do a barrel roll** (2026-10-15), with the pending edit to
+     [prompts/do-a-barrel-roll.md](../prompts/do-a-barrel-roll.md)
+     committed first.
+    - Its last step now says to update and relaunch the app on the
+      connected iPhone and Android phone, if available, rather than on
+      "connected usb devices".
