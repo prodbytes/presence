@@ -30,6 +30,7 @@ import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'event_details.dart';
 import 'cameras/cameras.dart';
+import 'clips/clip_thumbnail.dart';
 import 'device_memory.dart';
 import 'events.dart';
 import 'home/home_screen.dart';
@@ -256,6 +257,10 @@ class _PresenceAppState extends State<PresenceApp> {
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
     );
+    // Missing or black thumbnails made again from the recordings, where
+    // this platform can read them.
+    final thumbnails = ThumbnailMaker();
+    if (thumbnails.supported) _persistence.thumbnails = thumbnails;
     _location = LocationController(
       locator: widget.locator ?? DeviceLocator(),
       load: _persistence.loadLocation,

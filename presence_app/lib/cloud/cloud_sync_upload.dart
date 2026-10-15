@@ -151,7 +151,11 @@ class _Uploader {
         if (SealFormat.isSealed(bytes)) {
           await upload(
             'media/$id.jpg',
-            'thumbnail',
+            // Made again from the recording (it was black): up again.
+            switch (parsed['thumbnailRedone']) {
+              final int at => 'thumbnail@$at',
+              _ => 'thumbnail',
+            },
             () async => bytes,
             CloudSync.sealedType,
             was: 'clips/$id.jpg',
@@ -160,7 +164,8 @@ class _Uploader {
       }
       final details = _json({
         for (final MapEntry(:key, :value) in clip.entries)
-          if (key != 'thumbnail') key: value,
+          // How the thumbnail looked here is this device's business.
+          if (key != 'thumbnail' && key != 'thumbnailCheck') key: value,
       });
       final requestedAt = clip['requestedAt'];
       await upload(

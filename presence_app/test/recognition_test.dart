@@ -109,6 +109,7 @@ class FakeSampler implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
+    Duration? from,
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
     samples++;

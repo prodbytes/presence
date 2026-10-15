@@ -369,7 +369,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   a fingerprint of its content (the SHA-256 of the JSON, or the media ID),
   and for events their ETag too (`etag:<object key>`, see **Changes from
   other devices**). An unchanged object is skipped. A changed one, such as a clip's event
-  that's updated when the clip completes, is uploaded again. The sync
+  that's updated when the clip completes, is uploaded again. A
+  thumbnail's fingerprint is `thumbnail`, or `thumbnail@<thumbnailRedone>`
+  once it was made again from the recording ([Clips](clips.md)), so a
+  new thumbnail goes up again (with the clip's record); the local
+  `thumbnailCheck` isn't uploaded, so checking one sends nothing. Devices
+  that already have the clip keep the thumbnail they fetched, and check
+  it themselves. The sync
   keeps that store in memory, read again at each reconciliation, rather
   than reading it every pass; [retention](event-retention.md) prunes the
   entries of the events it deletes.

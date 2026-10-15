@@ -393,6 +393,7 @@ class _OneFrame implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
+    Duration? from,
     int maxWidth = 960,
   }) async* {
     yield SampledFrame(

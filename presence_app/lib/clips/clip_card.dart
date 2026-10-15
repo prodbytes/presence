@@ -64,7 +64,10 @@ class ClipEventCard extends StatelessWidget {
                   ),
                 )
               else
-                _Thumbnail(bytes: clip.thumbnail),
+                // Missing or black: a placeholder, never a black box.
+                _Thumbnail(
+                  bytes: clip.thumbnailPlaceholder ? null : clip.thumbnail,
+                ),
               if (clip.playable)
                 Center(
                   child: Icon(
@@ -175,6 +178,7 @@ class _Thumbnail extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     if (image == null) {
       return ColoredBox(
+        key: const Key('clip-thumbnail-placeholder'),
         color: scheme.surfaceContainerLowest,
         child: Icon(Icons.videocam, size: 40, color: scheme.onSurfaceVariant),
       );

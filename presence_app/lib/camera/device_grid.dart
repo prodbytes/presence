@@ -25,7 +25,8 @@ class DeviceLatest {
   /// When the device's image was taken, or (without one) its latest event.
   final DateTime time;
 
-  /// The device's newest clip with a thumbnail, if it has one.
+  /// The device's newest clip with a thumbnail (not a black one), if it has
+  /// one.
   final ClipRequested? clip;
 
   Uint8List? get image => clip?.clip.thumbnail;
@@ -48,7 +49,11 @@ List<DeviceLatest> latestByDevice(
     if (profileId != null && event.profileId != profileId) continue;
     final known = latest[device];
     if (known?.clip != null) continue;
-    final clip = event is ClipRequested && event.clip.thumbnail != null
+    // A black one ([VideoClip.thumbnailPlaceholder]) isn't an image.
+    final clip =
+        event is ClipRequested &&
+            event.clip.thumbnail != null &&
+            !event.clip.thumbnailPlaceholder
         ? event
         : null;
     if (known == null || clip != null) {

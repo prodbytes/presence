@@ -150,6 +150,43 @@ void main() {
     },
   );
 
+  test('a thumbnail made again goes up again; checking one alone sends '
+      'nothing', () async {
+    const prefix = 'us-east-1:identity';
+    await auth.signIn();
+    await sync.idle();
+    backend.uploads.clear();
+
+    final clip = (await store.getClip('c1'))!;
+    // Checked here and found fine: this device's business only.
+    await store.putClip({...clip, 'thumbnailCheck': 'ok'});
+    changes.add({'e2'});
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+
+    // Black, made again from the recording.
+    await store.putClip({
+      ...clip,
+      'thumbnail': sealed([7, 7]),
+      'thumbnailCheck': 'ok',
+      'thumbnailRedone': 1000,
+    });
+    changes.add({'e2'});
+    await sync.idle();
+    expect(backend.uploads.keys, {
+      '$prefix/media/c1.jpg',
+      '$prefix/clips/year=1970/day=001/c1.json',
+    });
+    expect(opened(backend.uploads['$prefix/media/c1.jpg']!.bytes), [7, 7]);
+    final details = jsonDecode(
+      utf8.decode(
+        backend.uploads['$prefix/clips/year=1970/day=001/c1.json']!.bytes,
+      ),
+    );
+    expect(details['thumbnailRedone'], 1000);
+    expect(details.containsKey('thumbnailCheck'), isFalse);
+  });
+
   test('a new event while signed in is uploaded when saved', () async {
     await auth.signIn();
     await sync.idle();
