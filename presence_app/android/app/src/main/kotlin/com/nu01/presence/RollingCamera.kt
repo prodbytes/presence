@@ -451,7 +451,7 @@ class RollingCamera(
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, size.width, size.height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_BIT_RATE, if (size.width >= 1280) 1_500_000 else 1_000_000)
+            setInteger(MediaFormat.KEY_BIT_RATE, if (size.width >= 1280) 1_200_000 else 800_000)
             setInteger(MediaFormat.KEY_FRAME_RATE, 30)
             // A keyframe every second: clips can start at most 1 s before
             // their window, and history is pruned in 1 s steps.
