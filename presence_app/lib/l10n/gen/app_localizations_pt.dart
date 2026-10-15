@@ -721,9 +721,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get cameraFlip => 'Trocar câmera';
 
   @override
-  String cameraLiveLabel(String device) {
-    return '$device · ao vivo';
-  }
+  String get cameraLive => 'ao vivo';
 
   @override
   String get cameraModeAll => 'Todas';

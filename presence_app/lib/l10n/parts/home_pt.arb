@@ -50,7 +50,7 @@
   "cameraClipNextIn": "Próximo clipe automático em {countdown}",
   "cameraClipSavingNext": "Salvando clipe… {next}",
   "cameraThisDevice": "Este dispositivo",
-  "cameraLiveLabel": "{device} · ao vivo",
+  "cameraLive": "ao vivo",
   "cameraOffMessage": "Câmera desligada\nNada é gravado até você ligá-la.",
   "cameraTurnOn": "Ligar",
   "cameraCouldNotOpen": "Não foi possível abrir a câmera\n{reason}",

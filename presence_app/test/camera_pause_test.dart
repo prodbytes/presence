@@ -252,7 +252,7 @@ void main() {
         find.byTooltip('Go unattended: screen off, still capturing'),
         findsOneWidget,
       );
-      expect(find.textContaining('· live'), findsOneWidget);
+      expect(find.text('live'), findsOneWidget);
 
       // Unattended: the screen dark, the camera still on.
       await tester.tap(button);
@@ -273,7 +273,7 @@ void main() {
       expect(find.byTooltip('Back to normal: this camera'), findsOneWidget);
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
-      expect(find.textContaining('· live'), findsNothing);
+      expect(find.text('live'), findsNothing);
       final clip = find.byKey(const Key('clip'));
       expect(tester.widget<FloatingActionButton>(clip).onPressed, isNull);
       expect(find.byTooltip('Camera off'), findsOneWidget);

@@ -189,13 +189,9 @@
     }
   },
   "cameraThisDevice": "This device",
-  "cameraLiveLabel": "{device} · live",
-  "@cameraLiveLabel": {
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
+  "cameraLive": "live",
+  "@cameraLive": {
+    "description": "All grid: under this device's ID, its picture is live"
   },
   "cameraOffMessage": "Camera off\nNothing is recorded until you turn it on.",
   "cameraTurnOn": "Turn on",

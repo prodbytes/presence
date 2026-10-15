@@ -184,11 +184,9 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       rect: all ? rectOf(0).deflate(1) : Offset.zero & size,
                       child: DeviceGridCell(
                         label: all
-                            ? context.l10n.cameraLiveLabel(
-                                widget.deviceId ??
-                                    context.l10n.cameraThisDevice,
-                              )
+                            ? widget.deviceId ?? context.l10n.cameraThisDevice
                             : null,
+                        detail: all ? context.l10n.cameraLive : null,
                         device: all ? widget.deviceId : null,
                         presence: all
                             ? PresenceDot(
@@ -215,9 +213,11 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                         curve: Curves.ease,
                         rect: rectOf(i + 1).deflate(1),
                         child: DeviceGridCell(
-                          label:
-                              '${latest.deviceId} · '
-                              '${describeAge(now.difference(latest.time), context.l10n)}',
+                          label: latest.deviceId,
+                          detail: describeAge(
+                            now.difference(latest.time),
+                            context.l10n,
+                          ),
                           device: latest.deviceId,
                           onTap: switch (latest.clip) {
                             final clip? when clip.clip.playable =>
