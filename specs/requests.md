@@ -6563,3 +6563,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Clips](clips.md), [Event
        copies](event-copies.md).
+
+452. **Make sure the APIs accept calls only from the app's web, Android and
+     iOS clients, not from other people.** (2026-10-15)
+    - Checked live: prod enforces the origin check. Direct calls to the
+      APIs' `execute-api` hosts are refused (403, or 401 on payments
+      without a token), and the same routes answer through the site. A
+      script calling through the site's domain is still answered like the
+      app, because only app attestation can tell them apart.
+    - As asked, attestation goes on a new roadmap rather than being built
+      now. [ROADMAP.md](../ROADMAP.md) (linked from the README) plans
+      Firebase App Check: Play Integrity, App Attest once the paid Apple
+      enrollment lands, and reCAPTCHA Enterprise on web. The streamer stays
+      allowed through its device sign-in. Requests are logged first and
+      refused in a later release.
+    - Specs: [Origin check](origin-check.md) now says it's live and links
+      the roadmap, and so does the index.
