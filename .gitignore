@@ -24,6 +24,8 @@ build/
 .idea/
 
 # --- Python ---
+# scripts/cost-report.py's page
+cost-report.html
 __pycache__/
 *.py[cod]
 *$py.class
