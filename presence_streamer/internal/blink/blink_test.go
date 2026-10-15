@@ -114,7 +114,11 @@ func newBlink(t *testing.T) (*Blink, *memStore, *[]string, *[]Camera) {
 	var clips []string
 	var registered []Camera
 	n := 0
+	// The clock starts an hour after the fake clips (2026-10-14 12:00 UTC),
+	// inside the backfill, and runs at real speed for the PIN wait.
+	start, epoch := time.Now(), time.Date(2026, 10, 14, 13, 0, 0, 0, time.UTC)
 	b := &Blink{
+		Now: func() time.Time { return epoch.Add(time.Since(start)) },
 		Dir: dir, DeviceID: "calm_quiet_otter", Key: key, Store: store,
 		Helper: func(ctx context.Context, args ...string) *exec.Cmd {
 			cmd := exec.CommandContext(ctx, helper, args...)
