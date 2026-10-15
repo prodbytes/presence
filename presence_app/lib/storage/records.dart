@@ -114,10 +114,21 @@ abstract final class Records {
       return null;
     }
     final clean = Map<String, Object?>.of(record);
-    for (final key in const ['eventId', 'cameraId', 'cameraLabel', 'state']) {
+    for (final key in const [
+      'eventId',
+      'cameraId',
+      'cameraLabel',
+      'state',
+      'thumbnailCheck',
+    ]) {
       if (clean[key] != null && clean[key] is! String) clean.remove(key);
     }
-    for (final key in const ['beforeMs', 'afterMs', 'requestedAt']) {
+    for (final key in const [
+      'beforeMs',
+      'afterMs',
+      'requestedAt',
+      'thumbnailRedone',
+    ]) {
       if (!clean.containsKey(key)) continue;
       final value = intOf(clean[key]);
       if (value == null) {
