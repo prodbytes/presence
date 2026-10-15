@@ -6211,3 +6211,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        line at the bottom of the profile view, above About. Spec:
        [Sign-in](sign-in.md).
 
+442. **Pricing tiers, and archiving unused data with Intelligent-Tiering.**
+     (2026-10-15)
+     - Asked: help think about pricing tiers (something like Blink's $9 a
+       month), make sure user data archives with S3 Intelligent-Tiering,
+       and estimate what to charge per tier from the existing data and
+       frequency.
+     - Answered:
+       - Intelligent-Tiering is already on from day 0 (user-data.yaml).
+         Data unread for 90 days moves by itself to Archive Instant Access
+         ($0.004/GB). Objects expire at 90 days, so almost nothing reaches
+         that tier. The opt-in Archive and Deep Archive tiers stay off: they
+         need a restore before a read, which the app can't do.
+       - Measured on prod (CloudWatch, 2026-10-08 to 10-14): the bucket
+         grew about 2.3 GB and 1,059 objects in its busiest day, roughly
+         1–2 clips an hour per device. Recognition's infer took 13.3 s on
+         average (216 calls), the ingest Lambda 7 s (674 calls). The health
+         Lambda ran 71k times in the week, far above the monitor's
+         5-minute poll: to look into.
+       - Modelled after the cost cuts (#377–#380): about $1 per device per
+         month at 2 clips an hour, and about $3.5 at 10 an hour.
+     - Changed: nothing. Spec: none changed.
+
