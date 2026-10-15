@@ -77,6 +77,16 @@ The Swift counterpart of the Android layer
   devicectl device process launch --terminate-existing --device <UDID>
   com.nu01.presence` install and start it; it runs. What it does once
   open (the camera, sign-in) wasn't checked from the command line.
+- **The Mac's team is a free Personal Team** (`LMX88986F3`), and Apple
+  doesn't give free teams the Sign in with Apple capability: since
+  `Runner.entitlements` asks for it, a phone build fails to sign ("Personal
+  development teams ... do not support the Sign In with Apple
+  capability"). Until Xcode has a paid Apple Developer Program team, a
+  phone build removes the entitlement locally for the build (`PlistBuddy
+  -c "Delete :com.apple.developer.applesignin"
+  ios/Runner/Runner.entitlements`, restored after; never committed): the
+  app runs and shows both sign-in buttons, but Apple's fails when
+  tapped (2026-10-15, 0.6.202610150825 on the iPhone 12 mini).
 - **App Store signing:** the Xcode project still names no team, and local
   builds keep Flutter's automatic development signing. The Release
   workflow's App Store build writes `Flutter/Signing.xcconfig` (included
