@@ -20,9 +20,6 @@ class _Pass {
   final String owner;
   final int _epoch;
 
-  /// Each clip's media keys, as listed once by this pass.
-  final Map<String, Set<String>> _mediaKeys = {};
-
   /// Whether the pass may still go on: its profile still syncs, from the
   /// same start ([CloudSync._epoch]), not stopped, not disposed.
   bool get current =>
@@ -56,14 +53,4 @@ class _Pass {
     await synced(key, mediaId);
     await _sync._markSynced(store, _fetchKey(objectKey(key)), '$time:$mediaId');
   }
-
-  /// Clip [clipId]'s media in the bucket (recording, thumbnail, tagged
-  /// frames), listed once per pass.
-  Future<Set<String>> mediaKeys(String clipId) async => _mediaKeys[clipId] ??= {
-    for (final k in await session.list('media/$clipId'))
-      if (k.startsWith('media/$clipId.') || k.startsWith('media/$clipId/')) k,
-  };
-
-  /// Lists clips' media afresh from now on.
-  void forgetMediaKeys() => _mediaKeys.clear();
 }

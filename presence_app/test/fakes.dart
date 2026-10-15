@@ -11,6 +11,7 @@ import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
+import 'package:presence_app/cloud/s3.dart';
 import 'package:presence_app/cloud/sigv4.dart';
 import 'package:presence_app/feedback/feedback_client.dart';
 import 'package:presence_app/location/device_location.dart';
@@ -360,6 +361,10 @@ class FakeCloudBackend implements CloudBackend, DeviceRegistry {
   /// Thrown by every connect() while set (the network is down).
   Object? offline;
 
+  /// Whether a get() of a missing key answers 403 AccessDenied rather
+  /// than 404.
+  bool missingDenied = false;
+
   /// Keys whose download fails (relative to the folder), while listed.
   final failGets = <String>{};
 
@@ -490,7 +495,13 @@ class FakeCloudSession implements CloudSession, DeviceSlotsSession {
     if (backend.failGetsOnce.remove(key) case final e?) throw e;
     if (backend.failGets.contains(key)) throw StateError('Failed $key');
     final object = backend.uploads['$prefix/$key'];
-    if (object == null) throw StateError('No $key');
+    if (object == null) {
+      // As S3 answers a role that may list the folder; or, with
+      // [missingDenied], one that may not.
+      throw backend.missingDenied
+          ? S3Exception(403, '<Code>AccessDenied</Code>')
+          : S3Exception(404, '<Code>NoSuchKey</Code>');
+    }
     return object.bytes;
   }
 }

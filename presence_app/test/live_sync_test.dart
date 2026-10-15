@@ -1326,19 +1326,26 @@ void main() {
       await other.idle();
       expect(backend.listings, isEmpty, reason: 'no timer passes');
 
-      // A received event still starts a pass at once, for its clip.
+      // A received event still starts a pass at once, for its clip: got
+      // by its known key, without listing (the last listing is recent).
+      final time = now();
       broker.last.deliver(
         eventsTopic,
         messageOf({
           'id': 'backstop',
           'profileId': '1',
           'type': 'clip_requested',
-          'time': now(),
+          'time': time,
           'clipId': 'backstop-clip',
         }),
       );
-      await until(() => backend.listings.isNotEmpty, reason: 'a pass ran');
+      final recordKey = CloudSync.clipRecordKey('backstop-clip', time);
+      await until(
+        () => backend.downloads.contains(recordKey),
+        reason: 'a pass ran',
+      );
       await other.idle();
+      expect(backend.listings, isEmpty, reason: 'nothing listed');
 
       // Live sync fails (and retries): the timer passes every interval,
       // as without it.
@@ -1349,6 +1356,75 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await other.idle();
       expect(backend.listings, isNotEmpty, reason: 'timer passes');
+    });
+
+    test(
+      'a received clip comes by GETs of its known keys: nothing listed',
+      () async {
+        final (other, _) = await another(
+          liveInterval: const Duration(hours: 1),
+        );
+        final time = now();
+        clipInBucket('got-clip', 'got', time);
+        final recordKey = CloudSync.clipRecordKey('got-clip', time);
+        backend.listings.clear();
+        backend.downloads.clear();
+        broker.last.deliver(
+          eventsTopic,
+          messageOf({
+            'id': 'got',
+            'profileId': '1',
+            'type': 'clip_requested',
+            'time': time,
+            'clipId': 'got-clip',
+            'clipState': 'complete',
+          }),
+        );
+        await until(() => remote.any((r) => r.clips.isNotEmpty));
+        await other.idle();
+        final clip = remote.expand((r) => r.clips).single;
+        expect(clip['id'], 'got-clip');
+        expect(clip['thumbnail'], isNotNull);
+        expect(backend.listings, isEmpty, reason: 'no LIST at all');
+        expect(backend.downloads.toSet(), {recordKey, 'media/got-clip.jpg'});
+        // Its recording is pending, at the key its mimeType gives.
+        expect(
+          (await store.syncedKeys()).keys,
+          contains('fetch:$identity/media/got-clip.webm'),
+        );
+      },
+    );
+
+    test('should S3 answer AccessDenied for a missing key, a clip not up '
+        'yet is listed to tell, and the pass goes on', () async {
+      final (other, _) = await another(liveInterval: const Duration(hours: 1));
+      backend.missingDenied = true;
+      final time = now();
+      final recordKey = CloudSync.clipRecordKey('late-clip', time);
+      final resets = backend.resets;
+      broker.last.deliver(
+        eventsTopic,
+        messageOf({
+          'id': 'late',
+          'profileId': '1',
+          'type': 'clip_requested',
+          'time': time,
+          'clipId': 'late-clip',
+        }),
+      );
+      await until(() => backend.listings.contains(recordKey));
+      await other.idle();
+      expect(other.state, CloudSyncState.synced);
+      expect(backend.resets, resets, reason: 'credentials kept');
+
+      // Up now: the next pass gets it.
+      clipInBucket('late-clip', 'late', time);
+      other.retry();
+      await other.idle();
+      expect(
+        remote.expand((r) => r.clips).map((c) => c['id']),
+        contains('late-clip'),
+      );
     });
 
     test('a received clip not in the bucket yet is looked for at each pass '
@@ -1367,24 +1443,27 @@ void main() {
           'clipId': 'slow-clip',
         }),
       );
-      await until(() => backend.listings.contains(recordKey));
+      // Got by its known key (404: not there yet), never listed.
+      await until(() => backend.downloads.contains(recordKey));
       await other.idle();
+      expect(backend.listings, isNot(contains(recordKey)));
 
       // Still recording there, 9 minutes on: still looked for.
       clock = clock.add(const Duration(minutes: 9));
-      backend.listings.clear();
+      backend.downloads.clear();
       other.retry();
       await other.idle();
-      expect(backend.listings, contains(recordKey));
+      expect(backend.downloads, contains(recordKey));
 
       // Past 10 minutes: looked for once more, then no longer (until its
       // event changes, or the next full fetch).
       clock = clock.add(const Duration(minutes: 2));
       other.retry();
       await other.idle();
-      backend.listings.clear();
+      backend.downloads.clear();
       other.retry();
       await other.idle();
+      expect(backend.downloads, isNot(contains(recordKey)));
       expect(backend.listings, isNot(contains(recordKey)));
     });
 

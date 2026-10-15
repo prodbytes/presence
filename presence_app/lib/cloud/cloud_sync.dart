@@ -126,6 +126,9 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   [liveInterval] (2 min) since the last pass: live sync announces other
 ///   devices' events and completed clips, and each one starts a pass at
 ///   once. Listing is billed per request, so this cuts most of it.
+///   A pass started by a save here or a live message lists nothing while
+///   the last listing is under [liveInterval] old: the message brought the
+///   event, and its clip is got by its known keys.
 ///   After a failed pass the timer backs off: each failure in a row
 ///   doubles the wait, up to [maxBackoff] intervals.
 /// - When credentials can't be had (the auth API or Cognito fails), syncing
@@ -135,7 +138,9 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   the first pass for a user lists all of `events/` (old unpartitioned
 ///   keys included), one every [fullFetchEvery] lists each day of the
 ///   [restoreWindow], and the others only today's and yesterday's
-///   partitions, where other devices' new events land.
+///   partitions, where other devices' new events land. A clip's record,
+///   thumbnail, recording and tagged frames are never listed: their keys
+///   are known, and a GET of a missing one answers 404.
 /// - Only the profile's own events go up (their `profileId`), with their
 ///   clips. Nothing syncs without a profile: events recorded signed out go
 ///   up once a sign-in gives them its profile
@@ -328,6 +333,17 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// When the last pass that listed the whole window ran; null until the
   /// first pass for this user, which lists all of `events/`.
   DateTime? _lastFullFetch;
+
+  /// When a pass last listed the day partitions; null until one has.
+  DateTime? _lastListing;
+
+  /// Whether the next pass lists the day partitions whatever their age:
+  /// one started by anything but a save here or a live message (the
+  /// timer, the Sync button, a retry, a sign-in). Passes started by a save
+  /// or a live message skip the listing while the last one is under
+  /// [liveInterval] old: the live message brought the event (and wanted
+  /// its clip, fetched by its known keys), and a LIST costs 12 times a GET.
+  bool _mustList = true;
   int _downloaded = 0;
   Future<void>? _running;
 
@@ -573,6 +589,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   void _startOver() {
     _epoch++;
     _lastFullFetch = null;
+    _lastListing = null;
+    _mustList = true;
     _reconcile = true;
     _synced = null;
     _dirty.clear();
@@ -644,7 +662,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       _copyTracker.note(ids);
     }
     // While backing off, the timer's next try takes them.
-    if (_ticksToSkip == 0) _schedule();
+    if (_ticksToSkip == 0) _schedule(listing: false);
   }
 
   /// How long until the next pass after the failures so far: [interval]
@@ -695,8 +713,12 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     _schedule(immediately: true);
   }
 
-  void _schedule({bool immediately = false}) {
+  /// Starts a pass soon, or [immediately]. It lists the day partitions
+  /// ([_mustList]) unless it's for a save or a live message ([listing]
+  /// false), which can do with a listing under [liveInterval] old.
+  void _schedule({bool immediately = false, bool listing = true}) {
     if (_disposed || _syncProfile == null || stopped || _halted) return;
+    if (listing) _mustList = true;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
@@ -750,6 +772,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     _dirty.clear();
     var reconcile = _reconcile;
     _reconcile = false;
+    final mustList = _mustList;
+    _mustList = false;
     CloudSession? used;
     Future<void> run(CloudSession session) async {
       final pass = _Pass(this, session, await _store, owner, epoch)..check();
@@ -775,15 +799,24 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       // A full fetch (the first, then every [fullFetchEvery]) brings in
       // the history: [fetchingHistory] while it runs.
       if (full) _setFetchingHistory(true);
-      try {
-        await _fetcher.fetch(
-          pass,
-          _fetcher.prefixes(now, first: last == null, full: full),
-        );
-      } finally {
-        if (full) _setFetchingHistory(false);
+      // Listed unless the pass is for a save or a live message and the last
+      // listing is recent ([_mustList]).
+      final listedAt = _lastListing;
+      if (full ||
+          mustList ||
+          listedAt == null ||
+          now.difference(listedAt) >= liveInterval) {
+        try {
+          await _fetcher.fetch(
+            pass,
+            _fetcher.prefixes(now, first: last == null, full: full),
+          );
+        } finally {
+          if (full) _setFetchingHistory(false);
+        }
+        pass.check();
+        _lastListing = now;
       }
-      pass.check();
       if (full) {
         _lastFullFetch = now;
         await _fetcher.rewantClips(owner);
@@ -801,6 +834,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       if (epoch != _epoch) return;
       _dirty.addAll(dirty);
       if (reconcile) _reconcile = true;
+      if (mustList) _mustList = true;
     }
 
     try {

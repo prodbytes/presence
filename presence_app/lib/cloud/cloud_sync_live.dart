@@ -182,7 +182,7 @@ class _LiveBridge {
         }
         await _sync._forgetSynced(store, objectKey);
         _sync._dirty.add(id);
-        _sync._schedule();
+        _sync._schedule(listing: false);
       } else {
         await settle();
       }
@@ -190,7 +190,8 @@ class _LiveBridge {
     if (clipId is String && wantsClip && current()) {
       if (premium) {
         _sync._fetcher.want(clipId, time);
-        _sync._schedule(immediately: true);
+        // Fetched by its known keys: no listing needed.
+        _sync._schedule(immediately: true, listing: false);
       } else if (message.clip case final clip?) {
         // Free: the clip as the sender put it in the message.
         await _sync._deliver(RemoteRecords(clips: [clip], live: true));

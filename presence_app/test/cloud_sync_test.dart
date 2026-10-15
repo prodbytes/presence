@@ -960,9 +960,12 @@ void main() {
         await sync.idle();
       }
 
+      // A pass that lists, as the timer's does (one for a save alone
+      // skips the listing while the last is recent).
       Future<void> pass() async {
         backend.listings.clear();
         changes.add(null);
+        sync.retry();
         await sync.idle();
       }
 
@@ -992,6 +995,43 @@ void main() {
         backend.downloads.clear();
         await pass();
         expect(backend.downloads, isEmpty);
+      });
+
+      test('a pass for a save skips the listing while the last is under '
+          '2 minutes old; the timer\'s and a retry still list', () async {
+        await start();
+        Iterable<String> listed() =>
+            backend.listings.where((p) => p.startsWith('events/'));
+
+        // Saved here a minute on: uploaded, nothing listed.
+        await store.putEvent({
+          'userId': '1',
+          'profileId': '1',
+          'id': 'saved',
+          'type': 'x',
+          'time': now.millisecondsSinceEpoch,
+        });
+        clock = now.add(const Duration(minutes: 1));
+        backend.listings.clear();
+        changes.add({'saved'});
+        await sync.idle();
+        expect(
+          backend.uploads.keys.where((k) => k.contains('saved')),
+          isNotEmpty,
+        );
+        expect(listed(), isEmpty);
+
+        // A retry (as the timer's pass, the Sync button) lists anyway.
+        sync.retry();
+        await sync.idle();
+        expect(listed(), hasLength(2));
+
+        // A save 2 minutes after that listing lists again.
+        clock = clock.add(const Duration(minutes: 2));
+        backend.listings.clear();
+        changes.add(<String>{});
+        await sync.idle();
+        expect(listed(), hasLength(2));
       });
 
       test('once an hour, a pass lists every day of the two weeks', () async {
@@ -1533,7 +1573,8 @@ void main() {
         isEmpty,
       );
       put('$day/bad.json', json({'id': 'bad', 'type': 'x', 'time': 8}));
-      changes.add(null);
+      // The timer's pass: it lists.
+      sync.retry();
       await sync.idle();
       expect(
         fetched.expand((r) => r.events).map((e) => e['id']),
