@@ -403,6 +403,32 @@ void main() {
     expect(backend.uploads, isNotEmpty);
   });
 
+  test('a device past the plan\'s limit stops, says so, and isn\'t '
+      'retried on its own', () async {
+    const slots = DeviceSlots(
+      limit: 2,
+      devices: ['first_quiet_gadget', 'second_bold_lamp', 'third_shy_kettle'],
+    );
+    backend.failConnect = CognitoException(
+      'HTTP 403 from /api/auth/credentials',
+      "this device is past your plan's device limit",
+      deviceSlots: slots,
+    );
+    await auth.signIn();
+    await sync.idle();
+    expect(sync.state, CloudSyncState.error);
+    expect(sync.stopped, isTrue);
+    expect(sync.error, "this device is past your plan's device limit");
+    expect(sync.deviceSlots, slots);
+    expect(sync.deviceSlots!.shows('third_shy_kettle'), isFalse);
+
+    changes.add(null);
+    auth.notify();
+    await sync.idle();
+    expect(backend.tokens, hasLength(1));
+    expect(backend.uploads, isEmpty);
+  });
+
   test('a new ID token resumes a stopped sync', () async {
     backend.failConnect = CognitoException('HTTP 502', 'failed');
     await auth.signIn();

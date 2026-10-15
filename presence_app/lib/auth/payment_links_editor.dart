@@ -5,7 +5,8 @@ import 'payments_client.dart';
 import 'premium_checkout.dart';
 
 /// The Admin tab's Payments section: the Premium plans' Stripe Payment
-/// Links, monthly and yearly, which free members upgrade with. Saved
+/// Links, monthly and yearly, which free members upgrade with, and the Pro
+/// plans', which members upgrade to Pro with (none until saved here). Saved
 /// through the payments API (`PUT /api/payments/links`, admins only); a
 /// field left empty is a plan that isn't offered.
 class PaymentLinksEditor extends StatefulWidget {
@@ -20,6 +21,15 @@ class PaymentLinksEditor extends StatefulWidget {
 class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
   final _monthly = TextEditingController();
   final _yearly = TextEditingController();
+  final _proMonthly = TextEditingController();
+  final _proYearly = TextEditingController();
+
+  List<TextEditingController> get _fields => [
+    _monthly,
+    _yearly,
+    _proMonthly,
+    _proYearly,
+  ];
 
   /// The links the fields were last filled from.
   PaymentLinks? _shown;
@@ -36,8 +46,9 @@ class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
   @override
   void dispose() {
     widget.payments.removeListener(_fill);
-    _monthly.dispose();
-    _yearly.dispose();
+    for (final field in _fields) {
+      field.dispose();
+    }
     super.dispose();
   }
 
@@ -50,6 +61,8 @@ class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
       _shown = links;
       _monthly.text = links.monthly;
       _yearly.text = links.yearly;
+      _proMonthly.text = links.proMonthly;
+      _proYearly.text = links.proYearly;
     });
   }
 
@@ -66,7 +79,12 @@ class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
     final l10n = context.l10n;
     setState(() => _saving = true);
     try {
-      await widget.payments.save(monthly: _monthly.text, yearly: _yearly.text);
+      await widget.payments.save(
+        monthly: _monthly.text,
+        yearly: _yearly.text,
+        proMonthly: _proMonthly.text,
+        proYearly: _proYearly.text,
+      );
       messenger.showSnackBar(SnackBar(content: Text(l10n.authPaymentsSaved)));
     } catch (e) {
       messenger.showSnackBar(
@@ -83,7 +101,7 @@ class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
     final theme = Theme.of(context);
     final muted = TextStyle(color: theme.colorScheme.onSurfaceVariant);
     final links = widget.payments.links;
-    final valid = _valid(_monthly.text) && _valid(_yearly.text);
+    final valid = _fields.every((field) => _valid(field.text));
     InputDecoration field(String label, TextEditingController c) =>
         InputDecoration(
           labelText: label,
@@ -106,22 +124,24 @@ class _PaymentLinksEditorState extends State<PaymentLinksEditor> {
             key: const Key('admin-payments-defaults'),
             style: muted,
           ),
-        TextField(
-          key: const Key('admin-payments-monthly'),
-          controller: _monthly,
-          enabled: links != null && !_saving,
-          keyboardType: TextInputType.url,
-          decoration: field(l10n.authPaymentsMonthly, _monthly),
-          onChanged: (_) => setState(() {}),
-        ),
-        TextField(
-          key: const Key('admin-payments-yearly'),
-          controller: _yearly,
-          enabled: links != null && !_saving,
-          keyboardType: TextInputType.url,
-          decoration: field(l10n.authPaymentsYearly, _yearly),
-          onChanged: (_) => setState(() {}),
-        ),
+        for (final (key, controller, label) in [
+          ('admin-payments-monthly', _monthly, l10n.authPaymentsMonthly),
+          ('admin-payments-yearly', _yearly, l10n.authPaymentsYearly),
+          (
+            'admin-payments-pro-monthly',
+            _proMonthly,
+            l10n.authPaymentsProMonthly,
+          ),
+          ('admin-payments-pro-yearly', _proYearly, l10n.authPaymentsProYearly),
+        ])
+          TextField(
+            key: Key(key),
+            controller: controller,
+            enabled: links != null && !_saving,
+            keyboardType: TextInputType.url,
+            decoration: field(label, controller),
+            onChanged: (_) => setState(() {}),
+          ),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: FilledButton.icon(

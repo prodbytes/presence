@@ -118,6 +118,7 @@ class SystemHealth extends StatelessWidget {
       null => ('⚪', l.healthRbacrUnknown),
       false => ('⚠️', l.healthRbacrMissing),
       true when !roles.hasAccess => ('✅', l.healthRbacrSet),
+      true when roles.isPro => ('✅', l.healthRbacrPro),
       true when roles.isPremium => ('✅', l.healthRbacrPremium),
       true => ('✅', l.healthRbacrFree),
     };

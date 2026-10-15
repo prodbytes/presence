@@ -74,7 +74,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   the roles check grants access and gives the profile; another profile
   (after a link) starts it over.
 - **Premium only:** everything on this page is for a **premium** profile
-  (`presence_premium`, from rbacr). A free profile's credentials can't
+  (`presence_premium`, from rbacr: Premium and Pro, whose credentials are
+  both tagged `tier=premium`). A free profile's credentials can't
   reach the bucket, and a free pass publishes nothing: each device keeps
   its events, and live sync's scheduled connections (at start, at
   sign-in, every 15 min) share each new event once, final, with its

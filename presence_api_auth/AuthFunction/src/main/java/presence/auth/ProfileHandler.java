@@ -16,6 +16,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -36,10 +37,14 @@ import static presence.auth.Http.response;
  *       uploaded before profiles stays where it is. The identity also gets
  *       the live-sync IoT policy ({@link Backend#allowLiveSync}). The body,
  *       the device's ID (plain text, or empty), adds the device to the end of
- *       the profile's devices (up to {@link #PREMIUM_DEVICES}); the answer
- *       also has {@code "deviceLimit"} (the first {@link #FREE_DEVICES}
- *       show for a free profile, {@link #PREMIUM_DEVICES} for a premium
+ *       the profile's devices (up to {@link #MAX_DEVICES}); the answer
+ *       also has {@code "deviceLimit"} (how many of them show, {@link
+ *       #deviceLimit}: {@link #FREE_DEVICES} for a free profile, {@link
+ *       #PREMIUM_DEVICES} for a premium one, {@link #PRO_DEVICES} for a pro
  *       one) and {@code "devices"}, in the order they were added, and
+ *       only a device within that limit gets credentials ({@link
+ *       #withinLimit}; otherwise 403 with {@code "reason": "deviceLimit"},
+ *       {@code "deviceLimit"} and {@code "devices"}), and
  *       {@code "bucket"}, the user-data bucket, when it's configured (the
  *       streamer, which has no build-time settings, reads it there);</li>
  *   <li>{@code POST /api/auth/profile/devices/remove} ({@code presence_user}
@@ -49,8 +54,8 @@ import static presence.auth.Http.response;
  *       linked to the caller) at its first sign-in, as {@code {"profile",
  *       "shared": [...], "accounts": [{email, owner, current}]}}: {@code
  *       shared} is what the caller gets from the profile's owner ({@link
- *       Roles#shared}: {@code presence_user} and {@code presence_premium}
- *       when the owner has them; empty for the owner), {@code accounts} the
+ *       Roles#shared}: {@code presence_user}, {@code presence_premium} and
+ *       {@code presence_pro} when the owner has them; empty for the owner), {@code accounts} the
  *       profile's subjects, the owner first. The app asks it at every
  *       sign-in, and its own roles from rbacr;</li>
  *   <li>{@code POST /api/auth/profile/link-code} ({@code presence_user}
@@ -246,17 +251,42 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** The principal tag of administrators' credentials ({@code true}), for Feedback. */
     static final String ADMIN_TAG = "admin";
 
-    /** {@link #TIER_TAG}'s value for {@link Roles#PREMIUM}: S3 and live sync. */
+    /**
+     * {@link #TIER_TAG}'s value for {@link Roles#PREMIUM}: S3 and live sync.
+     * Pro holds {@link Roles#PREMIUM} too, so its credentials carry this
+     * same tag: the tag is the bucket's access, not the plan (which only
+     * sets {@link #deviceLimit}).
+     */
     static final String PREMIUM = "premium";
 
     /** {@link #TIER_TAG}'s value otherwise: live sync only. */
     static final String FREE = "free";
 
-    /** How many of a free profile's devices show their events: its first two. */
-    static final int FREE_DEVICES = 2;
+    /** How many of a free profile's devices show their events: its first ten. */
+    static final int FREE_DEVICES = 10;
 
-    /** How many of a premium profile's devices show theirs, and the most a profile lists. */
-    static final int PREMIUM_DEVICES = 50;
+    /** How many of a premium profile's devices show theirs. */
+    static final int PREMIUM_DEVICES = 25;
+
+    /** How many of a pro profile's (or an admin's) devices show theirs. */
+    static final int PRO_DEVICES = 50;
+
+    /** The most devices a profile lists, whatever its plan: the largest plan's. */
+    static final int MAX_DEVICES = PRO_DEVICES;
+
+    /**
+     * How many of the profile's devices show for {@code roles} (the
+     * caller's, with what it shares from the profile's owner, or the
+     * owner's): {@link #PRO_DEVICES} with {@link Roles#PRO} (which admins
+     * hold too), {@link #PREMIUM_DEVICES} with {@link Roles#PREMIUM},
+     * {@link #FREE_DEVICES} otherwise.
+     */
+    static int deviceLimit(Set<String> roles) {
+        if (roles.contains(Roles.PRO)) {
+            return PRO_DEVICES;
+        }
+        return roles.contains(Roles.PREMIUM) ? PREMIUM_DEVICES : FREE_DEVICES;
+    }
 
     /** A stream key: {@code psk_} and 32 random bytes, base64url. */
     private static final Pattern STREAM_KEY = Pattern.compile("psk_[A-Za-z0-9_-]{43}");
@@ -394,26 +424,55 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
+        // Every device is listed, up to the largest plan's limit, whatever
+        // the plan: a profile that upgrades gets the devices it already had.
+        // Only those within the plan's limit get credentials.
+        var limit = deviceLimit(granted);
+        var devices = device.isEmpty()
+                ? profiles.store().devices(profile.id())
+                : profiles.store().addDevice(profile.id(), device, MAX_DEVICES);
+        if (!withinLimit(device, devices, limit)) {
+            return pastLimit(limit, devices);
+        }
         var premium = granted.contains(Roles.PREMIUM);
         var tier = premium ? PREMIUM : FREE;
         // Administration is never shared with a linked owner (Roles.of).
         var admin = granted.contains(Roles.ADMIN);
         var token = backend.openIdToken(profile.identityId(), profile.id(), tier, admin);
         backend.allowLiveSync(profile.identityId());
-        // Every device is listed, up to Premium's limit, whatever the tier:
-        // a profile that becomes premium shows the devices it already had.
-        var devices = device.isEmpty()
-                ? profiles.store().devices(profile.id())
-                : profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
-        return response(200, credentialsAnswer(profile, token, premium, devices, ""));
+        return response(200, credentialsAnswer(profile, token, premium, limit, devices, ""));
+    }
+
+    /**
+     * Whether {@code device} is one of the first {@code limit} of the
+     * profile's {@code devices}, which get credentials. A device past them,
+     * or not listed at all (past {@link #MAX_DEVICES}), gets none. Without a
+     * device (an older app's empty body), only while the profile has no
+     * more devices than the limit: otherwise it might be one past it.
+     */
+    static boolean withinLimit(String device, List<String> devices, int limit) {
+        if (device.isEmpty()) {
+            return devices.size() <= limit;
+        }
+        var index = devices.indexOf(device);
+        return index >= 0 && index < limit;
+    }
+
+    /**
+     * The 403 for a device past the plan's limit: no credentials, with the
+     * limit and the devices, as the 200 has them, so the app can say why.
+     */
+    private static APIGatewayV2HTTPResponse pastLimit(int limit, List<String> devices) {
+        return response(403, "{\"error\":\"this device is past your plan's device limit\",\"reason\":\"deviceLimit\""
+                + ",\"deviceLimit\":" + limit + ",\"devices\":" + devicesJson(devices) + "}");
     }
 
     /** {@code POST /api/auth/credentials}'s answer, with {@code extra} fields at the end. */
-    private String credentialsAnswer(Profiles.Profile profile, String token, boolean premium, List<String> devices,
-                                     String extra) {
+    private String credentialsAnswer(Profiles.Profile profile, String token, boolean premium, int deviceLimit,
+                                     List<String> devices, String extra) {
         return "{\"identityId\":" + Json.string(profile.identityId())
                 + ",\"token\":" + Json.string(token)
-                + ",\"deviceLimit\":" + (premium ? PREMIUM_DEVICES : FREE_DEVICES)
+                + ",\"deviceLimit\":" + deviceLimit
                 + ",\"devices\":" + devicesJson(devices)
                 + ",\"tier\":" + Json.string(premium ? PREMIUM : FREE)
                 + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket))
@@ -426,7 +485,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * device in the body, a device of the caller's profile to be (a
      * Raspberry Pi running the streamer), replacing any key it had. The key
      * is answered once, {@code {"profile", "device", "key"}}; only its
-     * SHA-256 is kept.
+     * SHA-256 is kept. Premium (or Pro, or admin) only: 403 otherwise.
      */
     private APIGatewayV2HTTPResponse streamKey(Caller caller, String device) {
         if (!configured) {
@@ -436,8 +495,13 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(400, "{\"error\":\"the body must be a device ID\"}");
         }
         var profile = profile(caller);
-        if (!roles.of(caller, profile).contains(Roles.USER)) {
+        var granted = roles.of(caller, profile);
+        if (!granted.contains(Roles.USER)) {
             return response(403, "{\"error\":\"presence_user is required\"}");
+        }
+        // Streamers (Raspberry Pi, Blink) are Premium's and Pro's.
+        if (!granted.contains(Roles.PREMIUM)) {
+            return response(403, "{\"error\":\"streamers are Premium only\"}");
         }
         profile = withIdentity(caller, profile);
         // The profile is linked to its identity before the streamer asks.
@@ -459,9 +523,11 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * to {@link #MAX_STREAMED_DEVICES}), which join the profile's devices
      * too, under its key. When the key is the device's, the
      * profile's credentials, as {@code POST /api/auth/credentials} answers
-     * them for that device, tiered by the profile owner's roles, with
+     * them for that device, by the profile owner's roles, with
      * {@code "userId"}, the Google {@code sub} of who made the key. Any
-     * mismatch is the same 401.
+     * mismatch is the same 401. Streamers are Premium's: a 403 when the
+     * owner isn't premium (or pro), and when the streamer is past the
+     * plan's device limit (its cameras past it only get hidden).
      */
     private APIGatewayV2HTTPResponse streamCredentials(String key, String body) {
         if (!configured) {
@@ -491,19 +557,26 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return refused;
         }
         // The profile's folder is its owner's, and so is its tier.
-        var premium = profile.ownerEmail() != null
-                && roles.of(profile.ownerEmail(), true).contains(Roles.PREMIUM);
-        var token = backend.openIdToken(profile.identityId(), profile.id(), premium ? PREMIUM : FREE, false);
-        backend.allowLiveSync(profile.identityId());
-        var devices = profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
+        var owner = profile.ownerEmail() == null ? Set.<String>of() : roles.of(profile.ownerEmail(), true);
+        // Streamers are Premium's and Pro's: a free (or former) owner's get nothing.
+        if (!owner.contains(Roles.PREMIUM)) {
+            return response(403, "{\"error\":\"streamers are Premium only\"}");
+        }
+        var limit = deviceLimit(owner);
+        var devices = profiles.store().addDevice(profile.id(), device, MAX_DEVICES);
         // The cameras it streams for (Blink's): devices of the profile too.
         for (var camera : cameras) {
             if (!camera.equals(device)) {
-                devices = profiles.store().addDevice(profile.id(), camera, PREMIUM_DEVICES);
+                devices = profiles.store().addDevice(profile.id(), camera, MAX_DEVICES);
             }
         }
+        if (!withinLimit(device, devices, limit)) {
+            return pastLimit(limit, devices);
+        }
+        var token = backend.openIdToken(profile.identityId(), profile.id(), PREMIUM, false);
+        backend.allowLiveSync(profile.identityId());
         var subject = stored.get().subject();
-        return response(200, credentialsAnswer(profile, token, premium, devices,
+        return response(200, credentialsAnswer(profile, token, true, limit, devices,
                 subject == null ? "" : ",\"userId\":" + Json.string(subject)));
     }
 
@@ -527,7 +600,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var devices = profiles.store().removeDevice(profile.id(), device);
         // A deleted device's stream key no longer streams.
         backend.deleteStreamKey(profile.id(), device);
-        return response(200, "{\"deviceLimit\":" + (granted.contains(Roles.PREMIUM) ? PREMIUM_DEVICES : FREE_DEVICES)
+        return response(200, "{\"deviceLimit\":" + deviceLimit(granted)
                 + ",\"devices\":" + devicesJson(devices) + "}");
     }
 

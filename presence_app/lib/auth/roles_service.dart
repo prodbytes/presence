@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../cloud/device_slots.dart';
 import 'auth_service.dart';
 import 'google_config.dart';
 import 'rbacr_client.dart';
@@ -26,6 +27,11 @@ const rootRole = 'presence_root';
 /// that. Without it, a member's devices tell each other about events over
 /// live sync only.
 const premiumRole = 'presence_premium';
+
+/// Premium with more devices ([Plan.pro]). Given by rbacr (pro or admin in
+/// its presence system), always with [premiumRole], which gives the cloud
+/// access: the auth API tags a pro profile's credentials premium.
+const proRole = 'presence_pro';
 
 /// Nobody signed in: may only sign in (or, in [ExecutionMode.dev], has
 /// every role).
@@ -110,8 +116,8 @@ class RolesException implements Exception {
 
 /// The real client. The user's own roles come from rbacr (`GET /api/me`,
 /// [presenceRoles]); their profile, and the membership it shares with a
-/// linked account (`shared`: [userRole] and [premiumRole] when the
-/// profile's owner has them), from the auth API's
+/// linked account (`shared`: [userRole], [premiumRole] and [proRole] when
+/// the profile's owner has them), from the auth API's
 /// `GET <base>/api/auth/profile`, which makes the profile at the account's
 /// first sign-in. Both must answer: either failing fails the check (deny).
 class HttpRolesClient implements RolesClient {
@@ -150,7 +156,7 @@ class HttpRolesClient implements RolesClient {
       // A linked account shares its owner's membership, never more.
       if (shared is List)
         for (final r in shared)
-          if (r == userRole || r == premiumRole) '$r',
+          if (r == userRole || r == premiumRole || r == proRole) '$r',
     };
     return (
       roles: roles.toList()..sort(),
@@ -351,6 +357,18 @@ class RolesService extends ChangeNotifier {
   /// Has access and syncs with the cloud ([premiumRole]); a member without
   /// it is free: live sync only.
   bool get isPremium => hasAccess && _roles.contains(premiumRole);
+
+  /// Has access and is on Pro ([proRole]): Premium with more devices.
+  bool get isPro => hasAccess && _roles.contains(proRole);
+
+  /// The member's plan, as the account sheet says it: Pro for [isPro] or
+  /// [isAdmin] (an admin gets Pro's devices), Premium for [isPremium],
+  /// Free otherwise.
+  Plan get plan => isPro || isAdmin
+      ? Plan.pro
+      : isPremium
+      ? Plan.premium
+      : Plan.free;
 
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() async {

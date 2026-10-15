@@ -51,8 +51,8 @@ them while the health stack imports them. The API's routes:
   with or without roles, so the same account gets the same profile on
   every device (a new one gets a fresh ID; `?profile=` is ignored).
   `shared` is what a linked account shares from the profile's owner
-  (`presence_user` and/or `presence_premium` when the owner has them;
-  never admin or root; `[]` for the owner); `accounts` the profile's
+  (`presence_user`, `presence_premium` and `presence_pro` when the owner
+  has them; never admin or root; `[]` for the owner); `accounts` the profile's
   Google accounts, the owner first. The app asks it at every sign-in,
   with rbacr's `GET /api/me` (see [Sign-in](sign-in.md)). **Data belongs
   to the profile, not the login**: see [Profiles](profiles.md).
@@ -63,7 +63,8 @@ them while the health stack imports them. The API's routes:
   policy attached to its identity), and linking and unlinking its
   Google accounts (link and unlink answer the same as the listing). The
   credentials also list the profile's devices and
-  how many show (2 free, 50 premium), and name the user-data bucket
+  how many sync (10 free, 25 premium, 50 pro or admin; a device past
+  that gets a 403 instead of credentials), and name the user-data bucket
   (`bucket`, when the stack has one: the [streamer](streamer.md), which has
   no build-time settings, reads it there); `POST
   /api/auth/profile/devices/remove` takes a deleted device off the list
@@ -81,6 +82,9 @@ them while the health stack imports them. The API's routes:
   /api/auth/stream/credentials`** (no authorizer: the stream key is the
   proof): a Raspberry Pi's [stream key](streamer.md#the-stream-key), and
   the profile's credentials for it, with no Google sign-in on the Pi.
+  Premium (or Pro) only: a free member's key request, and a free owner's
+  profile's stream credentials, get 403; so does a streamer past the
+  plan's device limit ([Plans](premium.md#devices)).
 - **`POST /api/auth/account/delete`** (`ProfileHandler`, any verified
   account, the body the profile ID the app shows): deletes the caller's
   account. A linked account leaves the profile (its link and its own
@@ -133,19 +137,22 @@ them while the health stack imports them. The API's routes:
   alone, the organisation's role manager (https://rbacr.nu01.com), which
   keeps them in its `presence` system (`RBACR_SYSTEM`):
   - **`presence_user`** uses the app; **`presence_premium`** also syncs
-    with the cloud ([Premium and free](premium.md)); **`presence_admin`**
+    with the cloud ([Plans](premium.md)); **`presence_pro`** also gets
+    Pro's 50 devices; **`presence_admin`**
     also uses the Admin tab (feedback); **`presence_root`** is an rbacr
     root; **`presence_anonymous`** is nobody signed in;
   - they're rbacr's roles, mapped (`Roles` here, `presenceRoles` in the
     app's [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart),
-    the same rules): rbacr's `free`, `premium` or `admin` gives
-    `presence_user`; `premium` or `admin` gives `presence_premium`;
-    `admin` gives `presence_admin`. rbacr's implications (`admin` implies
-    `premium` and `free`, `premium` implies `free`) give the same, but the
-    mapping doesn't count on them. Other rbacr roles give nothing;
+    the same rules): rbacr's `free`, `premium`, `pro` or `admin` gives
+    `presence_user`; `premium`, `pro` or `admin` gives `presence_premium`;
+    `pro` or `admin` gives `presence_pro`; `admin` gives `presence_admin`.
+    rbacr's implications (`admin` implies `premium` and `free`, `premium`
+    implies `free`) give the same, but the mapping doesn't count on them.
+    Other rbacr roles give nothing. rbacr's `pro` role must be created in
+    its `presence` system ([Plans](premium.md));
   - an **rbacr root** (rbacr's root list, `RBACR_ROOT_LIST`, default
-    `@nu01.com`) gets all four of `presence_root`, `presence_admin`,
-    `presence_premium` and `presence_user`. Nothing in presence makes a
+    `@nu01.com`) gets all five of `presence_root`, `presence_admin`,
+    `presence_premium`, `presence_pro` and `presence_user`. Nothing in presence makes a
     root; the root list is rbacr's configuration;
   - **the app asks rbacr for the user's own roles** (`GET /api/me`, with
     the user's session token, which rbacr trusts through its
@@ -175,8 +182,8 @@ them while the health stack imports them. The API's routes:
     free credentials);
   - nothing here **grants** roles: rbacr's own pages, vouchers and
     Substack sync do;
-  - **a linked subject** also gets `presence_user` and `presence_premium`
-    when its profile's owner has them (`Roles.shared`; see
+  - **a linked subject** also gets `presence_user`, `presence_premium`
+    and `presence_pro` when its profile's owner has them (`Roles.shared`; see
     [Profiles](profiles.md#the-profiles-folder-and-roles)), in every route
     and in `shared`; never the owner's `presence_admin` or
     `presence_root`, which each account gets only from its own email.
@@ -305,9 +312,9 @@ attempt.)
     first sign-in, never a repeated ID, races; see
     [Profiles](profiles.md#verified);
   - the role rules (`RolesTest`): default none, rbacr's roles mapped
-    (`free`, `premium`, `admin`, roots every role, other roles nothing),
-    verified emails only and lower-cased, unverified ones never asked;
-    what a linked account shares (membership and premium, never
+    (`free`, `premium`, `pro`, `admin`, roots every role, other roles
+    nothing), verified emails only and lower-cased, unverified ones never
+    asked; what a linked account shares (membership, premium and pro, never
     administration; nothing for the owner);
   - rbacr (`RbacrTest`, against a fake transport): one `POST /api/roles`
     per email (in the body, no `systemId`), only the presence system's

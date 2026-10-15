@@ -845,6 +845,9 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     } on CognitoException catch (e) {
       if (epoch != _epoch) return;
       giveBack();
+      // Past the plan's device limit: the slots say so (the plan box and
+      // the Monitoring tab's notice), and this stops like any refusal.
+      if (e.deviceSlots case final slots?) _setSlots(slots);
       // Trying again each pass fails the same way: stop until the user
       // signs in again or retries.
       _stoppedFor = idToken;

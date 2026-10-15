@@ -17,13 +17,16 @@ import static presence.payments.Http.response;
 
 /**
  * The payments API (presence_api_payments): the Stripe Payment Links a
- * free member upgrades to Premium with. Every route is behind the HTTP
+ * free member upgrades to Premium with (and a member to Pro, once an admin
+ * saves Pro's). Every route is behind the HTTP
  * API's JWT authorizer (Presence session tokens).
  * <ul>
  *   <li>{@code GET /api/payments/links}: the links, {@code {"monthly",
- *       "yearly", "saved"}}: what an admin saved, or the deploy's defaults
- *       ({@code MONTHLY_LINK}, {@code YEARLY_LINK}) until one does.</li>
- *   <li>{@code PUT /api/payments/links} {@code {"monthly", "yearly"}}: an
+ *       "yearly", "proMonthly", "proYearly", "saved"}}: what an admin saved,
+ *       or the deploy's defaults ({@code MONTHLY_LINK}, {@code YEARLY_LINK};
+ *       Pro's empty) until one does.</li>
+ *   <li>{@code PUT /api/payments/links} {@code {"monthly", "yearly"[,
+ *       "proMonthly", "proYearly"]}} (Pro's stay as they are when left out): an
  *       admin ({@code admin} in rbacr's {@code presence} system, or an
  *       rbacr root) saves them: Stripe HTTPS links, or empty for a plan
  *       that isn't offered. 403 for anyone else, 400 for links that aren't
@@ -127,16 +130,22 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
         if (email == null || rbacr.apply(email).stream().noneMatch(ADMINS::contains)) {
             return response(403, "{\"error\":\"only an admin may change the payment links\"}");
         }
-        var body = PaymentLinks.parse(Http.bodyText(event, 2048));
+        var body = PaymentLinks.parse(Http.bodyText(event, 4096));
         if (body == null) {
             return response(400, "{\"error\":\"send {\\\"monthly\\\": \\\"...\\\", \\\"yearly\\\": \\\"...\\\"}\"}");
         }
         var monthly = body.get("monthly").strip();
         var yearly = body.get("yearly").strip();
-        if (!PaymentLinks.valid(monthly) || !PaymentLinks.valid(yearly)) {
+        // An older app sends Premium's only: Pro's stay as they are.
+        var current = body.containsKey("proMonthly") && body.containsKey("proYearly")
+                ? null : store.load().orElse(defaults);
+        var proMonthly = body.containsKey("proMonthly") ? body.get("proMonthly").strip() : current.proMonthly();
+        var proYearly = body.containsKey("proYearly") ? body.get("proYearly").strip() : current.proYearly();
+        if (!PaymentLinks.valid(monthly) || !PaymentLinks.valid(yearly)
+                || !PaymentLinks.valid(proMonthly) || !PaymentLinks.valid(proYearly)) {
             return response(400, "{\"error\":\"each link must be empty or an https link on stripe.com\"}");
         }
-        var links = new PaymentLinks(monthly, yearly, clock.millis(), email);
+        var links = new PaymentLinks(monthly, yearly, proMonthly, proYearly, clock.millis(), email);
         store.save(links);
         System.out.println("presence: payment links saved by an admin");
         return response(200, links.toJson());

@@ -136,6 +136,12 @@ abstract class AppLocalizations {
   /// **'Premium Access'**
   String get authAccessPremium;
 
+  /// No description provided for @authAccessPro.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro Access'**
+  String get authAccessPro;
+
   /// No description provided for @authBackedUp.
   ///
   /// In en, this message translates to:
@@ -325,7 +331,7 @@ abstract class AppLocalizations {
   /// No description provided for @authHiddenTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Past the plan\'s device limit: it syncs, but its events are hidden here'**
+  /// **'Past the plan\'s device limit: it doesn\'t sync, and its events are hidden here'**
   String get authHiddenTooltip;
 
   /// No description provided for @authHideDevice.
@@ -415,7 +421,7 @@ abstract class AppLocalizations {
   /// No description provided for @authMoreHidden.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 more device syncs, but its events are hidden: {plan} shows your first {limit}.} other{{count} more devices sync, but their events are hidden: {plan} shows your first {limit}.}}'**
+  /// **'{count, plural, =1{1 more device doesn\'t sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don\'t sync, and their events are hidden: {plan} syncs your first {limit}.}}'**
   String authMoreHidden(int count, String plan, int limit);
 
   /// No description provided for @authNoEvents.
@@ -463,7 +469,7 @@ abstract class AppLocalizations {
   /// No description provided for @authOthersHidden.
   ///
   /// In en, this message translates to:
-  /// **'Your other devices\' events are hidden on this one: {plan} shows your first {limit} devices.'**
+  /// **'This device doesn\'t sync, and your other devices\' events are hidden on it: {plan} syncs your first {limit} devices.'**
   String authOthersHidden(String plan, int limit);
 
   /// The profile's owner account
@@ -475,7 +481,7 @@ abstract class AppLocalizations {
   /// No description provided for @authPastLimit.
   ///
   /// In en, this message translates to:
-  /// **'This device is past your first {limit}: it syncs, but its events are hidden on your other devices, and theirs here.'**
+  /// **'This device is past your plan\'s first {limit}: it doesn\'t sync, so only its own events show here.'**
   String authPastLimit(int limit);
 
   /// No description provided for @authPaymentsDefaults.
@@ -487,7 +493,7 @@ abstract class AppLocalizations {
   /// No description provided for @authPaymentsIntro.
   ///
   /// In en, this message translates to:
-  /// **'The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.'**
+  /// **'The Stripe Payment Links free members upgrade to Premium with, and members to Pro. Leave one empty not to offer that plan.'**
   String get authPaymentsIntro;
 
   /// No description provided for @authPaymentsInvalid.
@@ -501,6 +507,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Monthly plan link'**
   String get authPaymentsMonthly;
+
+  /// No description provided for @authPaymentsProMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro monthly plan link'**
+  String get authPaymentsProMonthly;
+
+  /// No description provided for @authPaymentsProYearly.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro yearly plan link'**
+  String get authPaymentsProYearly;
 
   /// No description provided for @authPaymentsSave.
   ///
@@ -547,8 +565,8 @@ abstract class AppLocalizations {
   /// No description provided for @authPlanFreeText.
   ///
   /// In en, this message translates to:
-  /// **'Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices: US\$20 a month, the first week free.'**
-  String authPlanFreeText(int free, int premium);
+  /// **'Free: each device keeps its events, and up to {free} devices share them every 15 minutes. Premium syncs them instantly, with cloud backup and up to {premium} devices: US\$20 a month, the first week free. Pro: up to {pro} devices.'**
+  String authPlanFreeText(int free, int premium, int pro);
 
   /// The paid plan's name
   ///
@@ -556,11 +574,29 @@ abstract class AppLocalizations {
   /// **'Premium'**
   String get authPlanPremium;
 
+  /// The Premium plan's text on the web, where Pro is offered
+  ///
+  /// In en, this message translates to:
+  /// **'Premium: cloud backup, and up to {limit} devices sync. Pro: up to {pro} devices.'**
+  String authPlanPremiumProText(int limit, int pro);
+
   /// No description provided for @authPlanPremiumText.
   ///
   /// In en, this message translates to:
   /// **'Premium: cloud backup, and up to {limit} devices sync.'**
   String authPlanPremiumText(int limit);
+
+  /// The largest plan's name
+  ///
+  /// In en, this message translates to:
+  /// **'Pro'**
+  String get authPlanPro;
+
+  /// No description provided for @authPlanProText.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro: cloud backup, and up to {limit} devices sync.'**
+  String authPlanProText(int limit);
 
   /// No description provided for @authPremiumMonthly.
   ///
@@ -579,6 +615,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Premium yearly'**
   String get authPremiumYearly;
+
+  /// No description provided for @authProMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro monthly'**
+  String get authProMonthly;
+
+  /// No description provided for @authProShowsUpTo.
+  ///
+  /// In en, this message translates to:
+  /// **'{text} Pro shows up to {limit}.'**
+  String authProShowsUpTo(String text, int limit);
+
+  /// No description provided for @authProYearly.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro yearly'**
+  String get authProYearly;
 
   /// Account sheet: label above the profile ID
   ///
@@ -1210,11 +1264,11 @@ abstract class AppLocalizations {
   /// **'Flip camera'**
   String get cameraFlip;
 
-  /// No description provided for @cameraLiveLabel.
+  /// All grid: under this device's ID, its picture is live
   ///
   /// In en, this message translates to:
-  /// **'{device} · live'**
-  String cameraLiveLabel(String device);
+  /// **'live'**
+  String get cameraLive;
 
   /// Camera mode: every device in a grid
   ///
@@ -2667,6 +2721,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'RBACR: set; this profile is Premium (cloud backup)'**
   String get healthRbacrPremium;
+
+  /// No description provided for @healthRbacrPro.
+  ///
+  /// In en, this message translates to:
+  /// **'RBACR: set; this profile is Pro (cloud backup)'**
+  String get healthRbacrPro;
 
   /// No description provided for @healthRbacrSet.
   ///

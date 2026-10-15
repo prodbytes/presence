@@ -75,6 +75,13 @@ profile), then keeps the profile, the device ID (instead of the one it
 made) and the key, and needs no terminal. Every start, and every renewal
 of the credentials (hourly), asks `POST /api/auth/stream/credentials`
 again. A refused key or a free profile stops it (exit 2 or 3).
+**Streamers are Premium's (and Pro's), enforced by the auth API:** it
+makes stream keys only for a premium member (403 otherwise), and answers
+`POST /api/auth/stream/credentials` with **403** and no token when the
+profile's owner isn't premium, or when the streamer is past the plan's
+device limit ([Plans](premium.md#devices)); before, a free owner's
+profile got a `"tier": "free"` token, which the streamer turned down
+itself. How presence-streamer reports that 403 (exit 2 or 3) is its own.
 
 **With a Google sign-in** (no key):
 

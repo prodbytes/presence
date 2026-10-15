@@ -25,10 +25,19 @@ class CognitoSession {
 /// Why Cognito, or the auth API on its behalf, refused (for example, an
 /// expired Google ID token).
 class CognitoException implements Exception {
-  CognitoException(this.type, this.message, {this.detail});
+  CognitoException(this.type, this.message, {this.detail, this.deviceSlots});
 
   final String type;
   final String message;
+
+  /// When the auth API refused this device because it's past the plan's
+  /// device limit (403, `"reason": "deviceLimit"`): the profile's devices
+  /// and the limit, as a 200 has them. Null for any other refusal.
+  final DeviceSlots? deviceSlots;
+
+  /// This device is past the plan's limit: no credentials until it's
+  /// within it (an upgrade, or another device deleted).
+  bool get pastDeviceLimit => deviceSlots != null;
 
   /// What else the answer said, for the log: the auth API's `cause` (the
   /// AWS service and error code that failed) and `requestId` (which finds
@@ -191,6 +200,10 @@ class CognitoCredentials {
             : 'HTTP ${response.statusCode} from /api/auth/credentials',
         '${body['error'] ?? 'the auth API refused credentials'}',
         detail: detail.isEmpty ? null : detail.join('; '),
+        deviceSlots:
+            response.statusCode == 403 && body['reason'] == 'deviceLimit'
+            ? DeviceSlots.fromJson(body)
+            : null,
       );
     }
     return (

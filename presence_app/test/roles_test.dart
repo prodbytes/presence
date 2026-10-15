@@ -141,6 +141,14 @@ void main() {
       );
       expect(linked.roles, [premiumRole, userRole]);
 
+      // A pro owner's Pro is shared too.
+      final linkedPro = await answer(
+        (email: 'bo@example.com', root: false, roles: const {}),
+        '{"profile":"automatic_paranoid_axolotl",'
+        '"shared":["presence_premium","presence_pro","presence_user"]}',
+      );
+      expect(linkedPro.roles, [premiumRole, proRole, userRole]);
+
       // Its own admin role, with the owner's premium.
       final both = await answer((
         email: 'cy@example.com',
@@ -149,7 +157,7 @@ void main() {
           'presence': ['admin'],
         },
       ), '{"profile":"p","shared":["presence_user"]}');
-      expect(both.roles, [adminRole, premiumRole, userRole]);
+      expect(both.roles, [adminRole, premiumRole, proRole, userRole]);
 
       // An API that didn't say.
       final none = await answer((

@@ -261,8 +261,22 @@ void main() {
       expect(foxNow.left, greaterThan(live.left));
       // Clear of the app bar.
       expect(live.top, greaterThanOrEqualTo(kToolbarHeight));
-      expect(find.text('this_device · live'), findsOneWidget);
-      expect(find.textContaining('brave_fox · '), findsOneWidget);
+      // Each label's age (or "live") on a line of its own, under the ID.
+      expect(find.text('this_device'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('live')).dy,
+        greaterThan(tester.getTopLeft(find.text('this_device')).dy),
+      );
+      final foxLabel = find.descendant(
+        of: find.byKey(const Key('device-label-brave_fox')),
+        matching: find.byType(Text),
+      );
+      expect(tester.widget<Text>(foxLabel.first).data, 'brave_fox');
+      expect(tester.widget<Text>(foxLabel.last).data, endsWith('ago'));
+      expect(
+        tester.getTopLeft(foxLabel.last).dy,
+        greaterThan(tester.getTopLeft(foxLabel.first).dy),
+      );
     });
 
     testWidgets('without All, only the camera, full screen', (tester) async {
@@ -320,7 +334,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Show all devices'));
     await tester.pump();
-    expect(find.textContaining('· live'), findsOneWidget);
+    expect(find.text('live'), findsOneWidget);
     final live = tester.getRect(find.byKey(const Key('preview-Main')));
     expect(live.width, lessThan(1280));
     // The grid starts below the status pills, so they cover no cell.
@@ -340,7 +354,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byTooltip('Stop: no capturing or syncing'));
     await tester.pump();
-    expect(find.textContaining('· live'), findsNothing);
+    expect(find.text('live'), findsNothing);
     expect(find.byKey(const Key('camera-paused')), findsOneWidget);
     await tester.tap(find.byTooltip('Back to normal: this camera'));
     await tester.pump();

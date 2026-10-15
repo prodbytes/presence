@@ -12,7 +12,7 @@ import 'store_billing.dart';
 import 'store_plans.dart';
 
 /// The profile's devices in [log] whose events are hidden here
-/// ([EventLog.shows]: a free profile's past its first two), sorted.
+/// ([EventLog.shows]: those past the plan's device limit), sorted.
 List<String> hiddenDevices(
   EventLog log, {
   required String profileId,
@@ -26,31 +26,44 @@ List<String> hiddenDevices(
     if (!log.shows(device)) device,
 ];
 
-/// What the account's plan gives, Free or Premium, as the account sheet
-/// says it, and what's hidden for it:
+/// [plan]'s name, in [l10n]'s language: Free, Premium or Pro.
+String planName(Plan plan, AppLocalizations l10n) => switch (plan) {
+  Plan.free => l10n.authPlanFree,
+  Plan.premium => l10n.authPlanPremium,
+  Plan.pro => l10n.authPlanPro,
+};
+
+/// What the account's plan gives, Free, Premium or Pro, as the account
+/// sheet says it, and what's hidden for it:
 ///
-/// - Premium: cloud backup, and up to 50 devices;
-/// - Free: up to 2 devices, syncing while online; and how to get Premium,
-///   by [channel]:
-///   - the web ([PurchaseChannel.stripe]): cloud backup and up to 50
-///     devices, US$20 a month, the first week free, with a **Premium
-///     monthly** and a **Premium yearly** button, each opening its Stripe
-///     checkout ([PremiumCheckout]) when the payments API has its link
-///     ([links]); without either, **Upgrade to Premium** to nu01.com;
+/// - Pro: cloud backup, and up to [DeviceSlots.proLimit] devices;
+/// - Premium: cloud backup, and up to [DeviceSlots.premiumLimit] devices;
+///   on the web ([PurchaseChannel.stripe]) also that Pro has up to
+///   [DeviceSlots.proLimit], with a **Pro monthly** and a **Pro yearly**
+///   button for each Pro link the payments API has ([links]; none until an
+///   admin saves them);
+/// - Free: up to [DeviceSlots.freeLimit] devices, syncing while online; and
+///   how to get Premium, by [channel]:
+///   - the web: cloud backup and up to [DeviceSlots.premiumLimit]
+///     devices, US$20 a month, the first week free (and Pro's devices),
+///     with a **Premium monthly** and a **Premium yearly** button, each
+///     opening its Stripe checkout ([PremiumCheckout]) when the payments
+///     API has its link ([links]); without either, **Upgrade to Premium**
+///     to nu01.com;
 ///   - iOS and Android: the store's subscriptions ([StorePlans], from
-///     [store]), with the store's prices; never Stripe, nu01.com or a
-///     web price;
+///     [store]), with the store's prices; never Stripe, nu01.com, a web
+///     price or Pro (not sold in the stores yet);
 ///   - elsewhere (Linux, ...): no purchase buttons.
 ///
 ///   And **Check again** for once it's paid.
 /// - Premium bought in the store here: **Manage subscription**.
 ///
-/// Past the limit, it says so: this device's events are hidden on the
-/// others and theirs here, or how many devices are hidden.
+/// Past the limit, it says so: this device doesn't sync, or how many
+/// devices don't.
 class PlanNotice extends StatelessWidget {
   const PlanNotice({
     super.key,
-    required this.premium,
+    required this.plan,
     this.slots,
     this.thisDevice,
     this.hidden = 0,
@@ -63,8 +76,8 @@ class PlanNotice extends StatelessWidget {
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
-  /// Whether the profile is premium ([RolesService.isPremium]).
-  final bool premium;
+  /// The member's plan ([RolesService.plan]).
+  final Plan plan;
 
   /// The profile's devices, when the auth API has listed them.
   final DeviceSlots? slots;
@@ -94,19 +107,33 @@ class PlanNotice extends StatelessWidget {
   PurchaseChannel get channel => _channel ?? PurchaseChannel.current;
   final PurchaseChannel? _channel;
 
-  /// The text for a [premium] profile, or a free one, in [l10n]'s
-  /// language (English without); the web price on [PurchaseChannel.stripe]
-  /// only.
+  /// The text for [plan], in [l10n]'s language (English without); the
+  /// web price, and Pro for a free or premium member, on
+  /// [PurchaseChannel.stripe] only.
   static String planText({
-    required bool premium,
+    required Plan plan,
     AppLocalizations? l10n,
     PurchaseChannel channel = PurchaseChannel.stripe,
   }) {
     final l = l10n ?? lookupAppLocalizations(const Locale('en'));
-    if (premium) return l.authPlanPremiumText(DeviceSlots.premiumLimit);
-    return channel == PurchaseChannel.stripe
-        ? l.authPlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit)
-        : l.storePlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit);
+    final web = channel == PurchaseChannel.stripe;
+    return switch (plan) {
+      Plan.pro => l.authPlanProText(DeviceSlots.proLimit),
+      Plan.premium when web => l.authPlanPremiumProText(
+        DeviceSlots.premiumLimit,
+        DeviceSlots.proLimit,
+      ),
+      Plan.premium => l.authPlanPremiumText(DeviceSlots.premiumLimit),
+      Plan.free when web => l.authPlanFreeText(
+        DeviceSlots.freeLimit,
+        DeviceSlots.premiumLimit,
+        DeviceSlots.proLimit,
+      ),
+      Plan.free => l.storePlanFreeText(
+        DeviceSlots.freeLimit,
+        DeviceSlots.premiumLimit,
+      ),
+    };
   }
 
   @override
@@ -114,9 +141,8 @@ class PlanNotice extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
-    final limit =
-        slots?.limit ??
-        (premium ? DeviceSlots.premiumLimit : DeviceSlots.freeLimit);
+    final free = plan == Plan.free;
+    final limit = slots?.limit ?? plan.deviceLimit;
     final pastLimit = switch ((slots, thisDevice)) {
       (final slots?, final device?) => !slots.shows(device),
       _ => false,
@@ -124,19 +150,35 @@ class PlanNotice extends StatelessWidget {
     final warning = pastLimit
         ? l10n.authPastLimit(limit)
         : hidden > 0
-        ? l10n.authMoreHidden(
-            hidden,
-            premium ? l10n.authPlanPremium : l10n.authPlanFree,
-            limit,
-          )
+        ? l10n.authMoreHidden(hidden, planName(plan, l10n), limit)
         : null;
+    // The plans' checkouts on the web: Premium's for a free member, Pro's
+    // for a premium one (only those an admin saved).
+    final checkouts = switch (plan) {
+      Plan.free when links?.isEmpty ?? true => [
+        ('plan-upgrade', '', l10n.authUpgradePremium),
+      ],
+      Plan.free => [
+        if (links!.monthly.isNotEmpty)
+          ('plan-upgrade-monthly', links!.monthly, l10n.authPremiumMonthly),
+        if (links!.yearly.isNotEmpty)
+          ('plan-upgrade-yearly', links!.yearly, l10n.authPremiumYearly),
+      ],
+      Plan.premium => [
+        if (links?.proMonthly case final link? when link.isNotEmpty)
+          ('plan-upgrade-pro-monthly', link, l10n.authProMonthly),
+        if (links?.proYearly case final link? when link.isNotEmpty)
+          ('plan-upgrade-pro-yearly', link, l10n.authProYearly),
+      ],
+      Plan.pro => const <(String, String, String)>[],
+    };
     return Container(
       key: const Key('plan-notice'),
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         border: Border.all(
-          color: premium ? scheme.primary : scheme.outlineVariant,
+          color: free ? scheme.outlineVariant : scheme.primary,
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -148,19 +190,19 @@ class PlanNotice extends StatelessWidget {
             spacing: 8,
             children: [
               Icon(
-                premium ? Icons.workspace_premium : Icons.devices_outlined,
+                free ? Icons.devices_outlined : Icons.workspace_premium,
                 size: 20,
-                color: premium ? scheme.primary : scheme.onSurfaceVariant,
+                color: free ? scheme.onSurfaceVariant : scheme.primary,
               ),
               Text(
-                premium ? l10n.authPlanPremium : l10n.authPlanFree,
+                planName(plan, l10n),
                 key: const Key('plan-name'),
                 style: theme.textTheme.titleSmall,
               ),
             ],
           ),
           Text(
-            planText(premium: premium, l10n: l10n, channel: channel),
+            planText(plan: plan, l10n: l10n, channel: channel),
             key: const Key('plan-text'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
@@ -170,50 +212,33 @@ class PlanNotice extends StatelessWidget {
               key: const Key('plan-warning'),
               style: TextStyle(color: scheme.tertiary),
             ),
-          if (!premium && channel.isStore && store != null)
+          if (free && channel.isStore && store != null)
             StorePlans(
               billing: store!,
               onCheckAgain: onCheckAgain,
               openLink: openLink,
             )
-          else if (!premium && channel != PurchaseChannel.stripe)
+          else if (free && channel != PurchaseChannel.stripe)
             // No store here (or none loaded yet): no purchase buttons.
             TextButton(
               key: const Key('plan-check-again'),
               onPressed: onCheckAgain,
               child: Text(l10n.authCheckAgain),
             )
-          else if (premium && channel.isStore && store?.owned != null)
+          else if (!free && channel.isStore && store?.owned != null)
             TextButton(
               key: const Key('store-manage'),
               onPressed: () =>
                   openOrCopyLink(context, store!.manageUrl, openLink),
               child: Text(l10n.storeManage),
             )
-          else if (!premium)
+          else if (channel == PurchaseChannel.stripe && checkouts.isNotEmpty)
             Wrap(
               spacing: 8,
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                for (final (key, link, label) in [
-                  if (links?.isEmpty ?? true)
-                    ('plan-upgrade', '', l10n.authUpgradePremium)
-                  else ...[
-                    if (links!.monthly.isNotEmpty)
-                      (
-                        'plan-upgrade-monthly',
-                        links!.monthly,
-                        l10n.authPremiumMonthly,
-                      ),
-                    if (links!.yearly.isNotEmpty)
-                      (
-                        'plan-upgrade-yearly',
-                        links!.yearly,
-                        l10n.authPremiumYearly,
-                      ),
-                  ],
-                ])
+                for (final (key, link, label) in checkouts)
                   FilledButton.icon(
                     key: Key(key),
                     icon: const Icon(Icons.workspace_premium, size: 18),
@@ -243,10 +268,12 @@ class PlanNotice extends StatelessWidget {
 }
 
 /// Above the Monitoring tab's events, when devices' events are hidden
-/// (a free profile's past its first two): which, and for a free profile
-/// an Upgrade button: on the web to the Premium checkout, on iOS and
-/// Android [onUpgrade] (the Profile tab, where the store's plans are),
-/// elsewhere none. Nothing when nothing's hidden.
+/// (those past the plan's device limit): which, and the plan with more
+/// devices with an Upgrade button: for a free profile Premium's (on the
+/// web to its checkout, on iOS and Android [onUpgrade], the Profile tab
+/// where the store's plans are, elsewhere none); for a premium one Pro's,
+/// on the web only (to Pro's checkout, once an admin saved its link).
+/// Nothing when nothing's hidden.
 class DeviceLimitNotice extends StatelessWidget {
   const DeviceLimitNotice({
     super.key,
@@ -271,8 +298,8 @@ class DeviceLimitNotice extends StatelessWidget {
   /// The signed-in account's email, for the checkout.
   final String? email;
 
-  /// The plans' Stripe links: Upgrade opens the monthly plan's (else the
-  /// yearly's, else nu01.com).
+  /// The plans' Stripe links: Upgrade opens the next plan's monthly link
+  /// (else its yearly's; for Premium, else nu01.com).
   final PaymentLinks? links;
   final LinkOpener openLink;
 
@@ -299,10 +326,27 @@ class DeviceLimitNotice extends StatelessWidget {
     ).length;
     if (!pastLimit && hidden == 0) return const SizedBox.shrink();
     final l10n = context.l10n;
-    final plan = slots.premium ? l10n.authPlanPremium : l10n.authPlanFree;
+    final plan = slots.plan;
+    final name = planName(plan, l10n);
     final text = pastLimit
-        ? l10n.authOthersHidden(plan, slots.limit)
-        : l10n.authDevicesHidden(hidden, plan, slots.limit);
+        ? l10n.authOthersHidden(name, slots.limit)
+        : l10n.authDevicesHidden(hidden, name, slots.limit);
+    final web = channel == PurchaseChannel.stripe;
+    // Pro isn't sold in the stores: the apps there don't mention it.
+    final message = switch (plan) {
+      Plan.free => l10n.authPremiumShowsUpTo(text, DeviceSlots.premiumLimit),
+      Plan.premium when web => l10n.authProShowsUpTo(
+        text,
+        DeviceSlots.proLimit,
+      ),
+      _ => text,
+    };
+    // Pro's checkout: its monthly link, else its yearly; none until saved.
+    final proLink = switch (links) {
+      final l? when l.proMonthly.isNotEmpty => l.proMonthly,
+      final l? when l.proYearly.isNotEmpty => l.proYearly,
+      _ => null,
+    };
     final scheme = Theme.of(context).colorScheme;
     return Card.outlined(
       key: const Key('device-limit-notice'),
@@ -313,20 +357,14 @@ class DeviceLimitNotice extends StatelessWidget {
           spacing: 8,
           children: [
             Icon(Icons.visibility_off_outlined, color: scheme.tertiary),
-            Expanded(
-              child: Text(
-                slots.premium
-                    ? text
-                    : l10n.authPremiumShowsUpTo(text, DeviceSlots.premiumLimit),
-              ),
-            ),
-            if (!slots.premium && channel.isStore && onUpgrade != null)
+            Expanded(child: Text(message)),
+            if (plan == Plan.free && channel.isStore && onUpgrade != null)
               TextButton(
                 key: const Key('device-limit-upgrade'),
                 onPressed: onUpgrade,
                 child: Text(l10n.authUpgrade),
               )
-            else if (!slots.premium && channel == PurchaseChannel.stripe)
+            else if (plan == Plan.free && web)
               TextButton(
                 key: const Key('device-limit-upgrade'),
                 onPressed: () => openOrCopyLink(
@@ -339,6 +377,20 @@ class DeviceLimitNotice extends StatelessWidget {
                       final l? => l.yearly,
                       null => null,
                     },
+                  ),
+                  openLink,
+                ),
+                child: Text(l10n.authUpgrade),
+              )
+            else if (plan == Plan.premium && web && proLink != null)
+              TextButton(
+                key: const Key('device-limit-upgrade-pro'),
+                onPressed: () => openOrCopyLink(
+                  context,
+                  PremiumCheckout.checkout(
+                    email: email,
+                    profileId: profileId,
+                    link: proLink,
                   ),
                   openLink,
                 ),
