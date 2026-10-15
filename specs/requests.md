@@ -6509,7 +6509,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          missing key. `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md).
 
-450. **Archived recordings: cold storage after 67 days.** (2026-10-15)
+450. **Cloud data: readable 67 days, then the coldest archive, erased
+     after 365 days.** (2026-10-15)
+     - Asked: how long Blink keeps clips (60 days in the US, CA, MX, AU and
+       NZ; 30 in the EU and UK); keep ours 67 days, everywhere; after that,
+       archive to Glacier's coldest storage class, and delete permanently
+       after 365 days; adjust the AWS resources to work like that.
+     - Changed: the user-data bucket's lifecycle (user-data.yaml):
+       - Objects over 128 KB (recordings, streamer video) move to Glacier
+         Deep Archive 67 days after they're written.
+       - Smaller ones (events, clip records, thumbnails) stay where they
+         are, since moving them would cost more than it saves.
+       - Every object expires at 335 days, and its old version is removed
+         30 days later, so it's erased for good at 365 days. This replaces
+         90 + 30.
+       - The Privacy Policy and Terms say so (effective 15 October 2026),
+         and so do the README and the specs.
+       - The app's handling of an archived recording (S3 answers 403
+         `InvalidObjectState`) is a separate PR.
+       - Spec: [Cloud sync](cloud-sync.md), [Legal](legal.md).
+
+451. **Archived recordings: cold storage after 67 days.** (2026-10-15)
      - Asked: keep cloud data 67 days, then archive it to the coldest
        Glacier tier, deleting everything after 365 days.
      - Changed (the app's handling of archived recordings; the bucket's

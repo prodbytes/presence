@@ -155,7 +155,7 @@ Clips, thumbnails, tagged frames and recordings stay, on the devices and
 in the bucket: the deletion only hides their events. They go the usual
 way: [event retention](event-retention.md) deletes old events (deleted or
 not) with their clips and recordings from each device after the History
-setting, and the bucket expires every object after 90 days
+setting, and the bucket archives videos after 67 days and erases every object after 365
 ([Production deploy](deploy.md)). There's no hard delete.
 
 ## Tests

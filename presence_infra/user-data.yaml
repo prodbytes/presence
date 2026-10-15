@@ -69,16 +69,32 @@ Resources:
             NoncurrentVersionTransitions:
               - StorageClass: INTELLIGENT_TIERING
                 TransitionInDays: 0
-          # Users' data is kept for 3 months: 90 days after an object was
-          # written (an event, clip or frame; re-uploading a changed one
-          # restarts its count), it expires. The bucket is versioned, so
-          # that hides it behind a delete marker, and expire-old-versions
-          # below removes the data itself 30 days later (the window to undo
-          # a mistake). Devices keep their own copies; the app doesn't
-          # re-upload expired objects, since it remembers what it uploaded.
-          - Id: expire-after-3-months
+          # Users' data is readable for 67 days, everywhere (a little past
+          # Blink's 60), then the large files (recordings, streamer video:
+          # over 128 KB) move to Glacier Deep Archive, the coldest class
+          # (about $1 per TB-month, restored only by request, in hours).
+          # Small files (events, clip records, thumbnails) stay where they
+          # are: moving them would cost more than it saves, and S3 doesn't
+          # transition objects under 128 KB by default anyway. A model the
+          # recognition functions keep here is fetched again from Hugging
+          # Face if it's archived, and put back as a new object.
+          - Id: archive-after-67-days
             Status: Enabled
-            ExpirationInDays: 90
+            ObjectSizeGreaterThan: 131072
+            Transitions:
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 67
+          # Everything is erased for good 365 days after it was written (an
+          # event, clip or frame; re-uploading a changed one restarts its
+          # count): it expires at 335 days, which, the bucket being
+          # versioned, hides it behind a delete marker, and
+          # expire-old-versions removes the data itself 30 days later (the
+          # window to undo a mistake, for anything overwritten or deleted).
+          # Devices keep their own copies; the app doesn't re-upload expired
+          # objects, since it remembers what it uploaded.
+          - Id: erase-after-365-days
+            Status: Enabled
+            ExpirationInDays: 335
           - Id: expire-old-versions
             Status: Enabled
             NoncurrentVersionExpiration:
