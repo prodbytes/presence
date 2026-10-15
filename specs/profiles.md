@@ -113,7 +113,7 @@
   link code, so they keep working with the profile ID alone. The auth API
   no longer sees Google ID tokens ([Sessions](sessions.md)), so a profile
   that never had an identity gets a new, empty one, not its owner's
-  pre-profile Google identity (whose data is past the bucket's 90 days).
+  pre-profile Google identity (whose data is past the bucket's 365 days).
 - **Roles:** a subject has its own roles (from rbacr, for its own email)
   plus the owner's **membership**, premium and Pro: `presence_user`,
   `presence_premium` and `presence_pro` when the **owner** (the subject
@@ -359,7 +359,7 @@ deleted, and the contents live only in AWS.
   cloud](local-cloud.md)). Production and RC call AWS.
 
 - **No merge:** a subject whose own profile has cloud data can't be
-  linked. Its data expires with the bucket's 90 days, or it can stay
+  linked. Its data is erased with the bucket's 365 days, or it can stay
   unlinked.
 - Roles are still per email (in rbacr), and so are subscriptions
   (at nu01.com). Linked subjects share the owner's membership and premium only.

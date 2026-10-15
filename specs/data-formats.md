@@ -163,7 +163,7 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
 - **Content types:** `application/json`, and `application/octet-stream`
   for sealed media (the extension, and the clip record's `mimeType`, say
   what's inside). Objects are stored in Intelligent-Tiering and
-  expire after 90 days ([Production deploy](deploy.md)).
+  are archived after 67 days (over 128 KB) and erased after 365 ([Production deploy](deploy.md)).
 - **Before 2026-10-02** clip records were `clips/<clipId>.json`, next to
   `clips/<clipId>.webm`, `.jpg` and `clips/<clipId>/frames/`. The buckets
   were emptied then; a device that uploaded something under an old key

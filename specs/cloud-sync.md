@@ -494,12 +494,18 @@ In [presence_infra/](../presence_infra):
   private `.env`).
   - Private (public access blocked, owner-enforced), SSE-S3 encrypted, and
     TLS only.
-  - **Kept for 3 months:** every object expires 90 days after it was
-    written (a changed object that's uploaded again starts over). Being
-    versioned, the bucket then keeps it as an old version for 30 more days,
-    as it does for anything overwritten or deleted, so a mistake can be
-    undone. After that it's gone, and a lifecycle rule clears the leftover
-    delete markers. Incomplete multipart uploads go after 1 day.
+  - **Readable 67 days, archived, erased after 365** (the same
+    everywhere): 67 days after it was written, an object over 128 KB (a
+    recording, streamer video) moves to **Glacier Deep Archive**, the
+    coldest class, where it can't be read without a restore (hours; not
+    supported by the app yet: the player says it's archived). Smaller
+    objects (events, clip records, thumbnails, frames) stay readable. Every
+    object expires 335 days after it was written (a changed object that's
+    uploaded again starts over); being versioned, the bucket then keeps it
+    as an old version for 30 more days, as it does for anything overwritten
+    or deleted, so a mistake can be undone, and it's erased for good 365
+    days after it was written. A lifecycle rule clears the leftover delete
+    markers; incomplete multipart uploads go after 1 day.
   - A new device, or one whose storage was cleared, restores only the last
     two weeks anyway (see "When" above). Devices keep their own copies of older
     events, and the app doesn't upload expired ones again (it remembers
