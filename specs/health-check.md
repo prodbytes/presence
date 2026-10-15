@@ -64,10 +64,12 @@ it fails.
 - The response only names each check and says ok or fail. Why a check
   failed goes to the function's CloudWatch log ("health check failed:
   …"), never to the public response.
-- A result is reused for **20 s** per Lambda instance, so the health
-  checkers don't each call every service.
-- The function has 1024 MB of memory, which gives it more CPU, so a cold
-  start still answers in time. Its role carries the stage's permissions
+- A result is reused for **20 s** per Lambda instance, so close requests
+  don't each call every service.
+- The function has **512 MB** of memory: the monitor waits 10 s for an
+  answer (and retries once), so a cold start needs no extra CPU. (It had
+  1024 MB while Route 53's checkers, wanting an answer within 2 s, called
+  it from several regions every 30 s.) Its role carries the stage's permissions
   boundary (`<prefix>-app-boundary`) and is read-only:
   `dynamodb:DescribeTable` on the three imported tables, `s3:ListBucket` on
   the bucket and `cognito-identity:DescribeIdentityPool` on the pool.

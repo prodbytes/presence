@@ -55,15 +55,15 @@ import java.util.concurrent.TimeoutException;
  * as {@code "fail"}. {@code version} is the release deployed
  * ({@code PRESENCE_VERSION}), left out when unset, so anyone can see when a
  * release is live. Only names and ok/fail are public; why a check failed goes
- * to the function's log. A result is reused for {@link #CACHE_FOR}, so Route
- * 53's checkers don't each call every service.
+ * to the function's log. A result is reused for {@link #CACHE_FOR}, so close
+ * requests don't each call every service.
  */
 public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
     /** How long a result is reused. */
     static final Duration CACHE_FOR = Duration.ofSeconds(20);
 
-    /** How long the checks may take together: Route 53 wants an answer within 2 s. */
+    /** How long the checks may take together, so a monitor gets a prompt answer. */
     static final Duration BUDGET = Duration.ofMillis(1500);
 
     /** Google's token signing keys, which the HTTP API's JWT authorizer fetches. */
