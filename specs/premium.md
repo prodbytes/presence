@@ -159,10 +159,14 @@ Pro syncs exactly as Premium; only its device limit differs.
     the clip is dropped and the event kept.
   - Nothing is marked as in the cloud, so if the profile becomes premium,
     its first pass uploads everything.
-- **Premium devices put the clip in their live messages too.** An account
-  can be premium while its profile's owner is free, so another device of
-  that profile may have no bucket. Premium receivers still take clips
-  from the bucket, as before.
+- **A premium profile's live messages carry no clip.** Its devices all
+  take clips from the bucket, so the clip (and its thumbnail, up to 48 KB,
+  billed per 5 KB to every device) stays out ([Live
+  sync](live-sync.md#message-sizes-and-cost)). An account can be premium
+  while its profile's owner is free, so another device of that profile
+  may have no bucket: a premium account in a **free owner's** profile
+  still puts the clip in its live messages (`RolesService.isProfilePremium`
+  false). Premium receivers take clips from the bucket either way.
 - **A change of tier** (rbacr changed, and the roles were checked again)
   starts the sync over with new credentials (`CloudSync.reconnect`).
   Becoming premium uploads what's here; becoming free stops using the

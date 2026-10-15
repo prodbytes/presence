@@ -6439,3 +6439,36 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        device is second; rank 1 waits and leaves the clip when a result
        arrives; takes over when none does; candidates and the recorder
        first).
+
+448. **Premium live messages without the thumbnail.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit): a premium clip's live message carried its sealed thumbnail
+       as base64 (up to 48 KB, 7–13 billed 5 KB units), delivered to every
+       device of the profile, the sender included, though premium devices
+       take thumbnails from the bucket.
+     - Changed:
+       - A premium profile's live messages carry no `clip` (record nor
+         thumbnail), on the upload's publish and on a republish
+         (`CloudSync.profilePremium`); the clip isn't read from storage
+         for them. Nothing on a premium receiver used it: `_onLive` takes
+         the clip from the bucket, and the All grid, event cards and
+         notifications show the stored (fetched) clip's thumbnail.
+       - A premium account in a free owner's profile still sends it, for
+         the owner's free devices: `RolesService.isProfilePremium` (the
+         owner is premium: `shared` holds `presence_premium`, or this is
+         the owner, from the auth API's `accounts`); unknown, the
+         account's own tier. Free is unchanged (12 KB thumbnails, once).
+       - The sender's own echo (MQTT 3.1.1 has no no-local) is dropped
+         right after its envelope is read, before the event and clip are
+         parsed or the thumbnail decoded. Its delivery is still billed.
+       - Savings: a premium clip's completion bills `1 + N` units instead
+         of about `9 × (1 + N)` (up to 13×): at 2 clips an hour per
+         device, about $0.04 instead of $0.39 a month at N = 5, about
+         $3.70 instead of $33 at N = 50.
+       - Tests: `free_sync_test` (premium: no clip, upload and republish,
+         under 5 KB; free owner: clip and thumbnail), `roles_test`
+         (`ownerPremium` from `shared` and `accounts`;
+         `isProfilePremium`). `flutter analyze` is clean; `flutter test`
+         passes.
+     - Specs: [Live sync](live-sync.md#message-sizes-and-cost),
+       [Premium and free](premium.md).

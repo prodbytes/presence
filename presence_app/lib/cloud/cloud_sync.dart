@@ -528,6 +528,12 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// otherwise over live sync alone. Without [roles] (tests), it does.
   bool get premium => roles?.isPremium ?? true;
 
+  /// [premium], and so is every other device of the profile
+  /// ([RolesService.isProfilePremium]): they all take clips from the
+  /// bucket, so live messages carry no clip (nor its thumbnail). Without
+  /// [roles] (tests), it is.
+  bool get profilePremium => premium && (roles?.isProfilePremium ?? true);
+
   /// [premium] when the profile last started syncing.
   bool? _premiumWas;
 
