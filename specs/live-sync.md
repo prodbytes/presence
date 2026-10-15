@@ -7,11 +7,15 @@ bucket. [Cloud sync](cloud-sync.md) still does everything it did: **S3 stays
 where events and all their media are kept**, and a device that misses a
 message gets the event from the bucket. Nothing is deleted. While live
 sync works (connected, or idle between scheduled connections) cloud
-sync's timer lists the bucket only every **2 min** instead of every
-15 s, as a backstop (`CloudSync.liveInterval`): listings are billed per
-request, and live sync brings new events first. The pass a received
-message starts lists nothing while the last listing is under 2 min old:
-it only gets the wanted clip, by its known keys (GETs, never a LIST).
+sync's timer lists the bucket only as a backstop: **every hour**
+(`CloudSync.copiedInterval`) while the events this device published have
+enough copies on other devices (their `copied` acks, below), and every
+**2 min** (`CloudSync.liveInterval`) while one is short of copies past
+its grace, instead of every 15 s (see [Cloud sync](cloud-sync.md)):
+listings are billed per request, and live sync brings new events first.
+The pass a received message starts lists nothing while the last listing
+is younger than that: it only gets the wanted clip, by its known keys
+(GETs, never a LIST).
 
 This is phase 1, plus **copy acknowledgements**: a device that has stored
 a full copy of another device's event (with its media) says so with a
@@ -487,7 +491,10 @@ query holds the session token.
     listed to tell, without failing the pass or renewing credentials; while live sync is connected the timer's passes come only
     every `liveInterval` (a received event still starts one at once, which
     gets its clip's record by its key and lists nothing), and
-    while it fails (and retries) every `interval` again; signing out
+    while it fails (and retries) every `interval` again; an event
+    published here lists nothing within its grace, then every
+    `liveInterval` while no other device acks it, and once one does, only
+    every `copiedInterval`; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.
 - `event_copies_test.dart`: `copied` acks (validation, batching, own

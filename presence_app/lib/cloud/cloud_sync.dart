@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../auth/auth_service.dart';
 import '../auth/roles_service.dart';
-import '../config.dart' show LiveMode;
+import '../config.dart' show LiveConfig, LiveMode;
 import '../crypto/media_seal.dart';
 import '../events.dart';
 import '../storage/event_store.dart';
@@ -131,13 +131,20 @@ enum RecordingFetch { stored, missing, archived }
 /// - A pass runs at start (sign-in, or a session restored at launch), every
 ///   [interval] (15 s), and soon after each new event or completed clip.
 ///   While [live] works (connected, or idle between scheduled
-///   connections), the timer's passes are only a backstop, every
-///   [liveInterval] (2 min) since the last pass: live sync announces other
-///   devices' events and completed clips, and each one starts a pass at
-///   once. Listing is billed per request, so this cuts most of it.
+///   connections), the timer's passes are only a backstop: live sync
+///   announces other devices' events and completed clips, and each one
+///   starts a pass at once. Listing is billed per request, so this cuts
+///   most of it. The backstop lists:
+///   - every [copiedInterval] (1 h) since the last listing while the
+///     events this device published have [enoughCopies] on other devices
+///     (their `copied` acks), or haven't had [ackGrace] to get them;
+///   - every [liveInterval] (2 min) since the last pass while one is short
+///     of copies past [ackGrace] (it's in the bucket, the backup, as it
+///     was published as it went up), until it has them or [copiedInterval]
+///     more has gone by.
 ///   A pass started by a save here or a live message lists nothing while
-///   the last listing is under [liveInterval] old: the message brought the
-///   event, and its clip is got by its known keys.
+///   the last listing is younger than that: the message brought the event,
+///   and its clip is got by its known keys.
 ///   After a failed pass the timer backs off: each failure in a row
 ///   doubles the wait, up to [maxBackoff] intervals.
 /// - When credentials can't be had (the auth API or Cognito fails), syncing
@@ -191,6 +198,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(seconds: 15),
     this.liveInterval = const Duration(minutes: 2),
+    this.copiedInterval = const Duration(hours: 1),
+    this.enoughCopies = 1,
     this.restoreWindow = const Duration(days: 14),
     this.keep,
     this.maxFetch = 1000,
@@ -245,6 +254,43 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// How often the timer's passes run while [live] works ([_liveUp]),
   /// rather than every [interval]: a backstop for what live sync missed.
   final Duration liveInterval;
+
+  /// How often the timer's passes list the bucket while [live] works and
+  /// the events published here have [enoughCopies] on other devices: the
+  /// profile's devices hold them, so the bucket is only a backstop.
+  final Duration copiedInterval;
+
+  /// How many other devices must hold a full copy of each event this
+  /// device publishes (their `copied` acks) for the bucket to be listed
+  /// only every [copiedInterval]; at most the profile's other devices
+  /// ([deviceSlots]), so a profile of one device needs none.
+  final int enoughCopies;
+
+  /// [enoughCopies], or fewer when the profile has fewer other devices.
+  int get _copiesNeeded {
+    final slots = _deviceSlots;
+    if (slots == null) return enoughCopies;
+    final me = copies.deviceId;
+    return min(enoughCopies, slots.devices.where((d) => d != me).length);
+  }
+
+  /// How long other devices have to ack an event published here before
+  /// it's short of copies: [liveInterval], plus two of live sync's
+  /// scheduled connections (the other device's to take it, this one's to
+  /// hear the ack), counted at [LiveConfig.defaultEvery] when connected
+  /// always.
+  Duration get ackGrace {
+    final config = live?.config;
+    final every = config != null && config.mode == LiveMode.scheduled
+        ? config.every
+        : LiveConfig.defaultEvery;
+    return liveInterval + every * 2;
+  }
+
+  /// Whether the bucket is listed often ([liveInterval], or [interval]
+  /// without live sync): live sync doesn't work, or an event published
+  /// here is short of copies on other devices ([_CopyTracker.short]).
+  bool _pollOften(DateTime now) => !_liveUp || _copyTracker.short(now);
 
   /// How far back a fetch goes: a new device gets the last two weeks, not
   /// months of video. Older events stay in the cloud (until the bucket
@@ -305,8 +351,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   int _failures = 0;
   int _ticksToSkip = 0;
 
-  /// Timer ticks since the last pass started: while [_liveUp], the timer
-  /// starts one only every [liveInterval].
+  /// Timer ticks since the last pass started: while [_liveUp] and an event
+  /// is short of copies, the timer starts one only every [liveInterval].
   int _idleTicks = 0;
 
   /// Whether [live] works: connected, or idle between scheduled
@@ -350,7 +396,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// one started by anything but a save here or a live message (the
   /// timer, the Sync button, a retry, a sign-in). Passes started by a save
   /// or a live message skip the listing while the last one is under
-  /// [liveInterval] old: the live message brought the event (and wanted
+  /// [liveInterval] old ([copiedInterval] while no event is short of
+  /// copies): the live message brought the event (and wanted
   /// its clip, fetched by its known keys), and a LIST costs 12 times a GET.
   bool _mustList = true;
   int _downloaded = 0;
@@ -606,6 +653,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     _failures = 0;
     _ticksToSkip = 0;
     _fetcher.reset();
+    _copyTracker.reset();
     _handedOver.clear();
   }
 
@@ -655,9 +703,18 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
         _ticksToSkip--;
         return;
       }
-      // Live sync works: only a backstop, every [liveInterval] (or the
+      // Live sync works: only a backstop, every [liveInterval] while an
+      // event is short of copies, else every [copiedInterval] (or the
       // back-off, when longer).
-      if (_liveUp && interval * _idleTicks < liveInterval) return;
+      if (_liveUp) {
+        final now = _now();
+        if (_pollOften(now)) {
+          if (interval * _idleTicks < liveInterval) return;
+        } else if (_lastListing case final listed?
+            when now.difference(listed) < copiedInterval) {
+          return;
+        }
+      }
       _schedule(immediately: true);
     });
   }
@@ -724,7 +781,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
   /// Starts a pass soon, or [immediately]. It lists the day partitions
   /// ([_mustList]) unless it's for a save or a live message ([listing]
-  /// false), which can do with a listing under [liveInterval] old.
+  /// false), which can do with a recent listing (see [_mustList]).
   void _schedule({bool immediately = false, bool listing = true}) {
     if (_disposed || _syncProfile == null || stopped || _halted) return;
     if (listing) _mustList = true;
@@ -814,7 +871,8 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       if (full ||
           mustList ||
           listedAt == null ||
-          now.difference(listedAt) >= liveInterval) {
+          now.difference(listedAt) >=
+              (_pollOften(now) ? liveInterval : copiedInterval)) {
         try {
           await _fetcher.fetch(
             pass,

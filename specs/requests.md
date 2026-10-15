@@ -6703,7 +6703,37 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       describe the menu; [README](README.md), [Cloud sync](cloud-sync.md)
       and [Configuration](configuration.md) name it.
 
-458. **Do a barrel roll** (2026-10-15), with the pending edit to
+458. **Poll S3 often only while an event lacks copies on other devices.**
+     (2026-10-15)
+     - Asked: no need to sync S3 so often; if other devices respond with
+       enough copies of an event, check S3 about once an hour, and only
+       download what changed (hashes don't match). Poll at high frequency
+       only while an event lacks enough copies on other devices, the event
+       then being backed up on S3. Premium and Pro only (free has no S3).
+       A full copy still counts only with the recording (asked: kept as
+       today, not a lighter "received" ack nor background recording
+       downloads).
+     - Changed: while live sync works, cloud sync's backstop lists the
+       bucket every hour (`CloudSync.copiedInterval`) while the events this
+       device published have `enoughCopies` (1, or the profile's other
+       devices if fewer) other devices holding a full copy, and every
+       2 min (`liveInterval`) while one is short past `ackGrace` (2 min
+       plus two scheduled live connections), for at most an hour more.
+       Passes for saves and live messages skip the listing for as long.
+       `_CopyTracker` keeps the events published here (at most 500).
+       Downloads already happened only for missing objects or a changed
+       ETag, and free profiles never reach the bucket: unchanged.
+     - Listing per device drops from about $0.22 a month (with live sync)
+       to about $0.05 when copies are enough. Also corrects #455: with
+       live sync working, listing was $0.22, not $1.78.
+     - Tests: `live_sync_test` (an event published here lists nothing
+       within its grace, then every `liveInterval` while unacked, and
+       hourly once another device acks it). `flutter analyze` is clean,
+       `flutter test` passes (1050).
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Event copies](event-copies.md).
+
+459. **Do a barrel roll** (2026-10-15), with the pending edit to
      [prompts/do-a-barrel-roll.md](../prompts/do-a-barrel-roll.md)
      committed first.
     - Its last step now says to update and relaunch the app on the
