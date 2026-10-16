@@ -53,21 +53,27 @@ signing](release.md#store-signing)).
   ([App Store listing](app-store-listing.md)).
 - **Still to do in App Store Connect (by the account holder):** the
   Paid Apps agreement, legal entity, banking and tax (the subscriptions
-  need them), the EU trader status (Digital Services Act), the price
-  (Free) and availability, App Privacy, and the review contact and
-  notes. The 6.9" iPhone screenshots and the subscriptions' review
+  need them), the EU trader status (Digital Services Act) and App
+  Privacy. The price (Free) and availability are set. The review notes
+  are in the repo, the contact in the private credentials repo's
+  `review.json`, and the script attaches the newest build ([App Store
+  listing](app-store-listing.md)). The 6.9" iPhone screenshots and the subscriptions' review
   screenshots are uploaded from the repo since 2026-10-16 ([App Store
   listing](app-store-listing.md)).
 
 ## Blockers: Google Play
 
-- **No upload key yet.** Release builds sign with an upload key from
-  the environment or `android/key.properties`, and the release workflow
-  builds an **Android App Bundle** signed with it, once the
-  `ANDROID_UPLOAD_KEY*` secrets exist; a release bundle without a key
-  fails rather than use the debug key. Still to do: create the key
-  (`scripts/android-upload-key.sh`), set the secrets, turn on Play App
-  Signing and upload the first `.aab` ([Store
+- **The developer account** (`nu01.com`, a personal account) is waiting
+  for Google's identity verification (2026-10-16); Play Console creates no
+  app until it passes. As a personal account made after November 2023, it
+  must run a closed test with at least 12 testers for 14 days before
+  production.
+- **Upload key: made (2026-10-16).** The upload key is in the private
+  credentials repo (`env.local/android/`), SHA-1
+  `A3:AC:95:CD:30:67:EE:E7:46:29:A2:20:99:05:CF:D6:B5:A7:80:D9`, and the
+  `ANDROID_UPLOAD_KEY*` secrets are set, so RC and GA releases build a
+  signed `.aab`. Still to do once the account is verified: create the
+  app, turn on Play App Signing and upload the first `.aab` ([Store
   signing](release.md#google-play-android)). The `assetlinks.json` for
   [App Links](add-device.md), which the site doesn't serve yet, must then
   list Play's app signing certificate, and Google sign-in's Android

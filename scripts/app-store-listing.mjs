@@ -12,7 +12,11 @@
 // The API key is read from ASC_KEY_PATH, by default
 // ../setec-astronomy/presence.nu01/env.local/apple/AuthKey_<ASC_KEY_ID>.p8.
 // With a version (e.g. 0.6.202610151308), the editable version is renamed to
-// it, to match the build's CFBundleShortVersionString. DRY_RUN=1 only prints.
+// it, to match the build's CFBundleShortVersionString; either way the newest
+// processed build of the version is attached. App Review's notes come from
+// review_notes.txt, its contact from review.json beside the API key (contact
+// first and last name, email and phone, as Apple's appStoreReviewDetails
+// attributes), so no phone number is in the repo. DRY_RUN=1 only prints.
 // SCREENSHOTS_ONLY=1 uploads the screenshots and nothing else. Screenshots
 // already there with the same files (by MD5) are kept, so it can run again.
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
@@ -138,6 +142,43 @@ async function setListing() {
     type: 'ageRatingDeclarations', id: rating.id,
     attributes: JSON.parse(readFileSync(join(listing, 'age-rating.json'), 'utf8')) } });
   console.log('age rating set');
+  await setBuild(version ?? ver.attributes.versionString);
+  await setReviewDetail();
+}
+
+// The newest processed build of that version goes with it.
+async function setBuild(versionString) {
+  const builds = (await api('GET', `/v1/builds?filter[app]=${app.id}` +
+    `&filter[preReleaseVersion.version]=${versionString}&filter[processingState]=VALID` +
+    '&filter[expired]=false&sort=-uploadedDate&limit=1')).data;
+  if (!builds.length) {
+    console.log(`no processed build of ${versionString} yet; the version keeps its build`);
+    return;
+  }
+  await api('PATCH', `/v1/appStoreVersions/${ver.id}/relationships/build`,
+    { data: { type: 'builds', id: builds[0].id } });
+  console.log(`build ${builds[0].attributes.version} attached`);
+}
+
+// App Review's contact and notes. The notes are in the repo; the contact
+// (and a demo account, if one is ever needed) come from review.json next to
+// the API key, since the repo is public.
+async function setReviewDetail() {
+  const notes = read(listing, 'review_notes.txt');
+  const privatePath = join(dirname(keyPath), 'review.json');
+  if (!notes || !existsSync(privatePath)) {
+    console.log(`review details skipped (needs review_notes.txt and ${privatePath})`);
+    return;
+  }
+  const attributes = { ...JSON.parse(readFileSync(privatePath, 'utf8')), notes };
+  attributes.demoAccountRequired ??= false;
+  const old = (await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreReviewDetail`)).data;
+  await (old
+    ? api('PATCH', `/v1/appStoreReviewDetails/${old.id}`,
+      { data: { type: 'appStoreReviewDetails', id: old.id, attributes } })
+    : api('POST', '/v1/appStoreReviewDetails', { data: { type: 'appStoreReviewDetails', attributes,
+      relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: ver.id } } } } }));
+  console.log('review details set');
 }
 if (!screenshotsOnly) await setListing();
 
