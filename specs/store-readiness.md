@@ -54,8 +54,10 @@ signing](release.md#store-signing)).
 - **Still to do in App Store Connect (by the account holder):** the
   Paid Apps agreement, legal entity, banking and tax (the subscriptions
   need them), the EU trader status (Digital Services Act), the price
-  (Free) and availability, App Privacy, screenshots, and the review
-  contact and notes.
+  (Free) and availability, App Privacy, and the review contact and
+  notes. The 6.9" iPhone screenshots and the subscriptions' review
+  screenshots are uploaded from the repo since 2026-10-16 ([App Store
+  listing](app-store-listing.md)).
 
 ## Blockers: Google Play
 
@@ -100,8 +102,8 @@ signing](release.md#store-signing)).
   - while a build is in review, GA must take sandbox purchases
     (`STORE_ALLOW_SANDBOX=true`, [Payments API](payments-api.md#deploying)):
     the reviewer buys Premium in the sandbox with the production build;
-  - the subscriptions submitted with the version, with a review
-    screenshot each.
+  - the subscriptions submitted with the version; each has its review
+    screenshot (the Premium plans, uploaded by the listing script).
 
 ## Risks
 

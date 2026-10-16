@@ -31,6 +31,33 @@ with [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs).
   that version to the build's `CFBundleShortVersionString`. It creates
   missing localizations and updates existing ones. `DRY_RUN=1` prints the
   changes without making them.
+- **Screenshots** (since 2026-10-16): `en-US/screenshots/*.png`, five
+  6.9" iPhone screenshots (1320x2868, PNG without alpha), shown in name
+  order: the camera, the events with their map, Setup, the Profile tab
+  with the Premium plans, and the consent screen. The script puts them in
+  the version's 6.9" slot (`APP_IPHONE_67` in the API, which also takes
+  1290x2796; the App Store scales it for smaller iPhones; iPhone only, so
+  no iPad set), replacing what's there: it reserves each screenshot, uploads
+  its parts as Apple's upload operations say, commits it with its MD5,
+  orders the set and waits until each is `COMPLETE`. A set that already
+  has exactly these files (by MD5) is left alone, so it can run again.
+  - `subscription-review.png` (the Profile tab's Premium plans, the same
+    picture) is each Premium subscription's App Review screenshot
+    (`presence.premium.monthly`, `presence.premium.yearly`), replaced the
+    same way unless it's already that file.
+  - `SCREENSHOTS_ONLY=1` uploads only the screenshots.
+  - They're made by [scripts/app-store-screenshots.sh](../scripts/app-store-screenshots.sh):
+    it runs
+    [integration_test/store_screenshots_test.dart](../presence_app/integration_test/store_screenshots_test.dart)
+    on the newest "Pro Max" iPhone simulator (host Flutter) with Apple's
+    9:41 status bar, and takes a screenshot at each `SHOT <name>` the test
+    prints (`xcrun simctl io screenshot`), flattened to RGB (ffmpeg, or
+    sips). The test runs the real app with fakes: a made-up account
+    (Alex Rivera, alex@example.com, free), a camera showing a photo of
+    Suerte from `test/data/`, four demo clips from those photos in Golden
+    Gate Park (a public place), and the App Store's two plans at their US
+    prices ($20.00 a month with a week free, $200.00 a year). No real
+    account, place or personal data.
 - **Not in the script** (App Store Connect's web pages, or the account
-  holder): screenshots, App Privacy, the price and availability, the
-  review contact and notes, the subscriptions, and submitting.
+  holder): App Privacy, the price and availability, the review contact
+  and notes, the subscriptions themselves, and submitting.
