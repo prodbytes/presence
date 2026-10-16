@@ -6884,3 +6884,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       is in a draft review submission. The Paid Apps agreement is still
       to sign, so the subscriptions aren't in it yet and it isn't sent.
     - Specs: [Store readiness](store-readiness.md).
+
+470. **The Paid Apps agreement is submitted; continue.** (2026-10-16)
+    - The agreement, bank account and tax forms are active. Added both
+      Premium subscriptions and their group to the draft review
+      submission in the browser (the first subscription must go with a
+      version; the API refuses it) and submitted all four items.
+    - Specs: [Store readiness](store-readiness.md).
