@@ -277,6 +277,8 @@ their data.
 - [Store readiness](store-readiness.md): what the App Store and Google
   Play require that Presence meets, and what it doesn't yet (the
   stores' subscription setup, Sign in with Apple, release signing).
+- [App Store listing](app-store-listing.md): the App Store product page
+  kept in `store/app-store/`, and the script that pushes it.
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
