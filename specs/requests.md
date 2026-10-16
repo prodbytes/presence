@@ -6811,3 +6811,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - `version.Y.txt` is now `7`: releases are `0.7.<UTC timestamp>`.
     - Specs: [Release](release.md) (also: App Store Connect accepted the
       12-digit Z, so that open question is closed).
+
+466. **The App Store version has no screenshots, which blocks
+     submission: make and upload them.** (2026-10-16)
+    - New: [scripts/app-store-screenshots.sh](../scripts/app-store-screenshots.sh)
+      runs `integration_test/store_screenshots_test.dart` on the iPhone 18
+      Pro Max simulator: the real app with fakes (a made-up free account,
+      demo clips from Suerte's photos in `test/data/`, a public place, the
+      App Store plans at their US prices), screenshotted at 1320x2868 and
+      flattened to RGB. Five screenshots in
+      `store/app-store/en-US/screenshots/` (camera, events, Setup, Premium
+      plans, consent) and `store/app-store/subscription-review.png`.
+    - [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs)
+      now uploads them: the 6.9" set (`APP_IPHONE_67`) of the editable
+      version's localization, and each Premium subscription's review
+      screenshot, by reservation, upload operations and commit (MD5),
+      skipping what's already there (`SCREENSHOTS_ONLY=1` for just these).
+      Run for real: all five and both review screenshots `COMPLETE`; the
+      subscriptions went from "missing metadata" to "ready to submit".
+    - Specs: [App Store listing](app-store-listing.md), [Store
+      readiness](store-readiness.md).
