@@ -6831,3 +6831,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       subscriptions went from "missing metadata" to "ready to submit".
     - Specs: [App Store listing](app-store-listing.md), [Store
       readiness](store-readiness.md).
+
+467. **Release the app on the app stores and the web; register on both
+     stores in parallel.** (2026-10-16)
+    - Web: already live, presence.nu01.com and rc.presence.nu01.com at
+      0.7.202610161741.
+    - Both store accounts already existed: Apple's paid team, and the
+      Play account `nu01.com`, which is waiting for Google's identity
+      verification (no app can be made until then).
+    - Made the Android upload key (in the private credentials repo) and
+      set the `ANDROID_UPLOAD_KEY*` secrets.
+    - [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs)
+      now also attaches the version's newest processed build and sets
+      App Review's details: notes from `store/app-store/review_notes.txt`,
+      the contact from the private `review.json`.
+    - Found a review blocker: a signed-in user without membership could
+      only subscribe at nu01.com; an in-app Join free is its own change.
+    - Specs: [App Store listing](app-store-listing.md), [Store
+      readiness](store-readiness.md).

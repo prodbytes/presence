@@ -31,6 +31,17 @@ with [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs).
   that version to the build's `CFBundleShortVersionString`. It creates
   missing localizations and updates existing ones. `DRY_RUN=1` prints the
   changes without making them.
+- **Build** (since 2026-10-16): the newest processed (`VALID`, not
+  expired) build of the version's number is attached to it; with none
+  yet, the version keeps the build it has.
+- **App Review details** (since 2026-10-16): the notes are
+  `review_notes.txt` (how to get past the [consent](consent.md) screen,
+  sign in with Apple or Google, join free in the app, and where Premium,
+  its sandbox purchases and account deletion are). The contact (first and
+  last name, email and phone, Apple's `appStoreReviewDetails` attributes)
+  is `review.json` beside the API key in the private credentials repo,
+  so no phone number is in this public repo; without it the review
+  details are skipped. No demo account is needed.
 - **Screenshots** (since 2026-10-16): `en-US/screenshots/*.png`, five
   6.9" iPhone screenshots (1320x2868, PNG without alpha), shown in name
   order: the camera, the events with their map, Setup, the Profile tab
@@ -59,5 +70,5 @@ with [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs).
     prices ($20.00 a month with a week free, $200.00 a year). No real
     account, place or personal data.
 - **Not in the script** (App Store Connect's web pages, or the account
-  holder): App Privacy, the price and availability, the review contact
-  and notes, the subscriptions themselves, and submitting.
+  holder): App Privacy, the price and availability, the subscriptions
+  themselves, and submitting.
