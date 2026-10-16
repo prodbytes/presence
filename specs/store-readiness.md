@@ -64,16 +64,14 @@ signing](release.md#store-signing)).
   "Presence" is taken in the App Store. The name under the icon stays
   "Presence". Its listing is pushed from the repo
   ([App Store listing](app-store-listing.md)).
-- **App Store Connect, as of 2026-10-16:** the EU trader status (Digital
-  Services Act) is active; App Privacy is published (12 data types: name,
-  email, precise location, sensitive info (face data), photos or videos,
-  audio, customer support, user ID, device ID, purchases, product
-  interaction, other diagnostics; all for app functionality, linked to
-  the user, none for tracking); version 0.7.202610161834 has build
-  1792175686, the review notes and contact, and is in a draft review
-  submission. Still to do by the account holder: the **Paid Apps
-  agreement** (legal entity, banking and tax). Then the two Premium
-  subscriptions are added to the version and it's submitted.
+- **Submitted to App Review (2026-10-16):** version 0.7.202610161834
+  (build 1792175686) with the subscription group "Presence Premium" and
+  both subscriptions, its first. Done before it: the Paid Apps
+  agreement, banking and tax forms (active), the EU trader status (Digital
+  Services Act), App Privacy (12 data types, all for app functionality,
+  linked to the user, none for tracking), the review notes and contact.
+  Still open in Business: the EU DAC7 information ("Missing Info"),
+  which the account holder fills in.
 
 ## Blockers: Google Play
 
