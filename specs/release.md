@@ -280,7 +280,7 @@ The app version is `X.Y.Z`, resolved by
 [scripts/version.sh](../scripts/version.sh):
 
 - **X** and **Y** come from [version.X.txt](../version.X.txt) and
-  [version.Y.txt](../version.Y.txt) at the repo root (now `0` and `6`).
+  [version.Y.txt](../version.Y.txt) at the repo root (now `0` and `7`).
   Edit them to bump the major or minor version.
 - **Z** is the build time as a UTC timestamp, `YYYYMMDDHHMM` (e.g.
   `1.0.202609261534`).
@@ -311,8 +311,8 @@ The app version is `X.Y.Z`, resolved by
   `Signing.xcconfig` and `ExportOptions.plist` were checked (Xcode reads
   the signing settings for Release, not Debug).
 - The marketing version's Z is a 12-digit timestamp
-  (`0.6.202610141530`); App Store Connect may refuse a component that
-  large in `CFBundleShortVersionString`. If it does, iOS builds need a
-  shorter Z.
+  (`0.7.202610161800`). App Store Connect takes it in
+  `CFBundleShortVersionString`: build `0.6.202610151308` was accepted on
+  2026-10-16.
 - The build number (Unix seconds) outgrows Android's `versionCode` limit in
   2036.

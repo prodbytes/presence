@@ -6806,3 +6806,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       location is only used while the app is open. The app still asks
       only for when-in-use; the plugin's code references the other API.
     - Specs: [iOS](ios.md).
+
+465. **Upgrade Y to 7 on the version.** (2026-10-16)
+    - `version.Y.txt` is now `7`: releases are `0.7.<UTC timestamp>`.
+    - Specs: [Release](release.md) (also: App Store Connect accepted the
+      12-digit Z, so that open question is closed).
