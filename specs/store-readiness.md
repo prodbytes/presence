@@ -39,14 +39,23 @@ signing](release.md#store-signing)).
   Sign in with Apple key and put it in SSM
   (`APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`), and give the
   review notes a way to sign in with Apple too.
-- **No distribution certificate yet.** The release workflow builds an
-  App Store `.ipa` (manual signing, `ExportOptions.plist` with
-  `app-store-connect`) and uploads RC and GA builds to App Store Connect,
-  but only once `APPLE_TEAM_ID`, an Apple Distribution certificate, an
-  App Store provisioning profile (and, for the upload, an App Store
-  Connect API key) are in its secrets ([Store
-  signing](release.md#app-store-ios)). Until then it uploads an unsigned
-  `Runner.app`.
+- **Signing and upload: set up (2026-10-15).** The team (`LMX88986F3`)
+  is a paid Apple Developer Program member, and the release workflow's
+  secrets are all set: the Apple Distribution certificate, the App Store
+  profile (with Sign in with Apple) and the App Store Connect API key
+  ([Store signing](release.md#app-store-ios)); the files are kept in the
+  private credentials repo. RC and GA builds are signed and uploaded to
+  App Store Connect.
+- **The app record:** "PresenceCam" (Apple ID `6823219680`, SKU
+  `presence`, bundle ID `com.nu01.presence`, English (U.S.)), since
+  "Presence" is taken in the App Store. The name under the icon stays
+  "Presence". Its listing is pushed from the repo
+  ([App Store listing](app-store-listing.md)).
+- **Still to do in App Store Connect (by the account holder):** the
+  Paid Apps agreement, legal entity, banking and tax (the subscriptions
+  need them), the EU trader status (Digital Services Act), the price
+  (Free) and availability, App Privacy, screenshots, and the review
+  contact and notes.
 
 ## Blockers: Google Play
 

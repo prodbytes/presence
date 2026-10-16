@@ -1,0 +1,27 @@
+PresenceCam turns a phone you aren't using into an always-on camera for a place you look after: your home, a shop, a garage, a holiday flat, or a garden at night.
+
+While it's open, it records continuously and keeps the last moments, so every clip includes what happened just before. Clips are saved when something moves, every few hours on their own, or when you tap Clip. Each clip shows up as an event, with a thumbnail, on all the devices in your profile.
+
+WHAT IT DOES
+• Clips that start before the moment: the seconds before and after are kept together
+• Motion clips, and clips on a schedule
+• Live feed and events from every device you add
+• Subjects: name the people and pets it sees, and find their clips
+• Tags for what's in a clip
+• Night mode for animals in the dark: brighter picture, more sensitive motion, and light while recording
+• Each device on a map, with its battery
+• Phones, tablets, laptops and Raspberry Pi cameras in one profile
+• Every image and recording is encrypted on the device before it's stored or sent
+
+FREE AND PREMIUM
+Free: up to 10 devices, which share their events with each other every 15 minutes.
+Premium: up to 25 devices, synced through the cloud instantly, with cloud recognition and streamers. Premium is an auto-renewing subscription, monthly (the first week free) or yearly.
+
+Payment is charged to your Apple Account when you confirm the purchase. The subscription renews automatically unless it's cancelled at least 24 hours before the end of the current period, and the renewal is charged in the 24 hours before the period ends. Manage or cancel it in your Apple Account settings after purchase. A free trial's unused time ends when you buy a subscription.
+
+Record only where you're allowed to. You agree to that before the first recording, and the app shows when it's recording.
+
+PresenceCam is open source: https://github.com/prodbytes/presence
+
+Terms of Service: https://presence.nu01.com/tos
+Privacy Policy: https://presence.nu01.com/privacy

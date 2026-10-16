@@ -6783,3 +6783,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        check) and Secrets Manager (other projects' secrets only) are no
        longer counted: $0.97 a month rather than $7.51. Tests: 9 pass.
      - Specs: [Cost report](cost-report.md), [Production deploy](deploy.md).
+
+463. **Release the app to the App Store; do it all yourself (the app name
+     PresenceCam if "Presence" isn't accepted).** (2026-10-16)
+    - App Store Connect's app, removed by mistake, was restored in the
+      browser (its bundle ID can't be used by a new app) and renamed
+      PresenceCam: "Presence" is taken.
+    - New: the product page in `store/app-store/` (English) and
+      [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs),
+      which pushes it through the App Store Connect API: name, subtitle,
+      description, keywords, URLs, categories, copyright, content rights
+      and age rating (16+). Pushed once.
+    - Left to the account holder: the Paid Apps agreement, banking and
+      tax, the EU trader status, the price, App Privacy and the review
+      contact.
+    - Specs: [App Store listing](app-store-listing.md) (new), [Store
+      readiness](store-readiness.md), the index.
