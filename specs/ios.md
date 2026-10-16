@@ -55,6 +55,10 @@ The Swift counterpart of the Android layer
     in clips;
   - location (when in use): it shows the device on a map and records it
     with each event.
+  - location (always and when in use): the same text, adding that it only
+    uses the location while it's open. The app never asks for "always";
+    the key is there because `geolocator_apple` references that API, and
+    App Store Connect warns about every build without it (ITMS-90683).
 - **iPhone only:** `TARGETED_DEVICE_FAMILY = 1` in every build
   configuration (Runner and RunnerTests inherit it), so there's no iPad
   build, iPad review or iPad screenshots, and no iPad orientations in

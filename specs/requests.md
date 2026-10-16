@@ -6799,3 +6799,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       contact.
     - Specs: [App Store listing](app-store-listing.md) (new), [Store
       readiness](store-readiness.md), the index.
+
+464. **Apple's ITMS-90683 for build 1792069744: the Info.plist has no
+     `NSLocationAlwaysAndWhenInUseUsageDescription`.** (2026-10-16)
+    - Added it, with the same text as the when-in-use one plus that the
+      location is only used while the app is open. The app still asks
+      only for when-in-use; the plugin's code references the other API.
+    - Specs: [iOS](ios.md).
