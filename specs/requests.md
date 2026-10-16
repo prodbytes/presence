@@ -6874,3 +6874,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Membership](membership.md), [Sign-in](sign-in.md),
       [Payments API](payments-api.md#join-free), [Upgrade](upgrade.md),
       [Store readiness](store-readiness.md).
+
+469. **My phone is +34…; set the review contact, then continue.**
+     (2026-10-16)
+    - The App Review contact is in the private `review.json`; the listing
+      script attached build 1792175686 to version 0.7.202610161834 and
+      set the review details.
+    - App Privacy filled in and published in the browser; the version
+      is in a draft review submission. The Paid Apps agreement is still
+      to sign, so the subscriptions aren't in it yet and it isn't sent.
+    - Specs: [Store readiness](store-readiness.md).

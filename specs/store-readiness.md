@@ -64,15 +64,16 @@ signing](release.md#store-signing)).
   "Presence" is taken in the App Store. The name under the icon stays
   "Presence". Its listing is pushed from the repo
   ([App Store listing](app-store-listing.md)).
-- **Still to do in App Store Connect (by the account holder):** the
-  Paid Apps agreement, legal entity, banking and tax (the subscriptions
-  need them), the EU trader status (Digital Services Act) and App
-  Privacy. The price (Free) and availability are set. The review notes
-  are in the repo, the contact in the private credentials repo's
-  `review.json`, and the script attaches the newest build ([App Store
-  listing](app-store-listing.md)). The 6.9" iPhone screenshots and the subscriptions' review
-  screenshots are uploaded from the repo since 2026-10-16 ([App Store
-  listing](app-store-listing.md)).
+- **App Store Connect, as of 2026-10-16:** the EU trader status (Digital
+  Services Act) is active; App Privacy is published (12 data types: name,
+  email, precise location, sensitive info (face data), photos or videos,
+  audio, customer support, user ID, device ID, purchases, product
+  interaction, other diagnostics; all for app functionality, linked to
+  the user, none for tracking); version 0.7.202610161834 has build
+  1792175686, the review notes and contact, and is in a draft review
+  submission. Still to do by the account holder: the **Paid Apps
+  agreement** (legal entity, banking and tax). Then the two Premium
+  subscriptions are added to the version and it's submitted.
 
 ## Blockers: Google Play
 
