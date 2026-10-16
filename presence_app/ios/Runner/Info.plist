@@ -12,6 +12,8 @@
 	<string>While Presence is open, it records sound with the camera's video and saves it in its clips.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Presence shows where this device is on a map and records it with each event.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Presence shows where this device is on a map and records it with each event. It only uses your location while it's open.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>While Presence is open, it records video from this device's camera continuously, keeping recent footage and saving clips of what happens, and shows the live feed.</string>
 	<key>CFBundleExecutable</key>
