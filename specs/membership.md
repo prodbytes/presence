@@ -1,7 +1,7 @@
 # Membership
 
-Who may use Presence, how people get access (they subscribe at
-nu01.com), and the voucher codes that let them in too. Roles come from
+Who may use Presence, how people get access (they join free in the iOS
+and Android apps, or subscribe at nu01.com elsewhere), and the voucher codes that let them in too. Roles come from
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role
 manager, which the app asks directly with the user's Presence
 [session token](sessions.md) (see [Sign-in](sign-in.md)); its `presence` system's roles, in brackets
@@ -19,7 +19,8 @@ below:
 Roots are **rbacr's roots**: the addresses and domains on rbacr's root
 list (`@nu01.com` by default), configured in rbacr, not here. They get
 every role, and nothing else gives `presence_root`. Everyone else starts
-unknown, and gets roles by subscribing at nu01.com (rbacr's Substack
+unknown, and gets roles by joining free in the iOS or Android app (the
+payments API grants `free`), by subscribing at nu01.com (rbacr's Substack
 sync gives `premium`), by [upgrading to Premium](upgrade.md) in the app
 (a free member; rbacr's same Stripe sync), by redeeming a voucher code, or from a grant in
 rbacr's pages. Admins (rbacr's `admin` in the `presence` system) are
@@ -35,18 +36,35 @@ devices sync: 10, 25 or 50. Roles also
 set limits: **Connect to live sync** is always connected for admins, and at
 most every 30 s for members (see [Live sync](live-sync.md#when-it-connects)).
 
-## Getting access: subscribe
+## Getting access: join free, or subscribe
 
-Nobody asks for access any more (2026-10-10): **users subscribe at
-nu01.com** to become members (Free) or Premium, and rbacr gives the role.
-The **Sign up** icon (`SignUpButton`, [lib/auth/account_sheet.dart](../presence_app/lib/auth/account_sheet.dart))
-opens "Subscribe" (`SignUpSheet`):
+Nobody asks for access any more (2026-10-10). In the **iOS and Android
+apps users join free in the app** (2026-10-16): the stores' rules (App
+Store 3.1.1 and 5.1.1, Google Play's payments policy) rule out sending
+them to subscribe on the web, and App Review must be able to get in. On
+the **web and desktop they subscribe at nu01.com** to become members
+(Free) or Premium, and rbacr gives the role. The **Sign up** icon
+(`SignUpButton`, [lib/auth/account_sheet.dart](../presence_app/lib/auth/account_sheet.dart))
+opens the sign-up sheet (`SignUpSheet`):
 
-- "<email> doesn't have access to Presence yet. Subscribe at nu01.com:
-  Free, or Premium for cloud backup and more devices. Then check again
-  here.", and **Subscribe at nu01.com**, which opens https://nu01.com
-  (`DeviceSlots.signUp`) in the browser, or copies the link where it
-  can't open;
+- **iOS and Android** (where the app has [store
+  billing](upgrade.md#on-ios-and-android-the-stores), `StoreBilling`,
+  whose `joinFree` the sheet gets): "Join Presence", "<email> isn't a
+  member of Presence yet. Join free to use it on this device.", and
+  **Join free**. No Premium, price or nu01.com there. It calls the
+  payments API's `POST /api/payments/free` with the session token
+  ([Payments API](payments-api.md#join-free)), which grants rbacr's `free`
+  in the `presence` system (what a nu01.com Free subscription gives:
+  `presence_user`), then checks the roles as a redeemed code does: at
+  once, and once more 2 s later while still without access. A spinner
+  shows meanwhile; a failure says "Couldn't join right now. Try again in
+  a moment." and the button comes back. Premium is then bought in the
+  Profile tab's plan box ([Upgrade](upgrade.md)).
+- **The web and desktop**: "Subscribe", "<email> doesn't have access to
+  Presence yet. Subscribe at nu01.com: Free, or Premium for cloud backup
+  and more devices. Then check again here.", and **Subscribe at
+  nu01.com**, which opens https://nu01.com (`DeviceSlots.signUp`) in the
+  browser, or copies the link where it can't open;
 - **Voucher code** and **Redeem** (below a divider, "Have a voucher code?
   Redeem it to get in right away."): disabled while the field is blank;
   Enter redeems too. The field takes up to 64 characters (hint

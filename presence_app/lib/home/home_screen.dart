@@ -599,6 +599,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         showDevice: widget.showDevice,
         deleteDevice: widget.deleteDevice,
         deleteAccount: widget.deleteAccount,
+        joinFree: widget.store?.joinFree,
         onHelp: _showHelp ? _openHelp : null,
         modeMenu: _onCamera && _hasAccess
             ? ListenableBuilder(

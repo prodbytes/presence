@@ -178,6 +178,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authJoin => 'Join Presence';
+
+  @override
+  String get authJoinFree => 'Join free';
+
+  @override
+  String get authJoinFreeFailed =>
+      'Couldn\'t join right now. Try again in a moment.';
+
+  @override
+  String authJoinFreeText(String email) {
+    return '$email isn\'t a member of Presence yet. Join free to use it on this device.';
+  }
+
+  @override
   String get authLinkAnother => 'Link another account';
 
   @override

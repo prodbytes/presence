@@ -177,6 +177,12 @@ class FakeStoreClient implements StoreClient {
     verified.add('$platform $productId $verificationData');
     if (verifyStatus != 200) throw StoreVerifyException(verifyStatus);
   }
+
+  /// The tokens Join free was asked with.
+  final joined = <String>[];
+
+  @override
+  Future<void> joinFree(String idToken) async => joined.add(idToken);
 }
 
 void main() {
@@ -404,6 +410,15 @@ void main() {
       await pumpEventQueue();
       expect(billing.plans, isEmpty);
     });
+  });
+
+  test('joinFree asks the payments API with the session token', () async {
+    final billing = makeBilling();
+    await expectLater(billing.joinFree(), throwsA(isA<StoreVerifyException>()));
+    expect(client.joined, isEmpty);
+    await auth.signIn();
+    await billing.joinFree();
+    expect(client.joined, [auth.idToken]);
   });
 
   test('HttpStoreClient', () async {

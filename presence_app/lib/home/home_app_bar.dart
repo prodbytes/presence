@@ -41,7 +41,12 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.deleteAccount,
     this.onHelp,
     this.modeMenu,
+    this.joinFree,
   });
+
+  /// Join free in the sign-up sheet (iOS and Android: the store billing's);
+  /// null elsewhere, where the sheet links to nu01.com.
+  final Future<void> Function()? joinFree;
 
   /// The Camera tab's mode menu ([CameraModeMenu]), in the title's place
   /// over the camera. None: no menu.
@@ -140,6 +145,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
               roles: roles,
               rbacr: rbacr,
               profiles: profiles,
+              joinFree: joinFree,
             ),
           AccountButton(
             auth: auth,

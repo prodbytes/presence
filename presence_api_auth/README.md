@@ -21,7 +21,8 @@ The app asks [rbacr](https://rbacr.nu01.com) directly, with the user's
 Presence session token, for the user's own roles, maintenance mode and voucher
 redemption; admins manage vouchers and maintenance in rbacr. Users get
 `presence_user` by subscribing at nu01.com or redeeming a voucher (both
-rbacr's); there are no membership requests.
+rbacr's), or by Join free in the iOS and Android apps (the payments API
+grants rbacr's `free`); there are no membership requests.
 
 - **Sessions** ([specs/sessions.md](../specs/sessions.md)): the session
   function trades a Google or Apple ID token for a Presence **session

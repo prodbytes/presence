@@ -156,6 +156,17 @@
     }
   },
   "authSubscribeButton": "Subscribe at nu01.com",
+  "authJoin": "Join Presence",
+  "authJoinFreeText": "{email} isn't a member of Presence yet. Join free to use it on this device.",
+  "@authJoinFreeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authJoinFree": "Join free",
+  "authJoinFreeFailed": "Couldn't join right now. Try again in a moment.",
   "authVoucherPrompt": "Have a voucher code? Redeem it to get in right away.",
   "authVoucherLabel": "Voucher code",
   "authRedeem": "Redeem",

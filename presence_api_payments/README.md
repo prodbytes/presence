@@ -29,6 +29,10 @@ distribution (see [specs/payments-api.md](../specs/payments-api.md)).
 - **`POST /api/payments/store/apple-notifications`**: App Store Server
   Notifications V2 (no JWT; Apple's signature checks it): renewals extend
   the grant, refunds and expiries end it.
+- **`POST /api/payments/free`**: Join free in the iOS and Android apps:
+  grants the caller's email rbacr's `free` (only that role, for good);
+  200 `{"member": true, "granted": false}` for a member already. 503
+  until `RbacrGrantToken` is set.
 - A JWT authorizer refuses calls without a valid Presence session token
   (401) before the function runs (all but Apple's notifications): issuer
   the auth API's (`SessionIssuer`, `https://<site>/api/auth`), audience

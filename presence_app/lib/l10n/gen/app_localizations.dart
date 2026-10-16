@@ -340,6 +340,30 @@ abstract class AppLocalizations {
   /// **'Hide {device}\'s events'**
   String authHideDevice(String device);
 
+  /// No description provided for @authJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Join Presence'**
+  String get authJoin;
+
+  /// No description provided for @authJoinFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Join free'**
+  String get authJoinFree;
+
+  /// No description provided for @authJoinFreeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t join right now. Try again in a moment.'**
+  String get authJoinFreeFailed;
+
+  /// No description provided for @authJoinFreeText.
+  ///
+  /// In en, this message translates to:
+  /// **'{email} isn\'t a member of Presence yet. Join free to use it on this device.'**
+  String authJoinFreeText(String email);
+
   /// No description provided for @authLinkAnother.
   ///
   /// In en, this message translates to:

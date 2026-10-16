@@ -21,7 +21,9 @@ web, a voucher, an admin's grant) just sees Premium on every platform.
 The iOS and Android apps never show, link to or mention Stripe,
 nu01.com's sign-up page or a web price (App Store 3.1.1, Google Play's
 payments policy): not in the plan box, the Profile tab's hidden-devices
-line, or the fallback when the payments API doesn't answer.
+line, the fallback when the payments API doesn't answer, or the sign-up
+sheet, which offers [Join free](membership.md#getting-access-join-free-or-subscribe)
+in the app instead.
 
 ## Where
 

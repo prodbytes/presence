@@ -29,6 +29,19 @@ signing](release.md#store-signing)).
 
 ## Blockers: App Store
 
+- **Getting in as a new account (3.1.1, 5.1.1): fixed (2026-10-16).** A
+  signed-in user without membership could only subscribe at nu01.com,
+  which stranded App Review and pointed to buying outside the app (Play's
+  payments policy too). The iOS and Android sign-up sheet now has **Join
+  free** in the app ([Membership](membership.md#getting-access-join-free-or-subscribe)),
+  which the [payments API](payments-api.md#join-free) grants with the
+  deploy's `RBACR_GRANT_TOKEN`; it mentions neither Premium's prices nor
+  nu01.com. **The reviewer's path:** consent, Sign in (Apple or Google),
+  the **Sign up** icon (top right), **Join free**, and the tabs appear;
+  Premium is then in the Profile tab, bought in the sandbox. Step 3 of
+  `store/app-store/review_notes.txt` says so. Needs `RBACR_GRANT_TOKEN`
+  set on the GA deploy, or Join free answers 503.
+
 - **Sign in with Apple (4.8): built, needs Apple's setup.** The iOS app
   offers Sign in with Apple beside Google, with equal prominence, asking
   only for name and email (private relay addresses work), on top of

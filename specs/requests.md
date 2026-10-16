@@ -6849,3 +6849,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       only subscribe at nu01.com; an in-app Join free is its own change.
     - Specs: [App Store listing](app-store-listing.md), [Store
       readiness](store-readiness.md).
+
+468. **App Store review blocker (3.1.1, 5.1.1; Play's payments policy):
+     a signed-in user without membership only sees the camera and a
+     sheet sending them to subscribe at nu01.com. Offer an in-app Join
+     free on iOS and Android instead.** (2026-10-16)
+    - Payments API: new `POST /api/payments/free` (2 requests/s, burst
+      10): grants the caller's verified email rbacr's `free` in the
+      `presence` system for good, with the deploy's `RBACR_GRANT_TOKEN`
+      (`RbacrGrants.joinFree`); only that role, only to the caller;
+      asks `POST /api/check` first, so a member already gets 200
+      `{"member": true, "granted": false}` and nothing changes. 403
+      without a verified email, 502 when rbacr fails, 503 without the
+      grant token. Tests: `JoinFreeTest`.
+    - App: on iOS and Android (where `StoreBilling` exists) the sign-up
+      sheet is "Join Presence" with **Join free**, no Premium, price or
+      nu01.com; it calls the route (`StoreClient.joinFree`) and checks
+      the roles at once and again 2 s later, as a voucher does. The
+      voucher field stays. Web and Linux keep "Subscribe at nu01.com".
+      New strings in English, Spanish and Portuguese. Tests:
+      `join_free_test.dart`, `store_billing_test.dart`.
+    - `store/app-store/review_notes.txt` step 3 names the Sign up icon
+      and Join free.
+    - Specs: [Membership](membership.md), [Sign-in](sign-in.md),
+      [Payments API](payments-api.md#join-free), [Upgrade](upgrade.md),
+      [Store readiness](store-readiness.md).
