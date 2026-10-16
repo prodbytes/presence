@@ -6,7 +6,8 @@ them in the Admin tab; until then, the deploy's), the Pro plans' links,
 which a premium member [upgrades to Pro](upgrade.md#pro) with (none until
 an admin sets them), and the **App Store and
 Google Play subscriptions** of the iOS and Android apps, which it verifies
-with the store and grants in rbacr ([below](#store-purchases)). Its own
+with the store and grants in rbacr ([below](#store-purchases)), and
+**Join free**, the mobile apps' free membership ([below](#join-free)). Its own
 module,
 [presence_api_payments/](../presence_api_payments): a SAM stack per stage
 (**`presence-payments`**, **`presence-rc-payments`**) with one Java 25
@@ -59,6 +60,7 @@ the one place a request's identity is read.
 - **`GET /api/payments/store`**, **`POST /api/payments/store/verify`**
   and **`POST /api/payments/store/apple-notifications`**: store purchases,
   [below](#store-purchases).
+- **`POST /api/payments/free`**: Join free, [below](#join-free).
 - Other routes: 404. When DynamoDB fails: 502 with the request ID; the
   error goes to the function's log, the admin's email never does.
 
@@ -164,6 +166,38 @@ expiry or account is never trusted
 The store routes never log a token, an email or the store's data: only
 the platform, product and outcome.
 
+## Join free
+
+**`POST /api/payments/free`** (any signed-in user; 2 requests/s, burst
+10; no body, and any body is ignored): the iOS and Android apps' **Join
+free** ([Membership](membership.md#getting-access-join-free-or-subscribe)),
+since those apps may not send a user to subscribe on the web (App Store
+3.1.1 and 5.1.1, Play's payments policy). It grants the caller's verified
+email rbacr's **`free`** in the `presence` system, the role a nu01.com
+Free subscription gives (`presence_user` in the app), **for good** (no
+`endsAt`), with the same grant token and `RbacrGrants` as store purchases
+(`RbacrGrants.joinFree`,
+[StorePurchases.java](../presence_api_payments/PaymentsFunction/src/main/java/presence/payments/StorePurchases.java)).
+
+- The role is fixed in the code: the route can grant `free` and nothing
+  else, only to the token's own email.
+- It first asks rbacr `POST /api/check` whether the email holds `free`
+  already (effective roles: `premium`, `pro` or `admin` imply it, and
+  roots hold everything); if it does, nothing is granted. Otherwise it
+  grants with `POST /api/systems/presence/grants {role: "free",
+  grantee}`. Idempotent either way (rbacr's G2 keeps a same-validity
+  grant).
+- Answers: **200** `{"member": true, "granted": true}` (granted now) or
+  `{"member": true, "granted": false}` (a member already: a no-op);
+  **403** no verified email; **502** rbacr failed or refused; **503**
+  `{"error": "joining free is not configured"}` while the stack has no
+  grant token (`RbacrGrantToken`).
+- It logs only "join free granted" or "already a member", never the
+  email.
+- The web could call it too (any signed-in user may), which gives
+  nothing a nu01.com Free subscription doesn't; the web app shows the
+  nu01.com link instead.
+
 ## Storage
 
 `PaymentsTable` (on-demand, encrypted, point-in-time recovery, kept when
@@ -196,7 +230,9 @@ and passes its domain to the site stack (`PaymentsApiDomainName`):
   roots may grant and revoke (rbacr's P1), and asking how long someone
   else holds a role needs one too (T6). The auth API's `RBACR_TOKEN` is a
   root's, so it works; a separate token can be revoked on its own. Unset:
-  **store purchases are off** (the verify route answers 503).
+  **store purchases and Join free are off** (the verify and free routes
+  answer 503), so a new iOS or Android user can't get in without a
+  voucher.
 - **`GooglePlaySecretName`**: `GOOGLE_PLAY_SECRET` (the `GOOGLE_PLAY_SECRET`
   variable for GA, `GOOGLE_PLAY_SECRET_RC` for the RC, else `.env`): the
   Secrets Manager secret holding the Google service account's JSON key
@@ -266,7 +302,7 @@ between Feedback and Vouchers and maintenance
 - **Not in the local stack.** Floci deploys only the auth API; locally
   the links don't load, so the upgrade buttons open nu01.com and the
   Admin tab's Payments says the API didn't answer; a phone build pointed
-  at it says purchases aren't available.
+  at it says purchases aren't available, and its Join free fails.
 - **No online revocation check of Apple's certificates** (OCSP), as
   Apple's own libraries skip it offline: a JWS is checked against its
   chain as it was when signed.

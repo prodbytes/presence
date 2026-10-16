@@ -216,8 +216,10 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     from rbacr, roots from its root list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
-    icon. The icon opens "Subscribe", which sends the user to subscribe at
-    nu01.com, takes a voucher code (see [Membership](membership.md)), and
+    icon. The icon opens the sign-up sheet, which offers **Join free** in
+    the iOS and Android apps (the payments API grants rbacr's `free`) or
+    sends the user to subscribe at nu01.com on the web and desktop, takes
+    a voucher code (see [Membership](membership.md)), and
     has **Check again**, which asks rbacr and the auth API once more. There are no tabs,
     no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.

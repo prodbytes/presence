@@ -28,6 +28,12 @@ final class RbacrGrants {
     /** The role store subscribers get. */
     static final String ROLE = "premium";
 
+    /**
+     * The role a free member holds (a nu01.com Free subscription's): what
+     * Join free in the mobile apps grants, and the only role it may.
+     */
+    static final String FREE = "free";
+
     private final URI base;
     private final String token;
     private final String system;
@@ -68,8 +74,18 @@ final class RbacrGrants {
      * for a grant that never ends (or a root), null when it doesn't.
      */
     Instant holdsUntil(String email) throws Failed {
+        return holdsUntil(email, ROLE);
+    }
+
+    /**
+     * How long {@code email} holds {@code role} now (rbacr's effective
+     * roles: implied ones count, so {@code premium} gives {@code free}):
+     * {@link Instant#MAX} for a grant that never ends (or a root), null when
+     * it doesn't.
+     */
+    Instant holdsUntil(String email, String role) throws Failed {
         var reply = send("POST", "/api/check", "{\"email\":" + Json.string(email) + ",\"systemId\":"
-                + Json.string(system) + ",\"role\":\"" + ROLE + "\"}");
+                + Json.string(system) + ",\"role\":" + Json.string(role) + "}");
         if (reply.status() != 200) {
             throw new Failed("rbacr's check answered " + reply.status());
         }
@@ -102,6 +118,23 @@ final class RbacrGrants {
             throw new Failed("rbacr's grant answered " + reply.status());
         }
         return end;
+    }
+
+    /**
+     * Gives {@code email} {@link #FREE} for good (no end), unless it holds
+     * it already (by any grant, an implied role or as a root); whether it
+     * granted. The role is fixed here: nothing else can be granted this way.
+     */
+    boolean joinFree(String email) throws Failed {
+        if (holdsUntil(email, FREE) != null) {
+            return false;
+        }
+        var reply = send("POST", "/api/systems/" + path(system) + "/grants", "{\"role\":\"" + FREE
+                + "\",\"grantee\":" + Json.string(email) + "}");
+        if (reply.status() != 200 && reply.status() != 201) {
+            throw new Failed("rbacr's grant answered " + reply.status());
+        }
+        return true;
     }
 
     /**

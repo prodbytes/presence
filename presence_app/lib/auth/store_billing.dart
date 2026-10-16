@@ -280,6 +280,11 @@ abstract class StoreClient {
     required String productId,
     required String verificationData,
   });
+
+  /// `POST /api/payments/free`: Join free, the account gets the free
+  /// membership (rbacr's `free`; a no-op for a member); throws
+  /// [StoreVerifyException] when not.
+  Future<void> joinFree(String idToken);
 }
 
 /// The real client, under the site's `/api/payments/` (`ApiConfig`).
@@ -322,6 +327,17 @@ class HttpStoreClient implements StoreClient {
         'productId': productId,
         'verificationData': verificationData,
       }),
+    );
+    if (response.statusCode != 200) {
+      throw StoreVerifyException(response.statusCode);
+    }
+  }
+
+  @override
+  Future<void> joinFree(String idToken) async {
+    final response = await _client.post(
+      base.resolve('/api/payments/free'),
+      headers: {'authorization': 'Bearer $idToken'},
     );
     if (response.statusCode != 200) {
       throw StoreVerifyException(response.statusCode);
@@ -513,6 +529,15 @@ class StoreBilling extends ChangeNotifier {
       _message = StoreMessage.purchaseFailed;
       _notify();
     }
+  }
+
+  /// Join free (the sign-up sheet): asks the payments API to give the
+  /// signed-in account the free membership. The caller checks the roles
+  /// again after. Throws [StoreVerifyException] when it didn't.
+  Future<void> joinFree() async {
+    final token = auth.idToken;
+    if (token == null) throw const StoreVerifyException(401);
+    await client.joinFree(token);
   }
 
   /// Restore purchases: verifies the store's current subscriptions again.

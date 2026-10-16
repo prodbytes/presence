@@ -178,6 +178,21 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get authJoin => 'Participe do Presence';
+
+  @override
+  String get authJoinFree => 'Participar grátis';
+
+  @override
+  String get authJoinFreeFailed =>
+      'Não foi possível participar agora. Tente de novo em instantes.';
+
+  @override
+  String authJoinFreeText(String email) {
+    return '$email ainda não é membro do Presence. Participe grátis para usá-lo neste dispositivo.';
+  }
+
+  @override
   String get authLinkAnother => 'Vincular outra conta';
 
   @override

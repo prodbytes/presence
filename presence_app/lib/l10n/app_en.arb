@@ -140,6 +140,17 @@
       }
     }
   },
+  "authJoin": "Join Presence",
+  "authJoinFree": "Join free",
+  "authJoinFreeFailed": "Couldn't join right now. Try again in a moment.",
+  "authJoinFreeText": "{email} isn't a member of Presence yet. Join free to use it on this device.",
+  "@authJoinFreeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
   "authLinkAnother": "Link another account",
   "authLinkCode": "Link code",
   "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",
