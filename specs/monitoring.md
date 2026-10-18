@@ -42,6 +42,10 @@ the separate Events and Subjects tabs.
 - **In the same top row,** after the count, a small **system events
   toggle**: an icon with no label (tooltip "Show system events" / "Hide
   system events"), on by default in DEV only; off, only grabs show.
+  Beside it, the **events with no one toggle** (a paw icon, tooltip "Show
+  events with no one in them" / "Hide events with no one in them"), off
+  by default: only the grabs with a person or pet on them show (see
+  [Events](events.md)).
 - It fits a 320 dp phone without overflowing: the open search field gets
   narrower.
 - **Wide screens (720 dp and up), two columns:**
@@ -122,7 +126,9 @@ the separate Events and Subjects tabs.
   while the map keeps every subject. `system_events_test.dart`: signed in
   (RBAC), only the clip shows until the system events toggle is turned on,
   and the choice stays across tabs; with no grabs, the hidden-events
-  message; in DEV, system events show by default and hide when turned off.
+  message; in DEV, system events show by default and hide when turned off;
+  the events with no one toggle starts off (a clip not searched for
+  objects yet still shows).
   `events_search_test.dart`: the search is an icon top left (40 dp or
   more) with the count beside it; tapped, it opens focused; typing filters
   by title, detail, camera label, tags (not suggestions) and object tags,
@@ -131,20 +137,28 @@ the separate Events and Subjects tabs.
   folds when cleared elsewhere; a clip given object tags after the search
   was typed shows up; the x clears and folds it; it combines with the
   system events toggle; the toggle is a small icon in the top row,
-  with the other filters, with no label, and toggles; at 320 and 390 dp the top
+  with the other filters, with no label, and toggles; the events with no
+  one toggle sits right after it, hides a clip with no person or pet
+  while off and shows it when tapped, and with only such clips left the
+  timeline says they're hidden; at 320 and 390 dp the top
   row fits (one row, with a device's ID searched, then a long search) without
   overflow; the matching / all count follows the search, the filters, new
   events and late object tags; *all* leaves out other users' events and
   grows as events arrive from the cloud, and the timeline shows as many
   cards as the count (not another profile's event). Opening an event
-  (`EventFilters.focus`) clears what hides it once: the tab rebuilt keeps
+  (`EventFilters.focus`) clears what hides it once (a clip with no one
+  turns the events with no one toggle on): the tab rebuilt keeps
   the search and toggle set since; asked for before the tab is
   built it applies after the first frame; asked again it applies again.
   `widget_test.dart`: a new event scrolls the timeline up only when near
   the top; a sync with nothing new doesn't notify, and older or replaced
   events leave the list where it was scrolled. `event_log_test.dart`: the
   events snapshot, `eventsOf`, tag changes notifying `annotations` (not
-  the log), the filter steps reused until a change, and the one-shot
+  the log), the filter steps reused until a change, the clips with no one
+  hidden (`human`, `cat`, `dog` or a tag count; a `bird` doesn't; not yet
+  searched shows; system events and a start's clip aren't affected;
+  composes with the search and the system events toggle; recognition
+  seeing someone later shows it), and the one-shot
   focus.
   `tag_filter_test.dart`: tapping a tag or a subject on a card sets the
   search to it, shows only the events with it, highlights it on every

@@ -1094,6 +1094,7 @@
       }
     }
   },
+  "eventsHideNoOne": "Hide events with no one in them",
   "eventsHideSystem": "Hide system events",
   "eventsNoGrabs": "No grabs yet: system events are hidden",
   "eventsNoMatch": "No events match \"{query}\"",
@@ -1104,11 +1105,13 @@
       }
     }
   },
+  "eventsNoOneHidden": "No one seen yet: events with no one are hidden",
   "eventsNone": "No events",
   "eventsSearch": "Search events",
   "eventsSearchClear": "Clear search",
   "eventsShowDevice": "Show this device's events",
   "eventsShowEveryDevice": "Show every device's events",
+  "eventsShowNoOne": "Show events with no one in them",
   "eventsShowSystem": "Show system events",
   "feedbackAdmin": "Admin",
   "feedbackAnswered": "Answered",

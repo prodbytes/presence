@@ -2446,6 +2446,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No events deleted} =1{1 event deleted on every device} other{{count} events deleted on every device}}'**
   String eventsDeletedEverywhere(int count);
 
+  /// No description provided for @eventsHideNoOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide events with no one in them'**
+  String get eventsHideNoOne;
+
   /// No description provided for @eventsHideSystem.
   ///
   /// In en, this message translates to:
@@ -2463,6 +2469,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No events match \"{query}\"'**
   String eventsNoMatch(String query);
+
+  /// No description provided for @eventsNoOneHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'No one seen yet: events with no one are hidden'**
+  String get eventsNoOneHidden;
 
   /// No description provided for @eventsNone.
   ///
@@ -2493,6 +2505,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show every device\'s events'**
   String get eventsShowEveryDevice;
+
+  /// No description provided for @eventsShowNoOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Show events with no one in them'**
+  String get eventsShowNoOne;
 
   /// No description provided for @eventsShowSystem.
   ///
