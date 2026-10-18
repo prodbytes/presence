@@ -149,8 +149,12 @@ Apple tokens when they delete their account.
   (IAM decides who), and allows `kms:Sign` and `kms:GetPublicKey` only to
   this stack's roles (`aws:PrincipalArn` `role/<stack>-*`) that IAM also
   allows: the session function's. Tagged `presence:stack`.
-- **`SessionDataKey`** (only with Apple's key): KMS, symmetric, rotated
-  yearly; `kms:Encrypt`/`kms:Decrypt` the same way.
+- **`SessionDataKey`** (only with Apple's key): KMS, symmetric, **not
+  rotated** (automatic rotation would add $1/month per rotation to each
+  stage's key, for no gain on a key that only seals Apple refresh
+  tokens); `kms:Encrypt`/`kms:Decrypt` the same way. Turning rotation
+  off (2026-10-18) updated the key in place: same key, and tokens sealed
+  before still decrypt, since KMS keeps all of a key's material.
 - **The profile function** (account deletion) may: get and update
   `SessionsTable` items and query its `subject` index (revoking
   families), get, update and delete `IdentitiesTable` items, read Apple's

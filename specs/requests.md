@@ -6926,3 +6926,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Streamer leadership](streamer-leader.md) (new),
       [Streamer](streamer.md), [Auth API](auth-api.md),
       [Sign-in](sign-in.md), [Blink cameras](blink.md).
+
+473. **Stop rotating the Apple refresh-token data key.** (2026-10-18)
+    - `SessionDataKey` now has `EnableKeyRotation: false`: each yearly
+      rotation would add $1/month per stage. CloudFormation changes
+      that property in place (no replacement), and KMS keeps old key
+      material, so sealed tokens still decrypt. Takes effect at the
+      next auth API deploy.
+    - Specs: [Sessions](sessions.md).
