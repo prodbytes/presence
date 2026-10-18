@@ -17,8 +17,9 @@ import (
 	"github.com/prodbytes/presence/presence_streamer/internal/presence"
 )
 
-// ErrFree is a free profile: the streamer streams only to premium ones.
-var ErrFree = errors.New("this profile is free: the streamer needs a Premium profile (cloud backup)")
+// ErrFree is a free profile: the streamer streams only to premium ones (a
+// "free" tier, or the auth API's Premium-only 403).
+var ErrFree = presence.ErrFree
 
 // ErrLeaseLapsed is a leading streamer that couldn't renew its lease for as
 // long as a leader may be silent: another may lead by now, so it stops
@@ -210,12 +211,13 @@ func (s *Session) UserID() string {
 }
 
 // Fatal says whether err means the streamer must stop streaming: a free
-// profile, another profile, or a sign-in that no longer works; or another
+// profile, another profile, a device past the plan's limit, or a sign-in
+// that no longer works; or another
 // streamer leading the profile ([Standby]: it waits for the leadership).
 // Other errors (the network) pass.
 func Fatal(err error) bool {
 	var wrong WrongProfileError
 	return Standby(err) || errors.Is(err, ErrFree) || errors.As(err, &wrong) ||
 		errors.Is(err, google.ErrRevoked) || errors.Is(err, presence.ErrUnauthorized) ||
-		errors.Is(err, presence.ErrKeyRefused)
+		errors.Is(err, presence.ErrKeyRefused) || errors.Is(err, presence.ErrDeviceLimit)
 }

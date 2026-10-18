@@ -6975,7 +6975,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (2 billed messages) per connection.
     - Specs: [Live sync](live-sync.md), [Premium and free](premium.md).
 
-476. **Keep AWS credentials across the session token's refresh.**
+476. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
+    - The auth API answers a free profile's stream key with HTTP 403
+      `"streamers are Premium only"`, and a device past the plan's limit
+      with 403 `"reason": "deviceLimit"`; presence-streamer read only a
+      401 as a refusal, so it exited 1 and systemd restarted it every 10
+      seconds (about 8,600 auth calls a day per Pi), and mid-run renewals
+      retried every 2 minutes.
+    - Fixed to match the spec: the Premium-only 403 is a free profile
+      (exit 3), the device-limit 403 a refusal (exit 2), at the start and
+      at a renewal (which ends the run); the service restarts neither.
+      Other 403s and 5xx are retried as before. Unit tests for both 403s,
+      at a renewal, and for the exit codes.
+    - Specs: [Streamer](streamer.md).
+
+477. **Keep AWS credentials across the session token's refresh.**
      (2026-10-18)
     - `CognitoCredentials` reused credentials only for the same session
       token, which rotates about hourly, so the auth API (and rbacr) and

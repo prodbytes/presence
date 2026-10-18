@@ -90,7 +90,18 @@ makes stream keys only for a premium member (403 otherwise), and answers
 profile's owner isn't premium, or when the streamer is past the plan's
 device limit ([Plans](premium.md#devices)); before, a free owner's
 profile got a `"tier": "free"` token, which the streamer turned down
-itself. How presence-streamer reports that 403 (exit 2 or 3) is its own.
+itself. presence-streamer reads those 403s (from the credentials or the
+lease routes), at the start and at every renewal or lease request (one
+mid-run ends the run, as a free tier does):
+- `{"error": "streamers are Premium only"}` is a **free profile**:
+  exit 3 ("this profile is free: …").
+- `"reason": "deviceLimit"` is a **device past the plan's limit**: exit 2
+  ("the auth API refused this device: … remove a device in the app, or
+  upgrade the plan"). Trying again wouldn't help until someone does.
+- Any other 403, and 5xx, is an error that passes: retried in the run,
+  exit 1 at the start (the service restarts it).
+Neither 3 nor 2 is restarted by the service, so a free or full profile's
+Pi doesn't call the auth API every 10 seconds.
 
 **With a Google sign-in** (no key):
 
@@ -138,7 +149,9 @@ itself. How presence-streamer reports that 403 (exit 2 or 3) is its own.
   and architecture.
 - **Exit codes:** 0 stopped, 1 an error (retried by the service), 2 not set
   up or wrong usage (including a sign-in that's revoked, refused by the auth
-  API, or another profile's: trying again wouldn't help), 3 a free profile.
+  API, or another profile's, a refused stream key, or a device past the
+  plan's limit: trying again wouldn't help), 3 a free profile (a free tier
+  or the auth API's Premium-only 403).
   The service doesn't restart for 2 or 3.
 - **What the auth API answers is checked** before use: the identity ID
   (`<region>:<uuid>`, which names Cognito's host and the folder) and the
