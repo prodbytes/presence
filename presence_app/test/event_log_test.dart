@@ -150,6 +150,7 @@ void main() {
       seeing('person', 6, ['human', 'car']),
       seeing('cat', 5, ['cat']),
       seeing('bird', 4, ['bird']),
+      seeing('truck', 8, ['truck']),
       named,
       // Not searched for objects yet: may have someone.
       clip('new', 2, profileId: 'me'),
@@ -163,17 +164,18 @@ void main() {
     List<String?> shown() => view().shown.map((e) => e.id).toList();
 
     // System events shown: they show, the start's clip with no one too.
-    expect(shown(), ['person', 'cat', 'named', 'new', 'start', 'door']);
+    // Every animal counts, the bird too; a truck alone doesn't.
+    expect(shown(), ['person', 'cat', 'bird', 'named', 'new', 'start', 'door']);
     expect(EventTimeline.hasSomeone(empty), isFalse);
 
     // With the system events toggle: only the grabs with someone.
     filters.showSystemEvents.value = false;
-    expect(shown(), ['person', 'cat', 'named', 'new']);
+    expect(shown(), ['person', 'cat', 'bird', 'named', 'new']);
 
     // With the search: both must pass.
-    filters.search.value = 'bird';
+    filters.search.value = 'truck';
     expect(shown(), isEmpty);
-    expect(view().ofKinds.map((e) => e.id), contains('bird'));
+    expect(view().ofKinds.map((e) => e.id), contains('truck'));
     filters.search.value = '';
 
     // Recognition seeing someone later: it shows.
@@ -182,10 +184,18 @@ void main() {
     empty.annotations.setObjects([
       const ObjectTag(label: 'dog', ms: 0, score: 0.8),
     ]);
-    expect(shown(), ['empty', 'person', 'cat', 'named', 'new']);
+    expect(shown(), ['empty', 'person', 'cat', 'bird', 'named', 'new']);
 
     filters.showEventsWithNoOne.value = true;
-    expect(shown(), ['empty', 'person', 'cat', 'bird', 'named', 'new']);
+    expect(shown(), [
+      'truck',
+      'empty',
+      'person',
+      'cat',
+      'bird',
+      'named',
+      'new',
+    ]);
   });
 
   test('focus is a one-shot request', () {

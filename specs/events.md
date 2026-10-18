@@ -214,10 +214,11 @@
   - **off (at launch, in DEV and RBAC):** the grabs with **no person or
     pet** on them don't show (`EventTimeline.hasSomeone`, the
     `withSomeone` step). A clip has someone when recognition saw a person
-    or a pet on it, an [object tag](recognition.md) of the same sorts the
-    [unidentified flag](event-flags.md) looks for (`sortOfLabel`:
-    `personLabels` `human`, `petLabels` `cat` and `dog`; a `bird`, a
-    `horse` or a `car` alone isn't someone), or someone is **tagged** on
+    or **any animal** on it, an [object tag](recognition.md) of
+    `isPersonOrAnimal` (`human`, and `animalLabels`: `bird`, `cat`, `dog`,
+    `horse`, `sheep`, `cow`, `elephant`, `bear`, `zebra`, `giraffe`, the
+    animals the streamer's detector keeps; a `car` or a `truck` alone
+    isn't someone), or someone is **tagged** on
     it. A clip not searched for objects yet (no object tags at all, not
     even none) may have someone, so it shows; one searched with nothing
     or no one found (object tags `[]`, as Blink, GoPro and Reolink clips

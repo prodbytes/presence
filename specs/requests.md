@@ -7298,3 +7298,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        when that's all there is, and opening a hidden clip with no one
        turns it on. es, pt translated. Specs: [Events](events.md),
        [Monitoring](monitoring.md).
+
+501. **Every animal counts in the events filter.** (2026-10-18)
+     - Asked: make all animals count.
+     - Changed: the Events view's "events with no one" filter counts a
+       clip with any animal the detector knows (`animalLabels`: bird, cat,
+       dog, horse, sheep, cow, elephant, bear, zebra, giraffe), not only
+       cats and dogs. The unidentified flag still looks for people and
+       pets only. Specs: [Events](events.md),
+       [Monitoring](monitoring.md).
