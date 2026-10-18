@@ -4,8 +4,9 @@ A Blink account's cameras become Presence devices, through one Linux
 [streamer](streamer.md) of the profile (a Raspberry Pi), which fetches
 their clips with [blinkpy](https://pypi.org/project/blinkpy/) and streams
 them as if it had recorded them: each clip goes through the streamer's
-chunk pipeline (sealed, uploaded, searched for people and animals, kept
-as a motion event or deleted), as a device of its own. Premium only (the
+chunk pipeline (sealed, uploaded, searched for people and animals), as a
+device of its own, and **every clip is kept** as a motion event, tagged
+with whoever's in it (`KeepAll`: Blink records only on motion). Premium only (the
 streamer is).
 
 ## In the app
@@ -99,7 +100,8 @@ and `main_blink.go`; on unless `--blink off`:
   Pi's own settings (detection here or in the cloud, the object scores,
   the spool's size), but the camera's device ID, its name as the camera
   (`detail`, `cameraLabel`), `cameraId: blink`, `os: Blink`, and **every
-  clip kept** (no motion filter: Blink records on motion already). Its
+  clip kept**: no motion filter, and kept with no one in it too (the
+  pipeline's `KeepAll`; Blink records on motion already). Its
   settings (`devices/<camera>/settings.json`, the streamer's media key)
   go up first, as for the Pi's own device, so the other devices open its
   clips. Its sealed clips carry its own device ID as their key's ID.

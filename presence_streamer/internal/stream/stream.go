@@ -86,6 +86,10 @@ type Streamer struct {
 	Location  *records.Location
 	// ObjectScore is the least score an object tag needs (the app's 0.6).
 	ObjectScore float64
+	// KeepAll keeps every chunk as an event, someone in it or not: a camera
+	// that records only on motion (Blink, GoPro, Reolink), whose clips are
+	// worth keeping already. The search still tags who's in it.
+	KeepAll bool
 	// MaxSpool is the most the spool may hold, in bytes; the oldest chunks
 	// go first beyond it (when the network is down for long).
 	MaxSpool int64
@@ -297,7 +301,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		}
 	}
 
-	if p.Result.Subject == nil {
+	if p.Result.Subject == nil && !s.KeepAll {
 		if err := s.Store.Delete(ctx, ingest); err != nil {
 			// Already gone (an earlier try), or the network: the bucket's
 			// lifecycle erases what's left (365 days).
@@ -347,7 +351,8 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	// The recording's verified in media/.
 	os.Remove(chunk + ".sealed")
 
-	var tags []records.ObjectTag
+	// [] when no one's there (KeepAll), as the app's events have.
+	tags := []records.ObjectTag{}
 	for _, o := range p.Result.Objects {
 		if o.Score >= s.ObjectScore {
 			tags = append(tags, records.ObjectTag{Label: o.Label, Ms: o.Ms, Score: o.Score})
@@ -356,7 +361,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	// The subject counts at its own (lower) threshold, so the event's
 	// tags always name who made it worth keeping.
 	sub := p.Result.Subject
-	if !hasLabel(tags, sub.Label) {
+	if sub != nil && !hasLabel(tags, sub.Label) {
 		tags = append(tags, records.ObjectTag{Label: sub.Label, Ms: sub.Ms, Score: sub.Score})
 	}
 	sort.Slice(tags, func(i, j int) bool { return tags[i].Label < tags[j].Label })
@@ -392,7 +397,11 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		}
 	}
 	// Everything's verified in the bucket: nothing of it stays here.
-	s.Logf("%s: %s (%.2f), stored as event %s, deleted here", name, sub.Label, sub.Score, event.ID)
+	if sub == nil {
+		s.Logf("%s: no one there, kept: stored as event %s, deleted here", name, event.ID)
+	} else {
+		s.Logf("%s: %s (%.2f), stored as event %s, deleted here", name, sub.Label, sub.Score, event.ID)
+	}
 	remove(chunk)
 	return nil
 }

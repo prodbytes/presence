@@ -172,6 +172,35 @@ func TestNoOneThereIsDeleted(t *testing.T) {
 	}
 }
 
+// A camera that records only on motion (Blink, GoPro, Reolink) keeps every
+// clip: no one in it, it's still an event, with no tags.
+func TestKeepAllKeepsAClipWithNoOneThere(t *testing.T) {
+	b := &bucket{objects: map[string][]byte{}}
+	s, spool := streamer(t, b, "empty")
+	s.KeepAll = true
+	var stored []records.Event
+	s.Stored = func(e records.Event) { stored = append(stored, e) }
+	c := chunk(t, spool, "video")
+	if err := s.Process(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("stored %v", stored)
+	}
+	e := stored[0]
+	if got := open(t, b.objects["media/"+e.ClipID+".mp4"]); got != "video" {
+		t.Fatalf("recording opens to %q", got)
+	}
+	var event map[string]any
+	json.Unmarshal(b.objects["events/year=2026/day=269/"+e.ID+".json"], &event)
+	if tags, _ := json.Marshal(event["objectTags"]); string(tags) != "[]" {
+		t.Fatalf("object tags %s", tags)
+	}
+	if len(leftovers(spool)) != 0 {
+		t.Fatalf("left %v", leftovers(spool))
+	}
+}
+
 func TestSubjectIsStoredAsAPhoneWould(t *testing.T) {
 	b := &bucket{objects: map[string][]byte{}}
 	s, spool := streamer(t, b, "person")

@@ -5,8 +5,9 @@ GoPro cameras become Presence devices, through one Linux
 camera on its network with the [Open GoPro HTTP
 API](https://gopro.github.io/OpenGoPro/http) and fetches its new videos as
 if it had recorded them: each video goes through the streamer's chunk
-pipeline (sealed, uploaded, searched for people and animals, kept as a
-motion event or deleted), as a device of its own. Premium only (the
+pipeline (sealed, uploaded, searched for people and animals), as a device
+of its own, and **every video is kept** as an event, tagged with whoever's
+in it (`KeepAll`: they're taken on purpose). Premium only (the
 streamer is). GoPro has no cloud API, so unlike [Blink](blink.md) the
 streamer talks to the cameras themselves, with no helper.
 
