@@ -7104,7 +7104,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       Specs: [Reolink cameras](reolink.md) (new), [GoPro
       cameras](gopro.md), [Streamer](streamer.md), [Settings](settings.md).
 
-425. **A script that makes device IDs.** (2026-10-18)
+484. **A script that makes device IDs.** (2026-10-18)
      - Asked: generate a new device name with the app's own function, then
        a script that does it.
      - Changed: `scripts/device-id.sh [count]` runs the app's
