@@ -256,6 +256,16 @@ with a still-image interface only (`ID_USB_INTERFACES` `*:06????:*`):
 
 ## Known limitations
 
+- **A GoPro HERO5–8 drops USB while it records** (seen on a HERO6 Black,
+  2026-10-19: a USB disconnect as recording starts, the camera gone from
+  `lsusb`, and gphoto2's "Unspecified error" on the fetch that was under
+  way): its videos can only be fetched while it isn't recording, so it
+  can't be left recording and fetched over USB at the same time. Stop
+  the recording (the camera then comes back on USB and is fetched, and
+  in unattended mode emptied); continuous recording needs the camera
+  controlled over its Wi-Fi, a HERO9 or newer, or a webcam on the
+  streamer.
+
 - **Not tried on the Pi yet** with the GoPro HERO6 (whose `gphoto2
   --auto-detect` listing and gvfs mount were seen there); the udev rule's
   effect on gvfs is from gvfs's sources.
