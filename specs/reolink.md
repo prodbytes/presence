@@ -27,7 +27,9 @@ cameras** (`NetCameraSettings` with `NetCameraKind.reolink`,
 [net_camera_settings.dart](../presence_app/lib/net_camera_settings.dart)),
 for a premium profile with cloud sync, not in DEV. As GoPro's (the
 streamer dropdown, Leader by default and a pick kept for Reolink only,
-the cameras with their last fetch or error, Remove,
+the cameras with their last fetch or error, Remove (also sent when the
+camera's device is deleted from the Profile tab's device list:
+[Device deletion](device-deletion.md#camera-devices)),
 "Sent to …", a send that can't go), but adding a camera asks for:
 
 - a **name**, its **address** (its IP address, as the Reolink app shows it

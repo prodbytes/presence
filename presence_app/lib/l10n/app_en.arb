@@ -464,6 +464,8 @@
       }
     }
   },
+  "blinkRemove": "Remove",
+  "blinkRemoveNote": "Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.",
   "blinkSendPin": "Send PIN",
   "blinkStreamer": "The streamer that fetches them",
   "blinkWaiting": "Sent to {device}; it looks every 30 s…",
@@ -1667,6 +1669,7 @@
   "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
   "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
   "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
+  "settingsDeleteDeviceCameraNotTold": "Its streamer couldn't be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings' camera section.",
   "settingsDeleteDeviceCancel": "Cancel",
   "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
   "settingsDeleteDeviceConfirm": "Delete videos",

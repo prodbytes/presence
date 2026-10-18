@@ -49,14 +49,19 @@ premium profile with cloud sync, not in DEV:
     a **PIN** field and **Send PIN**: the same request again
     (`{email, pin, requestedAt}`), without the password;
   - **"Connected to Blink as <account>. Its cameras:"**, each camera's
-    name and its device ID, when clips were last fetched, and
-    **Disconnect** (`{disconnect: true, requestedAt}`);
+    name and its device ID with a **Remove** button
+    (`{remove: <device ID>, requestedAt}`), a quiet line saying what
+    Remove does and that disconnecting and connecting again brings removed
+    cameras back, when clips were last fetched, and **Disconnect**
+    (`{disconnect: true, requestedAt}`);
   - an error ("Blink: Blink refused the login (email, password or PIN)"),
     with the form again.
 - A send that can't go (the streamer's key not here yet, cloud sync off)
   says so.
 - Blink cameras show in the device list with a camera icon
-  (`DeviceOs.iconOf('Blink')`).
+  (`DeviceOs.iconOf('Blink')`). Deleting one there removes it from the
+  streamer too, as Remove does
+  ([Device deletion](device-deletion.md#camera-devices)).
 
 ## On the streamer
 
@@ -88,6 +93,18 @@ and `main_blink.go`; on unless `--blink off`:
   devices, at once when a camera is new (`Session.Register`). With a Google
   sign-in instead of a stream key they don't (they still show in the
   device list from their events).
+- **Remove** (`{remove: <device ID>}`): the camera leaves the cameras
+  fetched and registered (its pipeline stops, its device no longer goes
+  with the credentials requests, so it stops joining the profile's
+  devices) and the status's list; its device's events stay. It's kept as
+  **removed** in `blink-state.json` (`removed`, by its Blink ID, with its
+  old device), so neither a fetch nor a new login makes it a device again:
+  the helper is told to skip it (`fetch --skip <ids>`), and a clip of it
+  that comes anyway is deleted, not handed over. A device ID that isn't
+  one of its cameras changes nothing (the request is still answered).
+  **Disconnect** forgets the removed cameras: a new Connect brings each
+  back as a **new device** (a new ID; the old one may have been deleted
+  from the profile).
 - **Fetching, every 2 minutes** (`--blink-every`): the helper downloads
   the clips Blink made since the last fetch (the first time, the last 24
   hours), not deleted. Blink's own `since` is when a clip last changed,
@@ -123,7 +140,8 @@ and `main_blink.go`; on unless `--blink off`:
   got to moves on only after a whole fetch).
 - **A token Blink refuses** (the helper exits 2): fetching stops, and the
   status says "log in again", till a new login.
-- **Disconnect:** the token goes; the cameras' devices and events stay.
+- **Disconnect:** the token goes, and the cameras removed are forgotten;
+  the other cameras' devices and events stay.
 
 ## Tests
 
@@ -132,7 +150,11 @@ and `main_blink.go`; on unless `--blink off`:
   cameras' devices (a new camera from a fetch gets one too), clips handed
   to their camera's device, the same request not handled twice; a wrong
   password said and nothing kept; a refused token stops fetching;
-  disconnect forgets the token; a clip left downloaded before a stop
+  disconnect forgets the token; a camera removed leaves the status and the
+  cameras registered, is remembered across a restart, is skipped by the
+  helper (`--skip`) and its clip deleted, not handed over, isn't added
+  again by a new login, and comes back as a new device after a disconnect
+  and a connect; removing an unknown device ID is answered; a clip left downloaded before a stop
   handed over once at the next fetch, a cut-off download deleted, nothing
   left in `blink-incoming/`. `main_cameras_test.go`: a clip through its
   camera's pipeline, its first upload failing verification, stored once
@@ -145,7 +167,8 @@ and `main_blink.go`; on unless `--blink off`:
   cameras don't make another device's key good.
 - The app (`blink_settings_test.dart`): no streamer; connect sends the
   login to the streamer, then the PIN without the password, then shows its
-  cameras and disconnects; an error shows with the form; a send that
+  cameras and disconnects; Remove sends a camera's removal and, answered,
+  it leaves the list; an error shows with the form; a send that
   fails says so; the streamer is the leader by default, a new leader
   followed at the next refresh, the first while none is known; one picked
   sticks when another leads, is kept in the config, and Leader clears it;
@@ -153,7 +176,8 @@ and `main_blink.go`; on unless `--blink off`:
   `IntegrationsConfig` round-trips, ignoring unknown integrations and bad
   IDs.
 - By hand: the helper with blinkpy 0.25.9 reached Blink, which refused a
-  made-up login (`exit 2`, no token kept).
+  made-up login (`exit 2`, no token kept); `fetch --skip` with a stubbed
+  blinkpy downloaded only the cameras not skipped.
 
 ## Known limitations
 
@@ -165,6 +189,8 @@ and `main_blink.go`; on unless `--blink off`:
 - **Not tried with a real Blink account yet.**
 - Clips stored on a Sync Module's USB drive (no Blink subscription) aren't
   fetched: blinkpy's cloud clip list only.
-- A Blink camera's device deleted in the app is added again at the next
-  credentials renewal while the streamer still fetches for it; disconnect
-  Blink first.
+- A removed camera comes back only with a disconnect and a new connect,
+  which brings back every removed camera, as new devices: there's no
+  "add back" for one.
+- The removal is kept on the streamer that got it: a new leader that was
+  logged in to Blink before still fetches a camera removed on another.

@@ -49,12 +49,13 @@ their data.
   profile from the device list, keeping its videos (it only leaves the
   list) or not (its events move to a deleted state, `deletedAt`, synced,
   and are hidden on every device); this device can't be, and a device
-  that records again reappears. One event is deleted from the end of its
+  that records again reappears; a camera's device is removed from the
+  streamer that fetches it too. One event is deleted from the end of its
   details (the clip player).
 - [Blink cameras](blink.md): a Linux streamer the Settings pick logs in
   to a Blink account (blinkpy; the login sealed to it, the 2FA PIN from
   the app) and fetches its cameras' clips, each camera a device of its own
-  through the streamer's pipeline.
+  through the streamer's pipeline; a camera can be removed.
 - [GoPro cameras](gopro.md): a Linux streamer the Settings pick reaches
   GoPro cameras on its network (the Open GoPro HTTP API; the address and
   password sealed to it) and fetches their new videos, each camera a

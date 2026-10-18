@@ -95,6 +95,7 @@ login)
   ;;
 fetch)
   [ -f "$REFUSE" ] && { echo '{"state":"error","error":"refused"}'; exit 2; }
+  echo "$*" > "$(dirname "$REFUSE")/fetch-args"
   out=$6
   mkdir -p "$out/11" "$out/33"
   # As the helper: a clip downloaded already is skipped.
@@ -148,25 +149,31 @@ func newBlink(t *testing.T) (*Blink, *memStore, *[]string, *[]Camera) {
 	return b, store, &clips, &registered
 }
 
-func TestLoginWithAPINFromTheApp(t *testing.T) {
-	b, store, clips, registered := newBlink(t)
-	ctx := context.Background()
-	store.put(t, Request{Email: "a@b.c", Password: "secret", RequestedAt: 1})
-	// The app gives the PIN once the status asks for it, watching as long
-	// as the streamer waits for it (the helper can be slow to ask on a
-	// loaded machine).
+// login puts the app's login request, requested at at, and gives the PIN
+// once the status asks for it, watching as long as the streamer waits for
+// it (the helper can be slow to ask on a loaded machine).
+func login(t *testing.T, b *Blink, store *memStore, at int64) {
+	store.put(t, Request{Email: "a@b.c", Password: "secret", RequestedAt: at})
 	go func() {
 		for deadline := time.Now().Add(b.PINWait + 5*time.Second); time.Now().Before(deadline); {
 			time.Sleep(5 * time.Millisecond)
 			store.mu.Lock()
 			_, has := store.objects["devices/calm_quiet_otter/blink-status.json"]
 			store.mu.Unlock()
-			if has && store.status(t).State == StatePIN {
-				store.put(t, Request{Email: "a@b.c", Password: "secret", PIN: "123456", RequestedAt: 1})
-				return
+			if has {
+				if s := store.status(t); s.State == StatePIN && s.RequestedAt == at {
+					store.put(t, Request{Email: "a@b.c", Password: "secret", PIN: "123456", RequestedAt: at})
+					return
+				}
 			}
 		}
 	}()
+}
+
+func TestLoginWithAPINFromTheApp(t *testing.T) {
+	b, store, clips, registered := newBlink(t)
+	ctx := context.Background()
+	login(t, b, store, 1)
 	b.step(ctx)
 	s := store.status(t)
 	if s.State != StateConnected || s.Account != "a@b.c" {
@@ -264,5 +271,89 @@ func TestALeftoverClipIsHandedOver(t *testing.T) {
 	})
 	if len(left) != 0 {
 		t.Fatalf("left %v", left)
+	}
+}
+
+// A camera removed in the app is no longer fetched nor registered, the
+// status no longer lists it, and neither a fetch nor a new login makes it
+// a device again; a disconnect forgets it, so a new connect brings it back
+// as a new device.
+func TestARemovedCameraStaysRemovedTillADisconnect(t *testing.T) {
+	b, store, clips, registered := newBlink(t)
+	ctx := context.Background()
+	login(t, b, store, 1)
+	b.step(ctx)
+	// Porch (11) is blink_camera_1, Garden (22) blink_camera_2, Shed (33)
+	// blink_camera_3.
+	*clips = nil
+	store.put(t, Request{Remove: "blink_camera_1", RequestedAt: 2})
+	b.step(ctx)
+	s := store.status(t)
+	if s.State != StateConnected || s.RequestedAt != 2 || len(s.Cameras) != 2 ||
+		s.Cameras[0].Name != "Garden" || s.Cameras[1].Name != "Shed" {
+		t.Fatalf("status %+v", s)
+	}
+	if len(*registered) != 2 || (*registered)[0].DeviceID != "blink_camera_2" || (*registered)[1].DeviceID != "blink_camera_3" {
+		t.Fatalf("registered %+v", *registered)
+	}
+	if _, ok := store.objects["devices/calm_quiet_otter/blink.json"]; ok {
+		t.Fatal("the request is still in the cloud")
+	}
+	// Remembered across a restart.
+	b.load()
+	if c, ok := b.state.Removed["11"]; !ok || c.DeviceID != "blink_camera_1" {
+		t.Fatalf("removed %+v", b.state.Removed)
+	}
+
+	// A fetch: the helper's told to skip it, and a clip of it isn't handed
+	// over, nor left behind.
+	b.lastFetch = time.Time{}
+	b.step(ctx)
+	if args, _ := os.ReadFile(filepath.Join(b.Dir, "fetch-args")); !strings.Contains(string(args), "--skip 11") {
+		t.Fatalf("fetch args %q", args)
+	}
+	for _, c := range *clips {
+		if strings.HasPrefix(c, "blink_camera_1 ") {
+			t.Fatalf("the removed camera's clip was handed over: %v", *clips)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(b.Dir, "blink-incoming", "11", "rec-blink-20261014T120000.mp4")); err == nil {
+		t.Fatal("the removed camera's clip was left behind")
+	}
+	if len(store.status(t).Cameras) != 2 {
+		t.Fatalf("a fetch added it again: %+v", store.status(t).Cameras)
+	}
+
+	// Logging in again (Blink's login lists it) doesn't add it again.
+	login(t, b, store, 3)
+	b.step(ctx)
+	if s := store.status(t); s.State != StateConnected || len(s.Cameras) != 2 || len(*registered) != 2 {
+		t.Fatalf("a login added it again: %+v %+v", s, *registered)
+	}
+
+	// Disconnect, then connect: it's back, as a new device.
+	store.put(t, Request{Disconnect: true, RequestedAt: 4})
+	b.step(ctx)
+	login(t, b, store, 5)
+	b.step(ctx)
+	s = store.status(t)
+	if len(s.Cameras) != 3 || s.Cameras[1].Name != "Porch" || s.Cameras[1].DeviceID != "blink_camera_4" {
+		t.Fatalf("not back as a new device: %+v", s.Cameras)
+	}
+	if len(*registered) != 3 {
+		t.Fatalf("registered %+v", *registered)
+	}
+}
+
+// Removing a camera that isn't one (any more) changes nothing, and is
+// answered.
+func TestRemovingAnUnknownCameraIsAnswered(t *testing.T) {
+	b, store, _, registered := newBlink(t)
+	b.camera("11", "Porch")
+	store.put(t, Request{Remove: "zesty_owl", RequestedAt: 7})
+	b.step(context.Background())
+	s := store.status(t)
+	if s.State != StateOff || s.RequestedAt != 7 || len(s.Cameras) != 1 || *registered != nil {
+		t.Fatalf("status %+v, registered %+v", s, *registered)
 	}
 }
