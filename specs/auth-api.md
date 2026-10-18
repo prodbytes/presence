@@ -84,7 +84,14 @@ them while the health stack imports them. The API's routes:
   the profile's credentials for it, with no Google sign-in on the Pi.
   Premium (or Pro) only: a free member's key request, and a free owner's
   profile's stream credentials, get 403; so does a streamer past the
-  plan's device limit ([Plans](premium.md#devices)).
+  plan's device limit ([Plans](premium.md#devices)). Only the profile's
+  leading streamer gets credentials; another gets 409 (`"reason":
+  "notLeader"`).
+- **`POST /api/auth/stream/lease`** (no authorizer, the stream key) and
+  **`POST /api/auth/profile/stream-lease`** (a member's session, premium):
+  a streamer asks for or renews the profile's leadership; a leader silent
+  for an hour is replaced. The credentials answers carry the leader
+  (`streamLeader`). See [Streamer leadership](streamer-leader.md).
 - **`POST /api/auth/account/delete`** (`ProfileHandler`, any verified
   account, the body the profile ID the app shows): deletes the caller's
   account. A linked account leaves the profile (its link and its own

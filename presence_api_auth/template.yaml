@@ -541,6 +541,11 @@ Resources:
         "POST /api/auth/profile/stream-key":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # Streamers' leadership: every 5 minutes per streamer, leading or
+        # waiting.
+        "POST /api/auth/stream/lease":
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 2
         # Account deletion: rare, and each request deletes up to 20 s of
         # the profile's folder.
         "POST /api/auth/account/delete":
@@ -999,6 +1004,13 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/stream-key
             Method: post
+        # A streamer signed in with Google: its leadership.
+        ProfileStreamLease:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/stream-lease
+            Method: post
         # Deletes the caller's account, or its whole profile for the owner.
         DeleteAccount:
           Type: HttpApi
@@ -1013,6 +1025,15 @@ Resources:
           Properties:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/stream/credentials
+            Method: post
+            Auth:
+              Authorizer: NONE
+        # Its leadership, with the stream key too.
+        StreamLease:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/stream/lease
             Method: post
             Auth:
               Authorizer: NONE

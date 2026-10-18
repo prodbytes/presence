@@ -48,8 +48,12 @@ import static presence.auth.Http.response;
  *       {@code "bucket"}, the user-data bucket, when it's configured (the
  *       streamer, which has no build-time settings, reads it there);</li>
  *   <li>{@code POST /api/auth/profile/devices/remove} ({@code presence_user}
- *       only): takes the device in the body out of the profile's devices,
- *       answering {@code {"deviceLimit", "devices"}};</li>
+ *       only): takes the device in the body out of the profile's devices
+ *       (and its streamer's leadership), answering {@code {"deviceLimit",
+ *       "devices"}};</li>
+ *   <li>{@code POST /api/auth/profile/stream-lease} and {@code POST
+ *       /api/auth/stream/lease}: a streamer's leadership ({@link
+ *       #streamLease}), signed in with Google or with its stream key;</li>
  *   <li>{@code GET /api/auth/profile}: the caller's profile, made (and
  *       linked to the caller) at its first sign-in, as {@code {"profile",
  *       "shared": [...], "accounts": [{email, owner, current}]}}: {@code
@@ -297,6 +301,19 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** The streamer's route, which has no Google token: the stream key is its proof. */
     static final String STREAM_CREDENTIALS = "POST /api/auth/stream/credentials";
 
+    /** The streamer's leadership, with its stream key (no Google token either). */
+    static final String STREAM_LEASE = "POST /api/auth/stream/lease";
+
+    /** A streamer's leadership, signed in with Google (a session token). */
+    static final String PROFILE_STREAM_LEASE = "POST /api/auth/profile/stream-lease";
+
+    /**
+     * How long a leading streamer may go unheard (no lease, no credentials)
+     * before another of the profile's streamers takes its place. Leaders
+     * renew their lease every 5 minutes.
+     */
+    static final Duration LEADER_SILENCE = Duration.ofHours(1);
+
     /** The most cameras one streamer streams for (its Blink cameras). */
     static final int MAX_STREAMED_DEVICES = 16;
 
@@ -383,6 +400,13 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 return Aws.failed("profile", STREAM_CREDENTIALS, e, context);
             }
         }
+        if (STREAM_LEASE.equals(Http.route(event))) {
+            try {
+                return streamLease(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1));
+            } catch (RuntimeException e) {
+                return Aws.failed("profile", STREAM_LEASE, e, context);
+            }
+        }
         var caller = Caller.from(event);
         if (!caller.hasSubject() || caller.verifiedEmail() == null) {
             return response(403, "{\"error\":\"a verified email is required\"}");
@@ -395,6 +419,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 case "POST /api/auth/profile/devices/remove" ->
                         removeDevice(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/stream-key" -> streamKey(caller, Http.bodyText(event, MAX_DEVICE_ID));
+                case PROFILE_STREAM_LEASE -> profileStreamLease(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
                 case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
                 case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
@@ -476,6 +501,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 + ",\"devices\":" + devicesJson(devices)
                 + ",\"tier\":" + Json.string(premium ? PREMIUM : FREE)
                 + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket))
+                + leaderJson(profile.id())
                 + extra
                 + backend.credentials(profile.identityId()).map(c -> ",\"credentials\":" + c).orElse("") + "}";
     }
@@ -516,34 +542,37 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     /**
-     * {@code POST /api/auth/stream/credentials}, the streamer's, with no
-     * Google token: {@code Authorization: Bearer <stream key>} and the body
-     * {@code <profile ID> <device ID> [<camera device ID>...]}: the device
-     * IDs after its own are the cameras it streams for (Blink cameras, up
-     * to {@link #MAX_STREAMED_DEVICES}), which join the profile's devices
-     * too, under its key. When the key is the device's, the
-     * profile's credentials, as {@code POST /api/auth/credentials} answers
-     * them for that device, by the profile owner's roles, with
-     * {@code "userId"}, the Google {@code sub} of who made the key. Any
-     * mismatch is the same 401. Streamers are Premium's: a 403 when the
-     * owner isn't premium (or pro), and when the streamer is past the
-     * plan's device limit (its cameras past it only get hidden).
+     * A streamer's request, checked: its profile, device and cameras, its
+     * key's record and the profile owner's roles; or, when it's refused,
+     * the answer ({@link #refusal}).
      */
-    private APIGatewayV2HTTPResponse streamCredentials(String key, String body) {
-        if (!configured) {
-            return notConfigured();
+    private record Streamer(Profiles.Profile profile, String device, List<String> cameras, StreamKey key,
+                            Set<String> owner, APIGatewayV2HTTPResponse refusal) {
+
+        static Streamer refused(APIGatewayV2HTTPResponse refusal) {
+            return new Streamer(null, null, null, null, null, refusal);
         }
+    }
+
+    /**
+     * Checks a streamer's {@code Authorization: Bearer <stream key>} and
+     * body, {@code <profile ID> <device ID> [<camera device ID>...]}: the
+     * key must be the device's (any mismatch is the same 401), and the
+     * profile's owner premium (or pro; 403 otherwise).
+     */
+    private Streamer streamer(String key, String body) {
         var parts = body == null ? new String[0] : body.strip().split(" ");
         // The key is the check; this only keeps junk out of the table's key.
         var cameras = parts.length < 2 ? List.<String>of() : List.of(parts).subList(2, parts.length);
         if (parts.length < 2 || !PROFILE_ID.matcher(parts[0]).matches() || !validDevice(parts[1])
                 || cameras.size() > MAX_STREAMED_DEVICES
                 || !cameras.stream().allMatch(ProfileHandler::validDevice)) {
-            return response(400, "{\"error\":\"the body must be <profile ID> <device ID> [<camera device ID>...]\"}");
+            return Streamer.refused(response(400,
+                    "{\"error\":\"the body must be <profile ID> <device ID> [<camera device ID>...]\"}"));
         }
         var profileId = parts[0];
         var device = parts[1];
-        var refused = response(401, "{\"error\":\"that stream key isn't this device's\"}");
+        var refused = Streamer.refused(response(401, "{\"error\":\"that stream key isn't this device's\"}"));
         if (key == null || !STREAM_KEY.matcher(key).matches()) {
             return refused;
         }
@@ -560,12 +589,45 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var owner = profile.ownerEmail() == null ? Set.<String>of() : roles.of(profile.ownerEmail(), true);
         // Streamers are Premium's and Pro's: a free (or former) owner's get nothing.
         if (!owner.contains(Roles.PREMIUM)) {
-            return response(403, "{\"error\":\"streamers are Premium only\"}");
+            return Streamer.refused(response(403, "{\"error\":\"streamers are Premium only\"}"));
         }
-        var limit = deviceLimit(owner);
+        return new Streamer(profile, device, cameras, stored.get(), owner, null);
+    }
+
+    /**
+     * {@code POST /api/auth/stream/credentials}, the streamer's, with no
+     * Google token: {@code Authorization: Bearer <stream key>} and the body
+     * {@code <profile ID> <device ID> [<camera device ID>...]}: the device
+     * IDs after its own are the cameras it streams for (Blink cameras, up
+     * to {@link #MAX_STREAMED_DEVICES}), which join the profile's devices
+     * too, under its key. When the key is the device's, the
+     * profile's credentials, as {@code POST /api/auth/credentials} answers
+     * them for that device, by the profile owner's roles, with
+     * {@code "userId"}, the Google {@code sub} of who made the key. Any
+     * mismatch is the same 401. Streamers are Premium's: a 403 when the
+     * owner isn't premium (or pro), and when the streamer is past the
+     * plan's device limit (its cameras past it only get hidden).
+     *
+     * <p>Only the profile's leading streamer streams: asking claims the
+     * leadership when the profile has no leader, or its leader has been
+     * silent for {@link #LEADER_SILENCE}. Another streamer gets a 409,
+     * {@code "reason": "notLeader"}, with the leader ({@link #leaderJson}),
+     * and no credentials; it waits, asking {@link #STREAM_LEASE}.
+     */
+    private APIGatewayV2HTTPResponse streamCredentials(String key, String body) {
+        if (!configured) {
+            return notConfigured();
+        }
+        var streamer = streamer(key, body);
+        if (streamer.refusal() != null) {
+            return streamer.refusal();
+        }
+        var profile = streamer.profile();
+        var device = streamer.device();
+        var limit = deviceLimit(streamer.owner());
         var devices = profiles.store().addDevice(profile.id(), device, MAX_DEVICES);
         // The cameras it streams for (Blink's): devices of the profile too.
-        for (var camera : cameras) {
+        for (var camera : streamer.cameras()) {
             if (!camera.equals(device)) {
                 devices = profiles.store().addDevice(profile.id(), camera, MAX_DEVICES);
             }
@@ -573,11 +635,99 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!withinLimit(device, devices, limit)) {
             return pastLimit(limit, devices);
         }
+        var leader = claimLeader(profile.id(), device);
+        if (leader == null || !leader.device().equals(device)) {
+            return response(409, "{\"error\":\"another streamer leads this profile\",\"reason\":\"notLeader\""
+                    + leaderJson(leader) + "}");
+        }
         var token = backend.openIdToken(profile.identityId(), profile.id(), PREMIUM, false);
         backend.allowLiveSync(profile.identityId());
-        var subject = stored.get().subject();
+        var subject = streamer.key().subject();
         return response(200, credentialsAnswer(profile, token, true, limit, devices,
                 subject == null ? "" : ",\"userId\":" + Json.string(subject)));
+    }
+
+    /**
+     * {@code POST /api/auth/stream/lease}: the leadership of the streamer
+     * whose key it is (the body as {@link #streamCredentials}'s; cameras
+     * are ignored), which a leading streamer renews every few minutes and
+     * a waiting one asks for ({@link #streamLease}).
+     */
+    private APIGatewayV2HTTPResponse streamLease(String key, String body) {
+        if (!configured) {
+            return notConfigured();
+        }
+        var streamer = streamer(key, body);
+        if (streamer.refusal() != null) {
+            return streamer.refusal();
+        }
+        return streamLease(streamer.profile().id(), streamer.device(), deviceLimit(streamer.owner()));
+    }
+
+    /**
+     * {@code POST /api/auth/profile/stream-lease}: {@link #STREAM_LEASE}
+     * for a streamer signed in with Google: the device in the body, one of
+     * the caller's profile's devices; the caller premium (or pro).
+     */
+    private APIGatewayV2HTTPResponse profileStreamLease(Caller caller, String device) {
+        if (!configured) {
+            return notConfigured();
+        }
+        if (!validDevice(device)) {
+            return response(400, "{\"error\":\"the body must be a device ID\"}");
+        }
+        var profile = profile(caller);
+        var granted = roles.of(caller, profile);
+        if (!granted.contains(Roles.USER)) {
+            return response(403, "{\"error\":\"presence_user is required\"}");
+        }
+        if (!granted.contains(Roles.PREMIUM)) {
+            return response(403, "{\"error\":\"streamers are Premium only\"}");
+        }
+        return streamLease(profile.id(), device, deviceLimit(granted));
+    }
+
+    /**
+     * A streamer's lease: {@code device} leads the profile when it led
+     * already, the profile had no leader, or the leader was silent for
+     * {@link #LEADER_SILENCE}; it's then seen now. Only a device among the
+     * profile's devices, within the plan's limit, can lead (403
+     * otherwise, as its credentials would be). Answers {@code {"leader":
+     * true|false, "streamLeader": {"device", "seenAt"}, "silenceMs"}}: the
+     * leader after, and how long a leader may be silent.
+     */
+    private APIGatewayV2HTTPResponse streamLease(String profileId, String device, int limit) {
+        var devices = profiles.store().devices(profileId);
+        if (!withinLimit(device, devices, limit)) {
+            return pastLimit(limit, devices);
+        }
+        var leader = claimLeader(profileId, device);
+        return response(200, "{\"leader\":" + (leader != null && leader.device().equals(device))
+                + leaderJson(leader) + ",\"silenceMs\":" + LEADER_SILENCE.toMillis() + "}");
+    }
+
+    /** {@link Profiles.Store#claimLeader} now, a leader silent for {@link #LEADER_SILENCE} replaced. */
+    private Profiles.Leader claimLeader(String profileId, String device) {
+        var now = profiles.clock().instant();
+        return profiles.store().claimLeader(profileId, device, now, now.minus(LEADER_SILENCE));
+    }
+
+    /** The profile's leading streamer as an answer's field ({@link #leaderJson(Profiles.Leader)}). */
+    private String leaderJson(String profileId) {
+        return leaderJson(profiles.store().leader(profileId));
+    }
+
+    /**
+     * {@code ,"streamLeader":{"device","seenAt"}} (epoch milliseconds), the
+     * profile's leading streamer, which the app labels in its device list;
+     * nothing without one.
+     */
+    static String leaderJson(Profiles.Leader leader) {
+        if (leader == null) {
+            return "";
+        }
+        return ",\"streamLeader\":{\"device\":" + Json.string(leader.device())
+                + ",\"seenAt\":" + leader.seenAt().toEpochMilli() + "}";
     }
 
     /**
@@ -598,10 +748,12 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         var devices = profiles.store().removeDevice(profile.id(), device);
-        // A deleted device's stream key no longer streams.
+        // A deleted device's stream key no longer streams, and a deleted
+        // leader leaves its place to the profile's other streamers.
         backend.deleteStreamKey(profile.id(), device);
+        profiles.store().dropLeader(profile.id(), device);
         return response(200, "{\"deviceLimit\":" + deviceLimit(granted)
-                + ",\"devices\":" + devicesJson(devices) + "}");
+                + ",\"devices\":" + devicesJson(devices) + leaderJson(profile.id()) + "}");
     }
 
     /** A device ID as the app makes them: {@code adjective_adjective_thing}. */
