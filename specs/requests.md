@@ -7161,3 +7161,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        always-on camera. The streamer labels a camera module's events
        "Streamer camera". Specs: [About](about.md), [Install
        script](install-script.md), [Streamer](streamer.md).
+
+489. **The streamer's live sync test no longer races on CI.** (2026-10-18)
+     - Found: the GA release's streamer job failed in `TestEndToEnd`
+       ("sent 1"): the fake broker had the second event before the client
+       counted it, which it does once the broker's PUBACK is in.
+     - Changed: the test waits (up to 5 s) for the count. Passed 30 runs,
+       and 10 with `-race`. No change to the streamer.

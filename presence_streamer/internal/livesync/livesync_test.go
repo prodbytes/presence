@@ -242,6 +242,11 @@ func TestEndToEnd(t *testing.T) {
 	if m := published(t, s); !strings.Contains(string(m.Payload), `"e2"`) {
 		t.Fatalf("after the reconnection: %s", m.Payload)
 	}
+	// Counted once the broker's PUBACK is in, which can be just after the
+	// broker has the message.
+	for deadline := time.Now().Add(5 * time.Second); l.Sent() != 2 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
 	if l.Sent() != 2 {
 		t.Fatalf("sent %d", l.Sent())
 	}
