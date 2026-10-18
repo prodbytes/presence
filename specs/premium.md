@@ -205,12 +205,12 @@ month, at 2 clips an hour:
 | | Messages | Cost |
 |---|---|---|
 | Heartbeat (8,640: CONNECT + PUBLISH + RETAINED) | ~25,900 | ~$0.026 |
-| Scheduled connections (2,880: CONNECT + 3 SUBSCRIBE) | ~11,500 | ~$0.012 |
+| Scheduled connections (2,880: CONNECT; 3 SUBSCRIBE only for a new session, [kept](live-sync.md#free)) | ~2,900 | ~$0.003 |
 | Events (1,440, ≤ 17 KB: 4 units out, 4 delivered to one other device) | ~11,500 | ~$0.012 |
 | Connection-minutes (~11,500) | | ~$0.001 |
 | Auth API (720 credentials, Lambda; 2,880 anonymous checks, mostly CDN) | | < $0.005 |
 
-About **$0.05 per free device per month** (2 devices ≈ $0.10; before:
+About **$0.045 per free device per month** (2 devices ≈ $0.10; before:
 ≈ $0.64 for 2, when every event published at once and connected on its
 own). The heartbeat alone is ≈ $0.026 per device (10 free devices ≈
 $0.26). Event deliveries grow with devices²: with Free's 10 devices each
