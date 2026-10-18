@@ -710,7 +710,8 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
   - **Boot:** after a reboot the service started by itself (it waits for
     the network to set the clock) and ran with no restarts; the chunk the
     reboot cut off was found broken and deleted.
-- **Not yet:** a Pi 5, a camera module on a Pi 4 or 5, and a real Google
+- **Not yet:** a Pi 5, a camera module on a Pi 4 or 5, the deployed cloud
+  detector (a Pi that detects in the cloud), and a real Google
   sign-in.
 
 ## Known limitations
