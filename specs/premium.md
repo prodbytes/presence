@@ -276,8 +276,14 @@ are **hidden**, and the user is asked to upgrade: a free one to
   doesn't know, the app asks for new credentials (and the list with
   them), once per device and at most every 30 s
   (`CloudSync.noticeDevices`). A device is listed before its events can
-  reach another, since it needs credentials to send them. Otherwise the list is read
-  again with each new set of credentials (hourly) or a change of tier.
+  reach another, since it needs credentials to send them.
+- **Asked for again** (`CloudSync.refreshDevices`, new credentials and
+  the list with them) when the **Profile tab opens** and on the **Sync**
+  button, at most every 30 s (shared with `noticeDevices`): a Raspberry Pi
+  [streamer](streamer.md) has no live sync, so its first event can take
+  up to an hour to reach a device, and it shows in the list at once
+  instead. Otherwise the list is read again with each new set of
+  credentials (hourly) or a change of tier.
 - **Deleting a device** ([Device deletion](device-deletion.md), either
   choice) takes it off the list (`POST /api/auth/profile/devices/remove`, the device ID
   as the body; `CloudSync.releaseDevice`), so the next one takes its

@@ -306,6 +306,39 @@ void main() {
       expect(backend.resets, resets + 2);
     });
 
+    test('refreshDevices asks for the slots again, at most every 30 s, and '
+        'Sync asks too', () async {
+      await auth.signIn();
+      await sync.idle();
+      final resets = backend.resets;
+
+      // A Pi streamer joined: no event of it here yet.
+      backend.deviceSlots = const DeviceSlots(
+        limit: 50,
+        devices: [first, second],
+      );
+      sync.refreshDevices();
+      await sync.idle();
+      expect(backend.resets, resets + 1);
+      expect(sync.deviceSlots!.devices, [first, second]);
+
+      sync.refreshDevices();
+      await sync.syncAll();
+      await sync.idle();
+      expect(backend.resets, resets + 1, reason: 'within 30 s');
+
+      now = now.add(const Duration(seconds: 31));
+      await sync.syncAll();
+      await sync.idle();
+      expect(backend.resets, resets + 2);
+    });
+
+    test('refreshDevices: nothing signed out', () async {
+      sync.refreshDevices();
+      await sync.idle();
+      expect(backend.resets, 0);
+    });
+
     test('full: a device the slots don\'t list won\'t show, so nothing is '
         'asked', () async {
       backend.deviceSlots = const DeviceSlots(

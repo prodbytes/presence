@@ -521,6 +521,21 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     _schedule(immediately: true);
   }
 
+  /// Asks for the slots again now, with new credentials: when the Profile
+  /// tab opens and on the Sync button, so a device added since shows
+  /// without waiting for the hourly credentials. A Raspberry Pi streamer
+  /// joins with no event on live sync, so [noticeDevices] can't see it
+  /// first. At most every [slotsRefresh], shared with [noticeDevices].
+  void refreshDevices() {
+    if (_deviceSlots == null || _owner == null || stopped) return;
+    final now = _now();
+    final asked = _slotsAskedAt;
+    if (asked != null && now.difference(asked) < slotsRefresh) return;
+    _slotsAskedAt = now;
+    backend.reset();
+    _schedule(immediately: true);
+  }
+
   /// Takes the deleted [device] out of the profile's devices at the auth
   /// API, so the next device takes its place among those that show. It's
   /// listed again, last, if it asks for credentials again.
@@ -751,8 +766,10 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// a request to the profile's other devices, over live sync, to do the
   /// same ([LiveSync.requestSync]). Returns whether the request went out
   /// (live sync on and connected, or able to connect); the pass here runs
-  /// either way, unless syncing is off.
+  /// either way, unless syncing is off. It asks for the profile's devices
+  /// again too ([refreshDevices]).
   Future<bool> syncAll() async {
+    refreshDevices();
     syncFull();
     return await live?.requestSync() ?? false;
   }

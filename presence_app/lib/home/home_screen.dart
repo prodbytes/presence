@@ -164,6 +164,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The tabs shown, the open one, and the one remembered across refreshes.
   late final HomeTabs _tabs;
 
+  /// The tab open at the last change of [_tabs], to see the Profile tab
+  /// open.
+  HomeTab? _lastTab;
+
   /// The Log tab shows for admins (so in DEV too: the anonymous user is a
   /// root there) when Settings' switch is on: by default in DEV only.
   bool get _showLog =>
@@ -383,6 +387,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// buttons and (signed in) cloud sync.
   bool get _hasAccess => _dev || (_signedIn && widget.roles.hasAccess);
 
+  void _onTabChanged() {
+    // The Profile tab opened: its device list asks for the profile's
+    // devices again, so one added since (a Pi streamer) shows.
+    final tab = _tabs.current;
+    if (tab == HomeTab.profile && _lastTab != HomeTab.profile) {
+      widget.sync?.refreshDevices();
+    }
+    _lastTab = tab;
+    setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -390,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       memory: widget.tabMemory ?? TabMemory(),
       shown: _shownTabs,
-      onChanged: () => setState(() {}),
+      onChanged: _onTabChanged,
     );
     _messages = CameraMessages(showFor: HomeScreen.messageFor)
       ..addListener(_onMessage);

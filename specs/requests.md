@@ -7119,3 +7119,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        device, came back by itself after a reboot, and stored a clip with a
        person as an event. Specs: [Streamer](streamer.md) (verified on a Pi 4
        with a USB camera and at boot).
+
+486. **A new device shows in the Profile tab at once.** (2026-10-18)
+     - Asked: why the new Pi didn't show on the profile; then to fix it
+       (with live sync for the streamer, a separate change).
+     - Found: the auth API listed the Pi and its event was in the bucket,
+       but the app reads the device list only with new credentials
+       (hourly), and with live sync up lists the bucket only hourly; the
+       streamer isn't on live sync, so nothing asked sooner.
+     - Changed: opening the Profile tab and the Sync button ask for the
+       profile's devices again (`CloudSync.refreshDevices`, at most every
+       30 s). Specs: [Premium](premium.md#devices).
