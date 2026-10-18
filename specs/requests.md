@@ -7267,3 +7267,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `presence-blink.py` skips the clips made before where
        fetching got to. Tried on the Pi 4 with the real Blink account.
        Specs: [Blink cameras](blink.md).
+
+499. **Every Blink, GoPro and Reolink clip is kept.** (2026-10-18)
+     - Asked: new Blink events didn't show up on the web.
+     - Found: the Pi fetched them (a second camera, "Inside", too), but
+       the detector found no one in them, so they were deleted, as the
+       Pi's own chunks with no one are.
+     - Changed: the camera pipelines keep every clip as an event
+       (`stream.Streamer.KeepAll`), tagged with whoever's found, `[]`
+       when no one is; the Pi's own camera still keeps only the clips
+       with someone. Locally searched only: a Pi detecting in the cloud
+       still keeps only those. Specs: [Blink cameras](blink.md), [GoPro
+       cameras](gopro.md), [Reolink cameras](reolink.md).

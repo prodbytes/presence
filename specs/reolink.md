@@ -6,7 +6,9 @@ which logs in to each camera with its HTTP API (`/cgi-bin/api.cgi`) and
 fetches the recordings it made, on motion, on its SD card or the NVR's
 disk, as if it had recorded them: each recording goes through the
 streamer's chunk pipeline (sealed, uploaded, searched for people and
-animals, kept as a motion event or deleted), as a device of its own.
+animals), as a device of its own, and **every recording is kept** as a
+motion event, tagged with whoever's in it (`KeepAll`: Reolink records
+only on motion).
 Premium only (the streamer is). It works like [GoPro cameras](gopro.md)
 (the same `netcam` package and Settings widget), with a login and an NVR
 channel.
