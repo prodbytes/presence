@@ -446,11 +446,11 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authStreamerCopy => 'Copiar comando';
 
   @override
-  String get authStreamerCreate => 'Criar comando';
+  String get authStreamerCreate => 'Obter comando';
 
   @override
   String authStreamerFailed(String error) {
-    return 'Não foi possível criar o comando ($error)';
+    return 'Não foi possível obter o comando ($error)';
   }
 
   @override

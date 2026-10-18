@@ -31,8 +31,8 @@ curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- \
   --profile <profile ID> --device-id <device ID> --key <stream key>
 ```
 
-The app's account sheet makes it: **Create command** in the **Stream from
-a Raspberry Pi** box, for a premium profile, then **Copy command**. See
+The app's account sheet makes it: **Get command** in the **Streamer**
+box, for a premium profile, then **Copy command**. See
 [Install script](install-script.md#streamer). The older form, with only
 the profile ID and a Google sign-in, still works (below).
 

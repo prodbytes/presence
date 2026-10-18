@@ -444,11 +444,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authStreamerCopy => 'Copy command';
 
   @override
-  String get authStreamerCreate => 'Create command';
+  String get authStreamerCreate => 'Get command';
 
   @override
   String authStreamerFailed(String error) {
-    return 'Couldn\'t create the command ($error)';
+    return 'Couldn\'t get the command ($error)';
   }
 
   @override

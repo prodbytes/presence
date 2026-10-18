@@ -793,13 +793,13 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerCreate.
   ///
   /// In en, this message translates to:
-  /// **'Create command'**
+  /// **'Get command'**
   String get authStreamerCreate;
 
   /// No description provided for @authStreamerFailed.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t create the command ({error})'**
+  /// **'Couldn\'t get the command ({error})'**
   String authStreamerFailed(String error);
 
   /// No description provided for @authStreamerKeyOnce.

@@ -219,7 +219,7 @@ their data.
   full screen from boot (cage on tty1, the web app in Chromium, since the
   native Linux app has no camera layer or Google sign-in yet).
 - [Streamer](streamer.md): `presence-streamer`, a CLI (Go) for Raspberry
-  Pis, 32- and 64-bit, with no screen. The app's **Create command** gives
+  Pis, 32- and 64-bit, with no screen. The app's **Get command** gives
   one command with the profile, a new device ID and its stream key, so
   the Pi needs no Google sign-in (a profile ID and a Google device
   sign-in still work); only premium profiles (a free one ends it). It

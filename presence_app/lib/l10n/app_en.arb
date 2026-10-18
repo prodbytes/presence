@@ -356,8 +356,8 @@
   "authStreamerBody": "Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.",
   "authStreamerCopied": "Command copied: paste it on the streamer",
   "authStreamerCopy": "Copy command",
-  "authStreamerCreate": "Create command",
-  "authStreamerFailed": "Couldn't create the command ({error})",
+  "authStreamerCreate": "Get command",
+  "authStreamerFailed": "Couldn't get the command ({error})",
   "@authStreamerFailed": {
     "placeholders": {
       "error": {
