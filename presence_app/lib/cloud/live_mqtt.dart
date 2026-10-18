@@ -38,6 +38,10 @@ class MqttLiveConnection implements LiveConnection {
       if (status?.state != MqttConnectionState.connected) {
         throw StateError('refused (${status?.returnCode})');
       }
+      // MQTT 3.1.1's CONNACK flag (the client reads it as 3.1.1).
+      connection._sessionPresent =
+          persistent &&
+          (status?.connectAckMessage?.variableHeader.sessionPresent ?? false);
     } catch (_) {
       client.disconnect();
       rethrow;
@@ -47,6 +51,13 @@ class MqttLiveConnection implements LiveConnection {
   }
 
   final MqttClient _client;
+  bool _sessionPresent = false;
+
+  /// The client hands every PUBLISH it receives to [MqttClient.updates],
+  /// whether or not it subscribed in this connection, so a resumed
+  /// session's messages come without subscribing again.
+  @override
+  bool get sessionPresent => _sessionPresent;
 
   /// Not broadcast: messages are kept until listened to (a persistent
   /// session's queued ones may come at once).

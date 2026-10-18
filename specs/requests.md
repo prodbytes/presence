@@ -6935,7 +6935,47 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       next auth API deploy.
     - Specs: [Sessions](sessions.md).
 
-474. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
+474. **Ingest: delete processed chunks for good.** (2026-10-18)
+    - Asked: the cloud detector deletes the streamer's `<id>/ingest/*`
+      jobs and chunks without a version ID, so on the versioned user-data
+      bucket each lingers 30 days as an old version (one profile had about
+      2,490, 11.7 GB, 80 % of the bucket). Delete them for good, with no
+      user-visible change.
+    - Changed: presence_ingest deletes the version it read (or, for a chunk
+      it didn't read, the current one's, from a HEAD); its role may
+      `s3:DeleteObjectVersion` on `*/ingest/*` only. If that's refused
+      (AccessDenied) it deletes as before and logs `version kept`.
+    - Not done: the stage's permissions boundary (`<prefix>-app-boundary`
+      in `github-deploy.yaml`, applied by hand) doesn't allow
+      `s3:DeleteObjectVersion` yet, so the versions are still kept until
+      it's added (scoped to `*/ingest/*`). No lifecycle backstop: its
+      filters are key prefixes, and ingest's keys are `<identity>/ingest/…`.
+    - Specs: [Streamer](streamer.md), [Cloud sync](cloud-sync.md).
+
+475. **Cut free live sync's AWS IoT requests, without changing what it
+     does.** (2026-10-18)
+    - A free device's failed scheduled connection now tries again at the
+      schedule's next slot (the interval plus jitter from the failed
+      attempt), or after the back-off when that's longer, instead of
+      after the 1 s … 2 min back-off: never more often than every 15 min.
+      Members' retries are unchanged.
+    - A free device's scheduled connection no longer re-sends its 3
+      SUBSCRIBEs when the broker resumed its persistent session
+      (CONNACK session-present, now `LiveConnection.sessionPresent`):
+      only a new session, or a topic refused before, subscribes. Checked
+      in `mqtt_client` 10.11.11 that the flag is read (3.1.1) and that
+      every received PUBLISH reaches the updates stream whether or not
+      the connection subscribed. Free scheduled connections: ~11,500 →
+      ~2,900 billed messages per device and month.
+    - Not done: sending the heartbeat over each scheduled connection and
+      restarting its 5-min timer from there. With beats at least every
+      5 min and connections more than 15 min apart (the wait starts when
+      the last one closes, plus jitter), three beats of their own are
+      still needed between connections, so it would only add a beat
+      (2 billed messages) per connection.
+    - Specs: [Live sync](live-sync.md), [Premium and free](premium.md).
+
+476. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
     - The auth API answers a free profile's stream key with HTTP 403
       `"streamers are Premium only"`, and a device past the plan's limit
       with 403 `"reason": "deviceLimit"`; presence-streamer read only a

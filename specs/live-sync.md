@@ -216,6 +216,21 @@ A free profile's devices (`LiveConfig.free`) cost almost nothing in AWS
   waited (cloud sync's `_LivePublisher`: each new event once, final, with
   a thumbnail of at most 12 KB), then it drains what the broker kept and
   closes.
+- **A failed connection** (refused, timed out, or no credentials) tries
+  again at the schedule's next slot, never sooner: the wait is the
+  interval plus the jitter from the failed attempt's start, or the
+  back-off (1 s, doubling, up to 2 min) when that's longer
+  (`_freeRetryDelay`). Only a stop, a sign-in or a change of the setting
+  (which start over) ends the wait early.
+- **Subscriptions are kept** by the persistent session: when the broker
+  still has it (the CONNACK's session-present flag,
+  `LiveConnection.sessionPresent`), a scheduled connection doesn't
+  subscribe again to the topics this run of the app already subscribed
+  on it; their messages, queued ones too, still come (`mqtt_client`
+  hands every PUBLISH it receives to its updates stream). A new session
+  (the first connection of each run, or one the broker let expire)
+  subscribes to all three; a topic refused before is tried again.
+  Members' scheduled connections still subscribe each time.
 - **The broker keeps** a persistent session's QoS 1 messages while the
   device is away, until the session expires: **1 h** after it
   disconnected (AWS IoT's default, adjustable up to 7 days in the
@@ -470,6 +485,10 @@ query holds the session token.
     random jitter, within `[interval, interval + 10 s]`, the same for the
     same seed, and the 60 min step within the session's hour; a change of
     the setting applies at once (Always keeps a clean session and stays);
+  - free: a failed connection waits for the schedule's next slot, not the
+    back-off; a resumed persistent session isn't subscribed again, a new
+    one is (all three), and a topic refused before is tried again; a
+    member's scheduled connection subscribes each time;
   - with `CloudSync`: a saved event goes up, then is published without its
     frames (which are in the bucket), with the uploaded ETag (and, in
     `free_sync_test.dart`, without a `clip` for a premium profile, upload

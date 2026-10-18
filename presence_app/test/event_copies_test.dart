@@ -39,6 +39,9 @@ class RoutedConnection implements LiveConnection {
   Future<void> get done => _done.future;
 
   @override
+  bool get sessionPresent => false;
+
+  @override
   Future<void> subscribe(String topic) async => topics.add(topic);
 
   @override
