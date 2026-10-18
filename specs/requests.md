@@ -7168,3 +7168,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        counted it, which it does once the broker's PUBACK is in.
      - Changed: the test waits (up to 5 s) for the count. Passed 30 runs,
        and 10 with `-race`. No change to the streamer.
+
+490. **The Profile tab lists the profile's devices while Stopped.** (2026-10-18)
+     - Asked: the new streamer still didn't show in the Profile tab's
+       device list.
+     - Found: the browser was in Stopped mode, which halts cloud sync, so
+       it never asked the auth API for the profile's devices and showed
+       only those from events it had before.
+     - Changed: opening the Profile tab (or the app reopening on it) asks
+       for the list even while Stopped: only the credentials, no pass,
+       live sync or downloads (`CloudSync.refreshDevices`). Specs:
+       [Premium](premium.md#devices), [Cloud sync](cloud-sync.md).

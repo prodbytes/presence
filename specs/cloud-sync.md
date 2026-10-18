@@ -50,7 +50,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
   and the recording downloads, and nothing starts again (not a change,
   a sign-in or Retry) until it's left: then a pass runs at once and the
   periodic ones resume. A pass already running finishes, but doesn't
-  connect live sync. A device restarted Stopped starts halted.
+  connect live sync. A device restarted Stopped starts halted. Opening
+  the Profile tab still reads the profile's devices (credentials only;
+  see [Premium](premium.md#devices)).
 
 - **Sealed media only:** thumbnails, tagged frames and recordings go up
   and come down sealed, as stored, never opened on the way; an unsealed

@@ -526,14 +526,39 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// without waiting for the hourly credentials. A Raspberry Pi streamer
   /// joins with no event on live sync, so [noticeDevices] can't see it
   /// first. At most every [slotsRefresh], shared with [noticeDevices].
-  void refreshDevices() {
-    if (_deviceSlots == null || _owner == null || stopped) return;
+  ///
+  /// [refreshDevices] was asked for before the profile was known.
+  bool _devicesWanted = false;
+
+  /// While [halted] (the camera's Stopped mode) it still asks, as the
+  /// user opened the list: only the credentials, for the slots, with no
+  /// pass, live sync or downloads.
+  Future<void> refreshDevices() async {
+    final idToken = auth.idToken;
+    if (_owner == null || idToken == null) {
+      // Before the sign-in is restored (the app opened on the Profile
+      // tab): asked once the profile is known.
+      _devicesWanted = true;
+      return;
+    }
+    if (stopped || _disposed) return;
     final now = _now();
     final asked = _slotsAskedAt;
     if (asked != null && now.difference(asked) < slotsRefresh) return;
     _slotsAskedAt = now;
     backend.reset();
-    _schedule(immediately: true);
+    if (!_halted) {
+      _schedule(immediately: true);
+      return;
+    }
+    final epoch = _epoch;
+    try {
+      final session = await backend.connect(idToken);
+      if (epoch == _epoch && !_disposed) _noteSlots(session);
+    } on Exception catch (e) {
+      // The list stays as it was; the next opening asks again.
+      debugPrint('Presence: the profile\'s devices could not be read: $e');
+    }
   }
 
   /// Takes the deleted [device] out of the profile's devices at the auth
@@ -653,7 +678,12 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     } else if (!_halted) {
       _startPeriodic();
       _schedule(immediately: true);
+    } else if (_devicesWanted) {
+      _devicesWanted = false;
+      refreshDevices().ignore();
     }
+    // Syncing, the first pass lists them anyway.
+    _devicesWanted = false;
   }
 
   /// As for a new user: the first pass lists everything and reconciles.
@@ -769,7 +799,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// either way, unless syncing is off. It asks for the profile's devices
   /// again too ([refreshDevices]).
   Future<bool> syncAll() async {
-    refreshDevices();
+    refreshDevices().ignore();
     syncFull();
     return await live?.requestSync() ?? false;
   }
