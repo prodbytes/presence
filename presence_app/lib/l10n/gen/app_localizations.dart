@@ -115,7 +115,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutParagraph.
   ///
   /// In en, this message translates to:
-  /// **'Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.'**
+  /// **'Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.'**
   String get aboutParagraph;
 
   /// No description provided for @authAccessAdmin.
@@ -775,13 +775,13 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerBody.
   ///
   /// In en, this message translates to:
-  /// **'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.'**
+  /// **'Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.'**
   String get authStreamerBody;
 
   /// No description provided for @authStreamerCopied.
   ///
   /// In en, this message translates to:
-  /// **'Command copied: paste it on the Raspberry Pi'**
+  /// **'Command copied: paste it on the streamer'**
   String get authStreamerCopied;
 
   /// No description provided for @authStreamerCopy.
@@ -811,7 +811,7 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Stream from a Raspberry Pi'**
+  /// **'Streamer'**
   String get authStreamerTitle;
 
   /// No description provided for @authSubscribe.
@@ -961,7 +961,7 @@ abstract class AppLocalizations {
   /// No description provided for @blinkAbout.
   ///
   /// In en, this message translates to:
-  /// **'A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.'**
+  /// **'A streamer of yours fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.'**
   String get blinkAbout;
 
   /// No description provided for @blinkConnect.
@@ -1021,7 +1021,7 @@ abstract class AppLocalizations {
   /// No description provided for @blinkNoStreamer.
   ///
   /// In en, this message translates to:
-  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras\' clips.'**
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the Blink cameras\' clips.'**
   String get blinkNoStreamer;
 
   /// No description provided for @blinkNotSent.
@@ -2563,7 +2563,7 @@ abstract class AppLocalizations {
   /// No description provided for @goproAbout.
   ///
   /// In en, this message translates to:
-  /// **'A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.'**
+  /// **'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.'**
   String get goproAbout;
 
   /// No description provided for @goproAddressHelp.
@@ -2587,7 +2587,7 @@ abstract class AppLocalizations {
   /// No description provided for @goproNoStreamer.
   ///
   /// In en, this message translates to:
-  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the GoPro cameras\' videos.'**
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras\' videos.'**
   String get goproNoStreamer;
 
   /// No description provided for @goproNone.
@@ -3373,7 +3373,7 @@ abstract class AppLocalizations {
   /// No description provided for @reolinkAbout.
   ///
   /// In en, this message translates to:
-  /// **'A Linux streamer of yours (a Raspberry Pi) fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).'**
+  /// **'A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).'**
   String get reolinkAbout;
 
   /// No description provided for @reolinkAddressHelp.
@@ -3397,7 +3397,7 @@ abstract class AppLocalizations {
   /// No description provided for @reolinkNoStreamer.
   ///
   /// In en, this message translates to:
-  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Reolink cameras\' recordings.'**
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras\' recordings.'**
   String get reolinkNoStreamer;
 
   /// No description provided for @reolinkNone.

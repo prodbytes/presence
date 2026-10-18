@@ -17,7 +17,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get aboutParagraph =>
-      'Presence convierte un teléfono, tableta, portátil o Raspberry Pi en una cámara siempre activa para un lugar que cuidas: video en vivo, clips que incluyen los momentos previos y clips al detectar movimiento. Graba solo donde tengas permiso.';
+      'Presence convierte cualquier dispositivo con cámara en una cámara siempre activa para un lugar que cuidas: video en vivo, clips que incluyen los momentos previos y clips al detectar movimiento. Graba solo donde tengas permiso.';
 
   @override
   String get authAccessAdmin => 'Acceso admin';
@@ -436,10 +436,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authStreamerBody =>
-      'Pega esto en una terminal de una Raspberry Pi con cámara (Raspberry Pi OS, 32 o 64 bits), incluso sin pantalla. Instala el streamer de Presence como un nuevo dispositivo de este perfil, que graba desde cada arranque y guarda los clips con personas y animales. Nadie inicia sesión en la Pi.';
+      'Pega esto en una terminal de un dispositivo Linux con cámara (Raspberry Pi OS o Debian, ARM, 32 o 64 bits), incluso sin pantalla. Instala el streamer de Presence como un nuevo dispositivo de este perfil, que graba desde cada arranque y guarda los clips con personas y animales. Nadie inicia sesión en él.';
 
   @override
-  String get authStreamerCopied => 'Comando copiado: pégalo en la Raspberry Pi';
+  String get authStreamerCopied => 'Comando copiado: pégalo en el streamer';
 
   @override
   String get authStreamerCopy => 'Copiar comando';
@@ -457,7 +457,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Contiene la clave de este dispositivo, que solo se muestra ahora: mantenla privada. Borrar el dispositivo lo detiene; crear otro comando crea otro dispositivo.';
 
   @override
-  String get authStreamerTitle => 'Transmitir desde una Raspberry Pi';
+  String get authStreamerTitle => 'Streamer';
 
   @override
   String get authSubscribe => 'Suscribirse';
@@ -546,7 +546,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get blinkAbout =>
-      'Un streamer Linux tuyo (una Raspberry Pi) trae los clips de tus cámaras Blink: cada cámara es un dispositivo, y sus clips con una persona o un animal se vuelven eventos.';
+      'Un streamer tuyo trae los clips de tus cámaras Blink: cada cámara es un dispositivo, y sus clips con una persona o un animal se vuelven eventos.';
 
   @override
   String get blinkConnect => 'Conectar';
@@ -584,7 +584,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get blinkNoStreamer =>
-      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae los clips de las cámaras Blink.';
+      'Configura primero un streamer (Perfil › Streamer); trae los clips de las cámaras Blink.';
 
   @override
   String get blinkNotSent =>
@@ -1553,7 +1553,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get goproAbout =>
-      'Un streamer Linux tuyo (una Raspberry Pi) trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi.';
+      'Un streamer tuyo trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi.';
 
   @override
   String get goproAddressHelp =>
@@ -1569,7 +1569,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get goproNoStreamer =>
-      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae los videos de las cámaras GoPro.';
+      'Configura primero un streamer (Perfil › Streamer); trae los videos de las cámaras GoPro.';
 
   @override
   String get goproNone => 'Aún no hay cámaras GoPro.';
@@ -2069,7 +2069,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get reolinkAbout =>
-      'Un streamer Linux tuyo (una Raspberry Pi) trae las grabaciones que tus cámaras Reolink (o tu NVR) hacen al detectar movimiento, por su red: cada cámara es un dispositivo, y sus grabaciones con una persona o un animal se vuelven eventos. La cámara graba en su tarjeta SD o en el disco del NVR, con HTTPS activado (en su configuración de red).';
+      'Un streamer tuyo trae las grabaciones que tus cámaras Reolink (o tu NVR) hacen al detectar movimiento, por su red: cada cámara es un dispositivo, y sus grabaciones con una persona o un animal se vuelven eventos. La cámara graba en su tarjeta SD o en el disco del NVR, con HTTPS activado (en su configuración de red).';
 
   @override
   String get reolinkAddressHelp =>
@@ -2085,7 +2085,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get reolinkNoStreamer =>
-      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae las grabaciones de las cámaras Reolink.';
+      'Configura primero un streamer (Perfil › Streamer); trae las grabaciones de las cámaras Reolink.';
 
   @override
   String get reolinkNone => 'Aún no hay cámaras Reolink.';

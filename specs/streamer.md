@@ -180,7 +180,8 @@ remotes never apply) are beside it.
 when libcamera lists one (`rpicam-vid --list-cameras`, or `libcamera-vid`
 on older systems), else a USB camera (`v4l2`, `/dev/video0`). `test` is
 ffmpeg's test pattern, or a video file played in a loop (`--device`), for
-development. **Encoder** (`--encoder`): `auto` takes the Pi's **hardware
+development. The events name the camera (`--camera-label`), by default
+"Streamer camera", "USB camera" or "Test camera". **Encoder** (`--encoder`): `auto` takes the Pi's **hardware
 H.264 encoder** when there is one (the bcm2835 codec's encode device, on a
 Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
 
