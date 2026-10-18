@@ -114,13 +114,14 @@ profile (`CameraFeedsView.showAll`,
 - **Top left:** this device's camera, live, labeled with its device ID and, on a second line under it, "live".
   Its loading, error and no-camera states show in that cell.
 - **A presence dot** leads each cell's label: green (live: answered a
-  ping within 90 s, or this device connected to live sync), yellow
-  (heard from or an event within 24 h), red (older, or never), with the
+  ping or posted an event within 5 sync timeouts, or this device
+  connected to live sync), yellow (within 10), red (older, or never),
+  with the
   reason as tooltip and screen-reader label. The grid pings the devices
   when it shows and every 30 s while it does (see [Device
   presence](device-presence.md)).
 - **Then one cell per other device**, **most recently active first**
-  (`byActivity`, [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart)): those **live** now (green: answered a ping within 90 s)
+  (`byActivity`, [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart)): those **live** now (green: active within 5 sync timeouts)
   first, then the others by when they were last heard from over live
   sync or posted an event, whichever is later, newest first; ties by
   device ID. Live devices all answer the same ping round within a moment,

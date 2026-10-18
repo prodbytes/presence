@@ -69,7 +69,8 @@ List<DeviceLatest> latestByDevice(
 }
 
 /// [devices] most recently active first, for the All grid: those live now
-/// (answered a ping within [DevicePresence.liveWithin], green) first, then
+/// (heard from within [DevicePresence.liveTimeouts] sync timeouts, green)
+/// first, then
 /// the others by when they were last heard from over live sync
 /// ([seenOf]) or posted an event ([lastEvents]), whichever is later,
 /// newest first. Live devices all answer the same ping round within a
@@ -81,7 +82,7 @@ List<DeviceLatest> byActivity(
   required Map<String, DateTime> lastEvents,
   required DateTime now,
   required bool liveAvailable,
-  Duration within = DevicePresence.liveWithin,
+  Duration timeout = DevicePresence.timeout,
 }) {
   (bool, DateTime) rank(DeviceLatest d) {
     final answered = seenOf?.call(d.deviceId);
@@ -92,7 +93,7 @@ List<DeviceLatest> byActivity(
           lastEvent: event,
           now: now,
           liveAvailable: liveAvailable,
-          within: within,
+          timeout: timeout,
         ).level ==
         PresenceLevel.live;
     if (live) return (true, event);

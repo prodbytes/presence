@@ -1251,10 +1251,18 @@ class LiveSync extends ChangeNotifier {
   static String beatTopicOf(String stage, String identityId, String device) =>
       '${topicOf(stage, identityId, beatsKind)}/$device';
 
-  /// How recently a device must have been heard from to show live (green):
-  /// [beatLiveWithin] for a free profile, 90 s (pings) otherwise.
-  Duration get liveWithin =>
-      _config.free ? beatLiveWithin : const Duration(seconds: 90);
+  /// The sync timeout for the profile's devices' presence
+  /// ([DevicePresence.of]): how long between hearing from one, as often as
+  /// they sync. A free profile's devices beat every [beatEvery]; a
+  /// member's sync on their schedule, every minute by default
+  /// ([LiveConfig.defaultEvery]): this device's, when it's slower.
+  Duration get presenceTimeout {
+    if (_config.free) return beatEvery;
+    final every = _config.mode == LiveMode.scheduled
+        ? _config.every
+        : LiveConfig.defaultEvery;
+    return every > LiveConfig.defaultEvery ? every : LiveConfig.defaultEvery;
+  }
 
   /// Whether this device shows live: connected, or (free) its last beat
   /// went within [beatLiveWithin].

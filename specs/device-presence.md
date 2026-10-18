@@ -12,17 +12,20 @@ small retained heartbeat instead ([below](#free-devices-heartbeat)).
 `DevicePresence.of` ([lib/device_presence.dart](../presence_app/lib/device_presence.dart)),
 drawn by `PresenceDot` (10 dp, Gruvbox colors):
 
-- 🟢 **Green, live:** the device answered a ping within the last **90 s**
-  (`DevicePresence.liveWithin`: three rounds of the 30 s pings); for a
-  free profile, its last heartbeat is within **11 min**
-  (`LiveSync.beatLiveWithin`: two 5-min beats and a minute; the callers
-  pass `LiveSync.liveWithin` as `within`). Reason "Live — answered 5 s
-  ago".
-- 🟡 **Yellow, recently known:** heard from (a ping or pong, older), or
-  its latest synced event, within **24 h** (`DevicePresence.recentWithin`).
-  Reason "Last seen 3 h ago".
-- 🔴 **Red, old:** last heard from or last event 24 h ago or more, or
-  never. Reason "Last seen 4 d ago" or "Never seen".
+- All three go by the **sync timeout** T, how long between hearing from
+  a device as often as devices sync (`LiveSync.presenceTimeout`, passed
+  as `timeout`): for a free profile its devices' heartbeat, **5 min**
+  (`LiveSync.beatEvery`); for a member, the live sync schedule, **1 min**
+  by default (`LiveConfig.defaultEvery`), or this device's when slower
+  (every 15 min: 15 min). Activity is the newer of the device's last
+  answer over live sync and its latest synced event.
+- 🟢 **Green, recently active:** within **5 T** (`liveTimeouts`; 5 min
+  for a member, 25 min free). Reason "Live — answered 5 s ago" when the
+  answer is the newer, else "Last seen 3 min ago".
+- 🟡 **Yellow:** 5 T to **10 T** (`recentTimeouts`; 10 min, or 50 min
+  free). Reason "Last seen 7 min ago".
+- 🔴 **Red:** past 10 T, or never. Reason "Last seen 4 d ago" or "Never
+  seen".
 - **This device** is green while connected to live sync, or (free) while
   its last heartbeat went within 11 min (`LiveSync.showsLive`) ("Live —
   this device, connected to live sync"); otherwise yellow ("This device — not
@@ -35,8 +38,8 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   cloud sync or live sync failed; the reason is the row's headline ("This
   device — Live sync isn't set up in this build").
 - **Without live sync** (no `IOT_ENDPOINT`, Never, signed out, no cloud
-  sync): nothing can answer, so nothing is green: yellow or red from the
-  latest event, the reason ending "· live status unavailable".
+  sync): nothing can answer, so the color comes from the latest event
+  alone, the reason ending "· live status unavailable".
 - The reason is the dot's tooltip and its screen-reader label
   (`Semantics`). Ages read "5 s ago", "4 min ago", "3 h ago", "2 d ago"
   (`describeSince`).
@@ -174,11 +177,13 @@ reaches only its own topics; client IDs `<identity>-<device>-b` and
   in the future counts as now; invalid messages (no or bad nonce, other
   identity, other version, wrong kind for the topic, unsafe device ID,
   no `sentAt`, not JSON, over 1 KB) are dropped;
-- the thresholds: green under 90 s, yellow under 24 h (the newer of answer
-  and event), red at 24 h or never; never green without live sync, which
-  the reason says; this device green while connected;
+- the thresholds: green under 5 timeouts, yellow under 10 (the newer of
+  answer and event), red past that or never; a free profile's 5 min
+  timeout; without live sync, answers don't count and the reason says so;
+  this device green while connected; `LiveSync.presenceTimeout` (5 min
+  free; a member's schedule, a minute at least);
 - the All grid at 320 dp: this device and an answering device green, one
-  with a 2 h old event yellow, a 3 d old one red, with tooltips and
+  with a 7 min old event yellow, a 3 d old one red, with tooltips and
   semantics; it pings when shown and again 30 s later;
 - the devices list at 320 dp: green, green and red, with tooltips, and a
   ping when it shows; without live sync, yellow from events and "live

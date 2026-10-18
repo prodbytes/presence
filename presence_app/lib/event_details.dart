@@ -322,7 +322,8 @@ class EventDevice extends StatelessWidget {
                           liveAvailable: liveAvailable(live),
                           thisDevice: device == thisDevice,
                           connected: live?.showsLive ?? false,
-                          within: live?.liveWithin ?? DevicePresence.liveWithin,
+                          timeout:
+                              live?.presenceTimeout ?? DevicePresence.timeout,
                         ),
                       ),
                     ),
