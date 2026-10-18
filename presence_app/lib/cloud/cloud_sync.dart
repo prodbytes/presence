@@ -444,30 +444,6 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// Whether syncing has stopped after credentials failed (see [retry]).
   bool get stopped => _stoppedFor != null;
 
-  /// The camera's Stopped mode: no passes, no live sync and no recording
-  /// downloads, until [setHalted] lifts it. Kept apart from [stopped],
-  /// which is about failed credentials.
-  bool get halted => _halted;
-  bool _halted = false;
-
-  /// Halts all syncing ([halted]), or resumes it: as at a sign-in, a pass
-  /// at once and the periodic ones.
-  void setHalted(bool halted) {
-    if (halted == _halted || _disposed) return;
-    _halted = halted;
-    if (halted) {
-      debugPrint('Presence: sync halted (Stopped)');
-      _timer?.cancel();
-      _periodic?.cancel();
-      _liveBridge.stop();
-    } else if (_owner != null && !stopped) {
-      debugPrint('Presence: sync resumed');
-      _startPeriodic();
-      _schedule(immediately: true);
-    }
-    notifyListeners();
-  }
-
   /// The profile's devices and how many of them show their events
   /// ([DeviceSlots]), as the auth API listed them with the latest
   /// credentials; null until then, signed out, or from an API that doesn't
@@ -523,42 +499,17 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
   /// Asks for the slots again now, with new credentials: when the Profile
   /// tab opens and on the Sync button, so a device added since shows
-  /// without waiting for the hourly credentials. A Raspberry Pi streamer
-  /// joins with no event on live sync, so [noticeDevices] can't see it
-  /// first. At most every [slotsRefresh], shared with [noticeDevices].
-  ///
-  /// [refreshDevices] was asked for before the profile was known.
-  bool _devicesWanted = false;
-
-  /// While [halted] (the camera's Stopped mode) it still asks, as the
-  /// user opened the list: only the credentials, for the slots, with no
-  /// pass, live sync or downloads.
-  Future<void> refreshDevices() async {
-    final idToken = auth.idToken;
-    if (_owner == null || idToken == null) {
-      // Before the sign-in is restored (the app opened on the Profile
-      // tab): asked once the profile is known.
-      _devicesWanted = true;
-      return;
-    }
-    if (stopped || _disposed) return;
+  /// without waiting for the hourly credentials. A streamer may join with
+  /// no event of its own yet, so [noticeDevices] can't see it first. At
+  /// most every [slotsRefresh], shared with [noticeDevices].
+  void refreshDevices() {
+    if (_owner == null || stopped) return;
     final now = _now();
     final asked = _slotsAskedAt;
     if (asked != null && now.difference(asked) < slotsRefresh) return;
     _slotsAskedAt = now;
     backend.reset();
-    if (!_halted) {
-      _schedule(immediately: true);
-      return;
-    }
-    final epoch = _epoch;
-    try {
-      final session = await backend.connect(idToken);
-      if (epoch == _epoch && !_disposed) _noteSlots(session);
-    } on Exception catch (e) {
-      // The list stays as it was; the next opening asks again.
-      debugPrint('Presence: the profile\'s devices could not be read: $e');
-    }
+    _schedule(immediately: true);
   }
 
   /// Takes the deleted [device] out of the profile's devices at the auth
@@ -675,15 +626,10 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     if (profile == null) {
       _timer?.cancel();
       _set(CloudSyncState.off);
-    } else if (!_halted) {
+    } else {
       _startPeriodic();
       _schedule(immediately: true);
-    } else if (_devicesWanted) {
-      _devicesWanted = false;
-      refreshDevices().ignore();
     }
-    // Syncing, the first pass lists them anyway.
-    _devicesWanted = false;
   }
 
   /// As for a new user: the first pass lists everything and reconciles.
@@ -799,7 +745,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// either way, unless syncing is off. It asks for the profile's devices
   /// again too ([refreshDevices]).
   Future<bool> syncAll() async {
-    refreshDevices().ignore();
+    refreshDevices();
     syncFull();
     return await live?.requestSync() ?? false;
   }
@@ -817,7 +763,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
   /// Syncs again after credentials failed and syncing [stopped].
   void retry() {
-    if (_owner == null || _disposed || _halted) return;
+    if (_owner == null || _disposed) return;
     if (stopped) {
       _stoppedFor = null;
       _startPeriodic();
@@ -830,7 +776,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// ([_mustList]) unless it's for a save or a live message ([listing]
   /// false), which can do with a recent listing (see [_mustList]).
   void _schedule({bool immediately = false, bool listing = true}) {
-    if (_disposed || _syncProfile == null || stopped || _halted) return;
+    if (_disposed || _syncProfile == null || stopped) return;
     if (listing) _mustList = true;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
@@ -856,7 +802,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   }
 
   void _startNow() {
-    if (stopped || _halted) return;
+    if (stopped) return;
     if (_running != null) {
       _again = true;
       return;

@@ -1303,7 +1303,7 @@ abstract class AppLocalizations {
   /// No description provided for @cameraModeStoppedHint.
   ///
   /// In en, this message translates to:
-  /// **'No capturing or syncing'**
+  /// **'Camera off, still syncing'**
   String get cameraModeStoppedHint;
 
   /// Camera mode: screen off, still capturing

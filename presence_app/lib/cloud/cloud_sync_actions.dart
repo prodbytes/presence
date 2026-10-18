@@ -69,11 +69,7 @@ class _EventActions {
   /// out, a free profile, syncing stopped).
   Future<CloudSession?> _session() async {
     final idToken = _sync.auth.idToken;
-    if (!_sync.premium ||
-        idToken == null ||
-        _sync.stopped ||
-        _sync._halted ||
-        _sync._disposed) {
+    if (!_sync.premium || idToken == null || _sync.stopped || _sync._disposed) {
       return null;
     }
     return _sync.backend.connect(idToken);

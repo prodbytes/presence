@@ -280,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// The mode the menu shows: Normal (this camera), All (the grid),
   /// Unattended (the screen off) or Stopped (the camera off,
-  /// [CameraRig.paused], kept in the settings; syncing halted with it).
+  /// [CameraRig.paused], kept in the settings; syncing goes on).
   CameraMode get _mode => CameraMode.of(
     paused: widget.rig.paused,
     unattended: _unattended,
@@ -397,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _noteTab() {
     final tab = _tabs.current;
     if (tab == HomeTab.profile && _lastTab != HomeTab.profile) {
-      widget.sync?.refreshDevices().ignore();
+      widget.sync?.refreshDevices();
     }
     _lastTab = tab;
   }

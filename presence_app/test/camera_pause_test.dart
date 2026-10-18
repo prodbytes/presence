@@ -255,7 +255,7 @@ void main() {
         'Unattended',
         'Screen off, still capturing',
         'Stopped',
-        'No capturing or syncing',
+        'Camera off, still syncing',
       ]) {
         expect(find.text(text), findsOneWidget);
       }

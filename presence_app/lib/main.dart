@@ -439,14 +439,6 @@ class _PresenceAppState extends State<PresenceApp> {
       sync.addListener(_applyDeviceSlots);
       _log.addListener(_noticeDevices);
     }
-    // The camera's Stopped mode (its pause, kept in the settings) stops
-    // syncing too: no passes and no live sync until it's left. Now (a
-    // device restarted Stopped stays quiet), and whenever it changes.
-    if (_sync case final sync?) {
-      void applyHalt() => sync.setHalted(_config.config.camera.paused);
-      applyHalt();
-      _config.addListener(applyHalt);
-    }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;

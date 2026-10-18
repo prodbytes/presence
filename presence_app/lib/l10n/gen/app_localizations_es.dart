@@ -756,7 +756,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cameraModeStopped => 'Detenido';
 
   @override
-  String get cameraModeStoppedHint => 'Sin capturar ni sincronizar';
+  String get cameraModeStoppedHint => 'Cámara apagada, sigue sincronizando';
 
   @override
   String get cameraModeUnattended => 'Desatendido';

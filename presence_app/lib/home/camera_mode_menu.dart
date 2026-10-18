@@ -82,8 +82,8 @@ enum CameraMode {
   /// syncing go on.
   unattended(Icons.brightness_2_outlined),
 
-  /// Nothing at all: the camera off ([CameraRig.paused]) and no syncing
-  /// ([CloudSync.halted]).
+  /// The camera off ([CameraRig.paused]); events still sync, as in the
+  /// other modes.
   stopped(Icons.stop_circle_outlined);
 
   const CameraMode(this.icon);

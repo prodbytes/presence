@@ -151,8 +151,8 @@ account.
     - **Unattended** (a moon; "Screen off, still capturing"): the screen
       dark, capturing and syncing on; the menu is reached once woken,
       after a tap on the dark screen.
-    - **Stopped** (a stop sign; "No capturing or syncing"): no capturing
-      and no syncing.
+    - **Stopped** (a stop sign; "Camera off, still syncing"): no
+      capturing; events still sync.
   - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
     quieter secondary button. It's shown only when the device has more than
     one camera. It switches back ↔ front where the camera's facing is known

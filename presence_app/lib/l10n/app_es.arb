@@ -200,7 +200,7 @@
   "cameraModeNormal": "Esta cámara",
   "cameraModeNormalHint": "Pantalla completa",
   "cameraModeStopped": "Detenido",
-  "cameraModeStoppedHint": "Sin capturar ni sincronizar",
+  "cameraModeStoppedHint": "Cámara apagada, sigue sincronizando",
   "cameraModeUnattended": "Desatendido",
   "cameraModeUnattendedHint": "Pantalla apagada, sigue capturando",
   "cameraNight": "Noche",

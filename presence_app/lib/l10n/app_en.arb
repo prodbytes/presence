@@ -589,7 +589,7 @@
   "@cameraModeStopped": {
     "description": "Camera mode: nothing captured or synced"
   },
-  "cameraModeStoppedHint": "No capturing or syncing",
+  "cameraModeStoppedHint": "Camera off, still syncing",
   "cameraModeUnattended": "Unattended",
   "@cameraModeUnattended": {
     "description": "Camera mode: screen off, still capturing"
