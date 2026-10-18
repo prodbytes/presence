@@ -24,7 +24,9 @@ package stream
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,6 +92,10 @@ type Streamer struct {
 	Logf     func(string, ...any)
 	// Stored is called with each event stored (tests).
 	Stored func(records.Event)
+	// Publish is called with each event stored, once it's verified in the
+	// bucket: its JSON as uploaded, its key and the upload's ETag (its MD5,
+	// hex), for live sync. It must not block.
+	Publish func(event []byte, key, etag string)
 	// Cloud sends chunks to the cloud detector instead of searching them
 	// here (a Pi with too little memory): each chunk is uploaded to ingest
 	// with its job, and deleted here.
@@ -376,6 +382,13 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		}
 		if s.Stored != nil {
 			s.Stored(event)
+		}
+		if s.Publish != nil {
+			// The JSON uploaded (records.JSON is deterministic), whose MD5 is
+			// the object's ETag (a single PUT, without KMS).
+			body := records.JSON(event)
+			sum := md5.Sum(body)
+			s.Publish(body, records.EventKey(event), hex.EncodeToString(sum[:]))
 		}
 	}
 	// Everything's verified in the bucket: nothing of it stays here.

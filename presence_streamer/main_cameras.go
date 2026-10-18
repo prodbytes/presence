@@ -87,6 +87,7 @@ func (p *cameraPipelines) set(cameras []cameraRef, only bool) {
 			Camera:      records.Camera{ID: p.kind, Label: c.Name, OS: p.os},
 			Location:    b.Location,
 			ObjectScore: b.ObjectScore, MaxSpool: b.MaxSpool, Logf: b.Logf,
+			Publish: b.Publish,
 		}
 		ctx, stop := context.WithCancel(p.ctx)
 		p.running[c.DeviceID] = stop
