@@ -51,7 +51,8 @@ streamer get its profile's credentials with no Google account:
 - **Used by the streamer** (`POST /api/auth/stream/credentials`, no
   authorizer: `Authorization: Bearer <key>`, the body `<profile ID>
   <device ID> [<camera device ID>...]`: the IDs after its own are the
-  cameras it streams for, its [Blink cameras](blink.md), up to 16, which
+  cameras it streams for, its [Blink](blink.md) and [GoPro](gopro.md)
+  cameras, up to 16, which
   join the profile's devices too): when the key's hash is that device's (compared in
   constant time), the auth API answers as `POST /api/auth/credentials`
   does for that device (which joins the profile's devices), tiered by the
@@ -507,7 +508,8 @@ Every flag is also `PRESENCE_STREAMER_<NAME>` (the service reads them from
 `fps`, `bitrate`, `rotation`, `chunk`, `motion-min` (5), `detection`
 (`auto`), `spool-max-mb`, `bwlimit`,
 `camera-label`, `location`, `detector-threads`, `state-dir`, `blink`
-(`auto`, or `off`), `blink-every` (2m), the tools'
+(`auto`, or `off`), `blink-every` (2m), `gopro` (`auto`, or `off`),
+`gopro-video` (`low`, or `full`), `gopro-every` (2m), the tools'
 paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 `models`, `blink-helper`) and the Google client.
 
@@ -516,6 +518,13 @@ paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 A streamer the app's Settings pick also fetches a Blink account's
 cameras' clips, each camera a device of its own: see
 [Blink cameras](blink.md).
+
+## GoPro cameras
+
+A streamer the app's Settings pick also fetches GoPro cameras' new videos
+over its network, each camera a device of its own: see
+[GoPro cameras](gopro.md). Blink's and GoPro's cameras share the per-camera
+pipelines (`main_cameras.go`).
 
 ## Infrastructure it needs
 

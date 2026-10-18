@@ -63,8 +63,12 @@ type options struct {
 	chunk                                                              time.Duration
 	// Blink (specs/streamer.md, "Blink cameras"): auto or off; the helper
 	// script; how often clips are fetched.
-	blink, blinkHelper                                        string
-	blinkEvery                                                time.Duration
+	blink, blinkHelper string
+	blinkEvery         time.Duration
+	// GoPro (specs/gopro.md): auto or off; low (the cameras' low-resolution
+	// copies) or full videos; how often videos are fetched.
+	gopro, goproVideo                                         string
+	goproEvery                                                time.Duration
 	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
 }
 
@@ -232,6 +236,13 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 		blinkEvery = 2 * time.Minute
 	}
 	fs.DurationVar(&o.blinkEvery, "blink-every", blinkEvery, "how often Blink's clips are fetched")
+	fs.StringVar(&o.gopro, "gopro", env("GOPRO", "auto"), "GoPro cameras: auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.goproVideo, "gopro-video", env("GOPRO_VIDEO", "low"), "GoPro videos fetched: low (the camera's low-resolution copy, when it made one) or full")
+	goproEvery, err := time.ParseDuration(env("GOPRO_EVERY", "2m"))
+	if err != nil {
+		goproEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.goproEvery, "gopro-every", goproEvery, "how often GoPro cameras' new videos are fetched")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
 	fs.StringVar(&o.ffmpeg, "ffmpeg", env("FFMPEG", "ffmpeg"), "ffmpeg")
 	fs.StringVar(&o.ffprobe, "ffprobe", env("FFPROBE", "ffprobe"), "ffprobe")
@@ -855,10 +866,26 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
+	// Blink's and GoPro's cameras, when this streamer is the one the app
+	// picked: their devices join the profile's at each renewal.
+	blinkCameras, runBlink := startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+	goproCameras, runGoPro := startGoPro(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+	sess.Cameras = func() []string {
+		var out []string
+		for _, ids := range []func() []string{blinkCameras, goproCameras} {
+			if ids != nil {
+				out = append(out, ids()...)
+			}
+		}
+		return out
+	}
+	for _, run := range []func(){runBlink, runGoPro} {
+		if run != nil {
+			run()
+		}
+	}
 	// Only while it leads the profile's streamers.
 	go keepLease(ctx, sess, cancel, logf)
-	// Blink's cameras, when this streamer is the one the app picked.
-	startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()

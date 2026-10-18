@@ -314,7 +314,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      */
     static final Duration LEADER_SILENCE = Duration.ofHours(1);
 
-    /** The most cameras one streamer streams for (its Blink cameras). */
+    /** The most cameras one streamer streams for (its Blink and GoPro cameras). */
     static final int MAX_STREAMED_DEVICES = 16;
 
     /** The longest device ID taken. */
@@ -525,7 +525,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!granted.contains(Roles.USER)) {
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
-        // Streamers (Raspberry Pi, Blink) are Premium's and Pro's.
+        // Streamers (Raspberry Pi, Blink, GoPro) are Premium's and Pro's.
         if (!granted.contains(Roles.PREMIUM)) {
             return response(403, "{\"error\":\"streamers are Premium only\"}");
         }
@@ -598,7 +598,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * {@code POST /api/auth/stream/credentials}, the streamer's, with no
      * Google token: {@code Authorization: Bearer <stream key>} and the body
      * {@code <profile ID> <device ID> [<camera device ID>...]}: the device
-     * IDs after its own are the cameras it streams for (Blink cameras, up
+     * IDs after its own are the cameras it streams for (Blink and GoPro cameras, up
      * to {@link #MAX_STREAMED_DEVICES}), which join the profile's devices
      * too, under its key. When the key is the device's, the
      * profile's credentials, as {@code POST /api/auth/credentials} answers
@@ -626,7 +626,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var device = streamer.device();
         var limit = deviceLimit(streamer.owner());
         var devices = profiles.store().addDevice(profile.id(), device, MAX_DEVICES);
-        // The cameras it streams for (Blink's): devices of the profile too.
+        // The cameras it streams for (Blink's, GoPro's): devices of the profile too.
         for (var camera : streamer.cameras()) {
             if (!camera.equals(device)) {
                 devices = profiles.store().addDevice(profile.id(), camera, MAX_DEVICES);
