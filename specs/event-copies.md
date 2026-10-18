@@ -213,7 +213,9 @@ it they aren't buttons.
 They show:
 
 - **On event cards** (the Monitoring timeline): in each card's header row,
-  at the right of the device tag. They fit a 320 dp phone.
+  at its top right, together with the card's delete button, in one row
+  (`event-actions-<id>`; see [Events](events.md)), the device tag at the
+  left. They fit a 320 dp phone, at 2x text too.
 - **In the event's details** (the clip player): under the title.
 - **With live sync off** (no endpoint, Never, signed out): the count is
   what's known (this device, the cloud, the recording device, and acks

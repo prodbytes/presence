@@ -298,9 +298,13 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
      `clip_requested` event with `trigger: motion` ("Motion detected"),
      `detail` the camera's name, `cameraId` its source, the device, user
      (the account's Google ID), profile, `os: Linux`, the location set
-     with `--location lat,lng` (`source: map`) or none, and its
+     with `--location lat,lng` (`source: map`) or none, `storedAt` (when
+     it's stored, ms) and its
      **`objectTags`**: the labels scoring 0.6 or more (the app's object tag
-     score), plus the subject's. A clip with a person or pet nobody named
+     score), plus the subject's. A fetched camera's (Blink, GoPro,
+     Reolink) also has **`cameraName`**, the camera's own name, which the
+     app shows before its device ("Garden | device"); the Pi's own camera
+     has none. A clip with a person or pet nobody named
      shows the app's yellow **unidentified** flag, with **Identify**.
    - All JSON is compact and one line; media is `application/octet-stream`
      and JSON `application/json`, in Intelligent-Tiering, as single PUTs
@@ -385,7 +389,9 @@ take too much of it. There the chunks are searched in the cloud instead:
 - **On the Pi**, each chunk with motion is sealed and uploaded to ingest,
   then its **job**, `ingest/<deviceId>/<clipId>.ingest.json`:
   `{"v": 1, "event", "clip"}`, the clip record and event a phone would
-  store, without object tags. The sealed copy is deleted once the chunk is
+  store, without object tags; a fetched camera's (Blink, GoPro, Reolink)
+  adds `"keepAll": true`, so its clip is kept with no one in it too, as
+  when the streamer searches it itself. The sealed copy is deleted once the chunk is
   verified in ingest, and the chunk once its job is: it's then **deleted
   from the device**. Nothing waits for the cloud's answer, and Python,
   OpenCV and the model aren't needed or started.
@@ -401,7 +407,10 @@ take too much of it. There the chunks are searched in the cloud instead:
   2. opens the chunk, checking it was sealed by that device;
   3. searches a frame a second with the same model, labels and thresholds
      as the Pi's detector (OpenCV 4.14);
-  4. with **no one**, deletes the chunk and the job from S3;
+  4. with **no one**, deletes the chunk and the job from S3, unless the
+     job says `keepAll` (a fetched camera's): then it's stored as in 5,
+     with no thumbnail (the app makes one) and its object tags (`[]` with
+     nothing seen);
   5. with **someone**, writes the sealed thumbnail (at most 640 px wide)
      to `media/<clipId>.jpg` and copies the recording to
      `media/<clipId>.mp4`. Then the clip record and, last, the event with
@@ -790,7 +799,9 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
     user, recorded with the camera module and the hardware encoder.
   - **The package:** the armhf `.deb` installed without OpenCV and was
     enabled for every boot.
-- **The cloud detector:** `pytest` (34 tests).
+- **The cloud detector:** `pytest` (41 tests; one needs the model and is
+  skipped without it). A fetched camera's job (`keepAll`) with no one
+  in it is stored, its `cameraName` and `storedAt` passed through.
   - **Seal:** the Python seal reproduces the Go fixture byte for byte and
     opens it.
   - **Handler, with a fake S3:** every outcome; a job twice done once; a

@@ -4,7 +4,13 @@
   map (under it on phones), in a vertically scrolling timeline, newest at the top: a
   **feed**, as in Strava's. Each entry is **one card** (`FeedCard`, key
   `feed-card`, rounded, bg2), with no dot or rail beside it: a **header
-  row** on top with the device it was taken on and its copies, then the
+  row** on top with the device it was taken on at the left and **every
+  button of the card together at the top right**, in one row
+  (`event-actions-<id>`): its indicators (recognition, the cloud, the
+  copies; each does something when tapped) and, for the profile's
+  events, delete (`event-delete-<id>`), side by side with no gap but
+  their own; the device's name gives way (it ellipsizes) so they keep
+  their full size, on a 320 dp phone at 2x text too. Then the
   event's own card (`EventCard`, the clip's, a suggestion's), drawn
   square inside it (the theme's card shape, overridden) so the two read
   as one and a clip's thumbnail runs edge to edge under the header. Cards
@@ -158,6 +164,18 @@
   in bold (events not saved yet, which have no device ID, are this
   device's; before the device ID is known they have no tag). It's a
   button; its tooltip says "Show this device's events".
+  - **A camera's name before its device:** an event from a camera a
+    streamer fetches clips from ([Blink](blink.md), [GoPro](gopro.md),
+    [Reolink](reolink.md)), each its own device, has a **camera name**
+    (`AppEvent.cameraName`: "Garden"), and its tag reads **"Garden |
+    pungent_orbital_canal"**; without one (a phone's, a streamer's own
+    camera) the device alone, as before. Tapping it still filters by the
+    device. The event's details show it the same way, "Garden |" before
+    the device ID (`event-device-camera-name`). The name is the event's
+    `cameraName`; an older camera event without it (before 2026-10-18)
+    takes its `detail` when its `os` is `Blink`, `GoPro` or `Reolink`
+    (its detail was always the camera's name, `AppEvent.cameraNameOf`).
+    Test: `camera_name_test.dart`.
   - The icon is the event's **operating system**'s (`DeviceOs.iconOf`:
     Android, iPhone, Mac laptop, Windows desktop, a computer for Linux, a
     globe for the web); its name isn't shown, so the ID has the room

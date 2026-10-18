@@ -7317,3 +7317,40 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `SessionMemory`). Also, the Pi 4's Blink clips deleted before #499
        were fetched again and kept (its Blink position rewound). Specs:
        [Monitoring](monitoring.md).
+
+503. **Camera clips go through recognition; "Camera | device"; the card's buttons together.** (2026-10-18)
+     - Asked: "Ensure that the videos captured from cameras (blink, gopro,
+       reolink, etc) go through the same recognition pipeline as others.
+       Let there be a 'camera name' property as well as the device name.
+       In the event, if there is a camera name set, show '$camera_name |
+       $device_name' instead of only $device_name. Let all buttons be
+       together on top right of event card."
+     - Found: the cameras' clips were already synced clips with no
+       `subjectSearch`, recognized by one elected device like the
+       streamer's own, but two gaps left some out: the app took only
+       clips **recorded** within a day, while a camera's clip may be
+       fetched days later (a GoPro back on the network, a Reolink's
+       backlog, a streamer offline); and in the cloud detector's mode
+       (a Pi under 2 GB) the cloud detector deleted a camera's clip with
+       no one in it, which the streamer keeps when it searches itself.
+     - Changed: the streamer's events say when they were stored
+       (`storedAt`), and the app counts a synced clip's day from the later
+       of that and its recording; a camera's cloud job says `keepAll`, and
+       the cloud detector (presence_ingest) then stores the clip with no
+       one in it too (no thumbnail, its object tags). A fetched camera's
+       events carry **`cameraName`** (its name, as in Settings), the
+       Pi's own camera none; the app reads it (`AppEvent.cameraName`; on
+       older Blink, GoPro and Reolink events, their `detail`) and keeps it
+       in the record. The card's device tag and the event's details show
+       "Garden | pungent_orbital_canal" when there's a camera name, the
+       device alone otherwise; tapping it still filters by the device.
+       The card's buttons (recognition, cloud, copies, delete) sit
+       together at its top right in one row (`event-actions-<id>`), the
+       device at the left; before, the header spread them apart. It fits
+       320 dp at 2x text. The cloud detector needs a deploy for
+       `keepAll`, and the streamer a release for `cameraName` and
+       `storedAt`. Specs: [Subject recognition](recognition.md),
+       [Streamer](streamer.md), [Blink cameras](blink.md), [GoPro
+       cameras](gopro.md), [Reolink cameras](reolink.md),
+       [Events](events.md), [Monitoring](monitoring.md), [Event
+       copies](event-copies.md), [Data formats](data-formats.md).
