@@ -7053,3 +7053,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       by it, and a leader with none gives way to any that says its own.
       Specs: [Streamer leadership](streamer-leader.md),
       [Streamer](streamer.md), [Auth API](auth-api.md).
+
+481. **The Blink PIN test no longer flakes on a busy machine.** (2026-10-18)
+    - Found while adding Reolink cameras: `TestLoginWithAPINFromTheApp`
+      failed ("bad PIN") under a loaded full test run.
+    - Fixed: its fake app stopped watching for the PIN prompt after 2 s,
+      before the fake helper asked on a slow machine; it now watches as
+      long as the streamer waits for the PIN. Test only; no behaviour
+      changed. Specs: none.
