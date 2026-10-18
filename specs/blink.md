@@ -89,7 +89,10 @@ and `main_blink.go`; on unless `--blink off`:
   device list from their events).
 - **Fetching, every 2 minutes** (`--blink-every`): the helper downloads
   the clips Blink made since the last fetch (the first time, the last 24
-  hours), not deleted, each to its camera's folder, named like the Pi's
+  hours), not deleted. Blink's own `since` is when a clip last changed,
+  so it returns older clips too: the helper skips any made before where
+  fetching got to, or a clip would be fetched again at every fetch. Each
+  goes to its camera's folder, named like the Pi's
   chunks with their UTC start (`rec-blink-20261014T120000.mp4`), and the
   streamer moves each into **its camera's spool**
   (`spool/blink/<device>/`), where a pipeline of its own takes it: the

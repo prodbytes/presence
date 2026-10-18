@@ -16,7 +16,7 @@ there (blinkpy's log goes to stderr). The password never goes to a file.
       {"state": "ok", "cameras": [{"id", "name", "network"}]}.
 
   presence-blink.py fetch --token FILE --since EPOCH --out DIR
-      Downloads the clips since EPOCH (seconds), not deleted, each to
+      Downloads the clips made since EPOCH (seconds), not deleted, each to
       DIR/<camera id>/rec-blink-<UTC start>.mp4 (kept if it's there), one
       {"clip": {"camera", "name", "file", "start"}} line each, then
       {"state": "ok", "latest": EPOCH}.
@@ -134,6 +134,11 @@ async def fetch(args):
             except (KeyError, ValueError):
                 continue
             if item.get("deleted"):
+                continue
+            # Blink's since is when a clip last changed, not when it was
+            # made: a clip from before where fetching got to comes back
+            # (and would be fetched again each time). Skipped here.
+            if int(start.timestamp()) < args.since:
                 continue
             camera = str(item.get("device_id") or ids.get(str(name).lower()) or name)
             folder = os.path.join(args.out, camera)

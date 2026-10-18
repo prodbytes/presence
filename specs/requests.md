@@ -7257,3 +7257,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        cameras](blink.md), [GoPro cameras](gopro.md), [Reolink
        cameras](reolink.md), [Configuration](configuration.md), [Settings
        screen](settings.md).
+
+498. **A Blink clip is no longer fetched again at every fetch.** (2026-10-18)
+     - Asked: Blink was set up but its videos didn't show; check the logs.
+     - Found: the login waited for Blink's PIN, which came on the second
+       try; then the only clip of the last 24 hours (no one in it) was
+       deleted, as the Pi's own are, and fetched again every 2 minutes:
+       Blink's `since` is when a clip last changed, not when it was made.
+     - Changed: `presence-blink.py` skips the clips made before where
+       fetching got to. Tried on the Pi 4 with the real Blink account.
+       Specs: [Blink cameras](blink.md).
