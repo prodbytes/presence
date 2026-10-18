@@ -97,8 +97,12 @@ Resources:
                 - !Sub arn:aws:s3:::${UserDataBucket}/*/media/*
                 - !Sub arn:aws:s3:::${UserDataBucket}/*/clips/*
                 - !Sub arn:aws:s3:::${UserDataBucket}/*/events/*
+            # Ingest's passing copies, for good: the version it read
+            # (DeleteObjectVersion), not kept 30 days as old versions.
             - Effect: Allow
-              Action: s3:DeleteObject
+              Action:
+                - s3:DeleteObject
+                - s3:DeleteObjectVersion
               Resource: !Sub arn:aws:s3:::${UserDataBucket}/*/ingest/*
 
   # S3 may call it, from this bucket and account only.

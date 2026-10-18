@@ -20,6 +20,9 @@ memory (under 2 GB) to search them themselves. The spec is
    (`media/<clip>.mp4`). Then it writes the clip record, and the event with
    its `objectTags`, last. Only then does it delete ingest's copies.
 
+Ingest's copies are deleted for good: the version it read, not kept 30 days
+as an old version (the bucket's undo window for users' data).
+
 The job's key decides whose folder and device it is, and the job must
 match it. A job can only touch its own folder. The steps can be done again,
 so a retry starts over safely.
