@@ -364,6 +364,18 @@ abstract class AppLocalizations {
   /// **'{email} isn\'t a member of Presence yet. Join free to use it on this device.'**
   String authJoinFreeText(String email);
 
+  /// The profile's leading streamer, in the device list
+  ///
+  /// In en, this message translates to:
+  /// **'leader'**
+  String get authLeader;
+
+  /// No description provided for @authLeaderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'The profile\'s leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it\'s been offline for an hour.'**
+  String get authLeaderTooltip;
+
   /// No description provided for @authLinkAnother.
   ///
   /// In en, this message translates to:

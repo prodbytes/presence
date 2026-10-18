@@ -111,6 +111,14 @@ func TestEndToEnd(t *testing.T) {
 		}
 		w.Write([]byte(`{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","tier":"premium","bucket":"bucket"}`))
 	})
+	// The only streamer of the profile: it leads.
+	mux.HandleFunc("/api/auth/profile/stream-lease", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer pst" {
+			w.WriteHeader(401)
+			return
+		}
+		w.Write([]byte(`{"leader":true,"silenceMs":3600000}`))
+	})
 	mux.HandleFunc("/cognito", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"Credentials":{"AccessKeyId":"AK","SecretKey":"SK","SessionToken":"ST","Expiration":%d}}`, time.Now().Add(time.Hour).Unix())
 	})

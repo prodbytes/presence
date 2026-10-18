@@ -151,6 +151,11 @@
       }
     }
   },
+  "authLeader": "leader",
+  "@authLeader": {
+    "description": "The profile's leading streamer, in the device list"
+  },
+  "authLeaderTooltip": "The profile's leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it's been offline for an hour.",
   "authLinkAnother": "Link another account",
   "authLinkCode": "Link code",
   "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",

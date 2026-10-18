@@ -61,13 +61,14 @@ class BlinkSettings extends StatefulWidget {
   final DateTime Function()? now;
 
   /// The streamers that can fetch Blink's clips: the profile's Linux
-  /// devices (Blink cameras say "Blink", not Linux).
+  /// devices (Blink cameras say "Blink", not Linux), the leading one first
+  /// ([DeviceSlots.leader]): only the leader streams.
   static List<String> streamersOf(
     EventLog log,
     CloudSync sync,
     String profileId,
     String? thisDevice,
-  ) => [
+  ) => leaderFirst([
     for (final d in profileDeviceDetails(
       log.events,
       profileId: profileId,
@@ -75,6 +76,13 @@ class BlinkSettings extends StatefulWidget {
       listed: sync.deviceSlots?.devices ?? const [],
     ))
       if (d.os == 'Linux') d.id,
+  ], sync.deviceSlots?.leader);
+
+  /// [streamers] with [leader] first, when it's one of them.
+  static List<String> leaderFirst(List<String> streamers, String? leader) => [
+    if (leader != null && streamers.contains(leader)) leader,
+    for (final s in streamers)
+      if (s != leader) s,
   ];
 
   @override
