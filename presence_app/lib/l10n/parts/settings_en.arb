@@ -118,7 +118,7 @@
   "settingsAdvancedSection": "Advanced",
   "settingsShowLog": "Show the Log tab",
   "settingsShowLogSubtitle": "The app's latest messages and health",
-  "settingsSubjectsSection": "Subjects",
+  "settingsSubjectsSection": "Events",
   "settingsSubjectEvents": "How many events to load at once",
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",

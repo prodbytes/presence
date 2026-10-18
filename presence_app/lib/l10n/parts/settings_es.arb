@@ -48,7 +48,7 @@
   "settingsAdvancedSection": "Avanzado",
   "settingsShowLog": "Mostrar la pestaña Registro",
   "settingsShowLogSubtitle": "Los últimos mensajes y el estado de la app",
-  "settingsSubjectsSection": "Sujetos",
+  "settingsSubjectsSection": "Eventos",
   "settingsSubjectEvents": "Cuántos eventos cargar a la vez",
   "settingsDevice": "Dispositivo",
   "settingsDeviceLoading": "cargando…",

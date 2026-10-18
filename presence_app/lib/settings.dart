@@ -71,7 +71,7 @@ class SettingsView extends StatefulWidget {
   /// away under a drag on it ([LocationSettings.onMapHeld]).
   final ValueChanged<bool>? onMapHeld;
 
-  /// This device's ID, always shown first, at the top ("loading…" until
+  /// This device's ID, always shown, after the sections ("loading…" until
   /// it's known).
   final String? deviceId;
 
@@ -79,18 +79,19 @@ class SettingsView extends StatefulWidget {
   /// tests give their own). Read when Settings opens.
   final Future<DeviceMemory?> Function() memory;
 
-  /// This device's profile ID, always shown at the top beside the device
-  /// ID ("none until signed in" until it's known).
+  /// This device's profile ID, always shown under the device ID ("none
+  /// until signed in" until it's known).
   final String? profileId;
 
   /// A status line under the version (the API, AWS, OIDC and Live).
   final Widget? health;
 
-  /// Above the IDs, at the end: opens a QR code and a Share button, to
-  /// open Presence on another device as a new device of the same user.
+  /// The very end, after the version and the health line: opens a QR
+  /// code and a Share button, to open Presence on another device as a new
+  /// device of the same user.
   final Widget? addDevice;
 
-  /// The last section, **Blink cameras** (`BlinkSettings`): for a premium
+  /// After the Events sections, **Blink cameras** (`BlinkSettings`): for a premium
   /// profile with cloud sync. None: no section.
   final Widget? blink;
 
@@ -189,6 +190,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ],
               ),
+            // Capturing: the camera, motion, clips and scheduled clips.
             SettingsSection(
               title: l.settingsCameraSection,
               children: [
@@ -350,6 +352,7 @@ class _SettingsViewState extends State<SettingsView> {
                   nextClip,
               ],
             ),
+            // Events: recognition, how many load, how long they're kept.
             SettingsSection(
               title: l.settingsRecognitionSection,
               children: [
@@ -406,6 +409,26 @@ class _SettingsViewState extends State<SettingsView> {
                 const CloudRecognitionTile(),
               ],
             ),
+            // Events: how many the Subjects screens load at once.
+            SettingsSection(
+              title: l.settingsSubjectsSection,
+              children: [
+                _LabeledSlider(
+                  key: const Key('subject-events-slider'),
+                  label: l.settingsSubjectEvents,
+                  format: (v) => '${v.round()}',
+                  value: subjects.mapEvents.toDouble(),
+                  min: SubjectsConfig.minMapEvents.toDouble(),
+                  max: SubjectsConfig.maxMapEvents.toDouble(),
+                  divisions:
+                      (SubjectsConfig.maxMapEvents -
+                          SubjectsConfig.minMapEvents) ~/
+                      SubjectsConfig.mapEventsStep,
+                  onChanged: (v) =>
+                      setSubjects((s) => s.copyWith(mapEvents: v.round())),
+                ),
+              ],
+            ),
             SettingsSection(
               title: l.settingsHistorySection,
               children: [
@@ -431,48 +454,27 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ],
             ),
-            // The app's language: the device's, or one picked here.
-            SettingsSection(
-              title: context.l10n.languageSection,
-              children: [
-                DropdownButtonFormField<String?>(
-                  key: const Key('language-picker'),
-                  initialValue: config.language.code,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: context.l10n.languageLabel,
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: null,
-                      child: Text(context.l10n.languageSystem),
-                    ),
-                    for (final (code, name) in [
-                      ('en', context.l10n.languageEnglish),
-                      ('es', context.l10n.languageSpanish),
-                      ('pt', context.l10n.languagePortuguese),
-                    ])
-                      DropdownMenuItem(
-                        value: code,
-                        key: Key('language-$code'),
-                        child: Text(name),
-                      ),
-                  ],
-                  onChanged: (code) => widget.config.update(
-                    (x) => x.copyWith(language: x.language.withCode(code)),
-                  ),
-                ),
-                Text(
-                  context.l10n.languageNote,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            // Under History: how this device hears of the others' events.
+            // Other cameras, through a streamer: Blink's,
+            if (widget.blink case final blink?)
+              SettingsSection(
+                key: const Key('blink-section'),
+                title: l.settingsBlinkSection,
+                children: [blink],
+              ),
+            // GoPro's and Reolink's.
+            if (widget.gopro case final gopro?)
+              SettingsSection(
+                key: const Key('gopro-section'),
+                title: l.settingsGoProSection,
+                children: [gopro],
+              ),
+            if (widget.reolink case final reolink?)
+              SettingsSection(
+                key: const Key('reolink-section'),
+                title: l.settingsReolinkSection,
+                children: [reolink],
+              ),
+            // Syncing: how this device hears of the others' events.
             if (widget.liveSync)
               SettingsSection(
                 title: l.settingsLiveSection,
@@ -520,6 +522,47 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ],
               ),
+            // The app: its language (the device's, or one picked here).
+            SettingsSection(
+              title: context.l10n.languageSection,
+              children: [
+                DropdownButtonFormField<String?>(
+                  key: const Key('language-picker'),
+                  initialValue: config.language.code,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.languageLabel,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text(context.l10n.languageSystem),
+                    ),
+                    for (final (code, name) in [
+                      ('en', context.l10n.languageEnglish),
+                      ('es', context.l10n.languageSpanish),
+                      ('pt', context.l10n.languagePortuguese),
+                    ])
+                      DropdownMenuItem(
+                        value: code,
+                        key: Key('language-$code'),
+                        child: Text(name),
+                      ),
+                  ],
+                  onChanged: (code) => widget.config.update(
+                    (x) => x.copyWith(language: x.language.withCode(code)),
+                  ),
+                ),
+                Text(
+                  context.l10n.languageNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
             if (widget.logTabDefault case final dev?)
               SettingsSection(
                 title: l.settingsAdvancedSection,
@@ -536,62 +579,8 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ],
               ),
-            // Last: how much the Subjects screens load.
-            SettingsSection(
-              title: l.settingsSubjectsSection,
-              children: [
-                _LabeledSlider(
-                  key: const Key('subject-events-slider'),
-                  label: l.settingsSubjectEvents,
-                  format: (v) => '${v.round()}',
-                  value: subjects.mapEvents.toDouble(),
-                  min: SubjectsConfig.minMapEvents.toDouble(),
-                  max: SubjectsConfig.maxMapEvents.toDouble(),
-                  divisions:
-                      (SubjectsConfig.maxMapEvents -
-                          SubjectsConfig.minMapEvents) ~/
-                      SubjectsConfig.mapEventsStep,
-                  onChanged: (v) =>
-                      setSubjects((s) => s.copyWith(mapEvents: v.round())),
-                ),
-              ],
-            ),
-            // Below the groups, in the page's margins: the version, the
-            // health line, adding a device and the IDs.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Which build this is, e.g. to check a deploy landed.
-                  if (AppVersion.version.isNotEmpty) ...[
-                    Text(
-                      'Presence ${AppVersion.version}',
-                      key: const Key('app-version'),
-                      textAlign: TextAlign.center,
-                      // bodyMedium, as the IDs at the bottom: read out to check a
-                      // deploy landed.
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  if (health case final health?) ...[
-                    if (AppVersion.version.isNotEmpty)
-                      const SizedBox(height: 8),
-                    health,
-                  ],
-                  if (widget.addDevice case final addDevice?) ...[
-                    const SizedBox(height: 32),
-                    addDevice,
-                  ],
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-            // The very last thing: which device and profile this is, as
-            // the events and the auth API say (selectable, to copy), one
-            // line each. Always shown.
+            // Which device and profile this is, as the events and the auth
+            // API say (selectable, to copy), one line each. Always shown.
             Padding(
               key: const Key('settings-ids'),
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -626,26 +615,41 @@ class _SettingsViewState extends State<SettingsView> {
                 ],
               ),
             ),
-            // Last: a Linux streamer fetching Blink's cameras.
-            if (widget.blink case final blink?)
-              SettingsSection(
-                key: const Key('blink-section'),
-                title: l.settingsBlinkSection,
-                children: [blink],
+            // Last, in the page's margins: the version, the health line and
+            // adding a device (its QR code).
+            Padding(
+              key: const Key('settings-footer'),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 24),
+                  // Which build this is, e.g. to check a deploy landed.
+                  if (AppVersion.version.isNotEmpty) ...[
+                    Text(
+                      'Presence ${AppVersion.version}',
+                      key: const Key('app-version'),
+                      textAlign: TextAlign.center,
+                      // bodyMedium, as the IDs at the bottom: read out to check a
+                      // deploy landed.
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (health case final health?) ...[
+                    if (AppVersion.version.isNotEmpty)
+                      const SizedBox(height: 8),
+                    health,
+                  ],
+                  if (widget.addDevice case final addDevice?) ...[
+                    const SizedBox(height: 32),
+                    addDevice,
+                  ],
+                  const SizedBox(height: 32),
+                ],
               ),
-            // Then a Linux streamer fetching GoPro's and Reolink's cameras' videos.
-            if (widget.gopro case final gopro?)
-              SettingsSection(
-                key: const Key('gopro-section'),
-                title: l.settingsGoProSection,
-                children: [gopro],
-              ),
-            if (widget.reolink case final reolink?)
-              SettingsSection(
-                key: const Key('reolink-section'),
-                title: l.settingsReolinkSection,
-                children: [reolink],
-              ),
+            ),
           ],
         );
       },

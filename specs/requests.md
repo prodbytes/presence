@@ -7230,3 +7230,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Obtener comando", pt "Obter comando"), and its error "Couldn't get
        the command". Specs: [Streamer](streamer.md), [Install
        script](install-script.md), [README](README.md).
+
+496. **Setup: the map first, related sections together.** (2026-10-18)
+     - Asked: reorder the Setup view with the map first and related items
+       grouped; rename "Subjects" to "Events"; the QR code last, with the
+       health check and the version.
+     - Changed: the order is Location; Camera, Motion, Clips, Scheduled
+       clips; Recognition, Events, History; Blink, GoPro and Reolink
+       cameras; Live sync; Language, Advanced; then the IDs, and last the
+       version, the health line and Add a device (its QR code). The
+       Subjects section is **Events** (es, pt "Eventos"). Specs:
+       [Settings screen](settings.md).

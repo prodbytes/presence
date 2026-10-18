@@ -4135,7 +4135,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSubjectsSection.
   ///
   /// In en, this message translates to:
-  /// **'Subjects'**
+  /// **'Events'**
   String get settingsSubjectsSection;
 
   /// A free trial's length

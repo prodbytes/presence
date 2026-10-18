@@ -672,7 +672,7 @@
   "settingsShowLogSubtitle": "As últimas mensagens e o estado do app",
   "settingsStartupClip": "Clipe inicial: quando a câmera estiver pronta",
   "settingsSubjectEvents": "Quantos eventos carregar de uma vez",
-  "settingsSubjectsSection": "Sujeitos",
+  "settingsSubjectsSection": "Eventos",
   "storeDays": "{count, plural, =1{1 dia} other{{count} dias}}",
   "storeDeleteAccountSubscription": "Excluir sua conta não cancela uma assinatura Premium: cancele-a antes nas configurações de assinaturas {store, select, apple{da App Store} google{do Google Play} other{da loja}}.",
   "storeEveryDay": "dia",
