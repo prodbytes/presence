@@ -899,8 +899,9 @@ func exitFor(failure error, s *state.State, logf func(string, ...any)) int {
 		s.SignOut()
 		return exitUsage
 	case errors.As(failure, &wrong) || errors.Is(failure, presence.ErrUnauthorized) ||
-		errors.Is(failure, presence.ErrKeyRefused):
-		// Not better by trying again: someone must run setup.
+		errors.Is(failure, presence.ErrKeyRefused) || errors.Is(failure, presence.ErrDeviceLimit):
+		// Not better by trying again: someone must run setup, or free a
+		// device in the app.
 		log.Print(failure)
 		return exitUsage
 	default:
