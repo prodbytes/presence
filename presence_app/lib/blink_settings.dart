@@ -211,6 +211,11 @@ class _BlinkSettingsState extends State<BlinkSettings> {
   void _disconnect() =>
       _send({'disconnect': true, 'requestedAt': _now().millisecondsSinceEpoch});
 
+  /// The camera whose device is [device] is no longer fetched, nor one of
+  /// the profile's devices, till a disconnect and a new connect.
+  void _remove(String device) =>
+      _send({'remove': device, 'requestedAt': _now().millisecondsSinceEpoch});
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -296,9 +301,18 @@ class _BlinkSettingsState extends State<BlinkSettings> {
                     ),
                   ),
                 ),
+                IconButton(
+                  key: Key('blink-remove-$device'),
+                  tooltip: l.blinkRemove,
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _sending ? null : () => _remove(device),
+                ),
               ],
             ),
-          if (cameras.isEmpty) Text(l.blinkNoCameras, style: quiet),
+          if (cameras.isEmpty)
+            Text(l.blinkNoCameras, style: quiet)
+          else
+            Text(l.blinkRemoveNote, style: quiet),
           if (lastFetch != null)
             Text(
               l.blinkLastFetch(

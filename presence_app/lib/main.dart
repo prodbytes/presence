@@ -17,7 +17,11 @@ import 'auth/payments_client.dart';
 import 'auth/store_billing.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
+import 'auth/account_sheet.dart' show profileDeviceDetails;
+import 'blink_settings.dart' show BlinkSettings;
 import 'camera_feeds.dart';
+import 'camera_removal.dart';
+import 'delete_device.dart' show DeviceDeleted;
 import 'copies_badge.dart';
 import 'cloud/cloud_config.dart';
 import 'cloud/cloud_sync.dart';
@@ -505,10 +509,25 @@ class _PresenceAppState extends State<PresenceApp> {
 
   /// Deletes another of the signed-in profile's devices: off the devices
   /// list, and with [events] its events too (`Persistence.deleteDevice`);
-  /// nothing without a profile. Returns how many events went.
-  Future<int> _deleteDevice(String deviceId, {required bool events}) async {
+  /// nothing without a profile. A camera a streamer fetches is removed
+  /// from it too ([removeCamera]). Returns how many events went, and
+  /// whether a camera's streamer couldn't be told (it may come back).
+  Future<DeviceDeleted> _deleteDevice(
+    String deviceId, {
+    required bool events,
+  }) async {
     final profile = _roles.profile;
-    if (profile == null) return 0;
+    if (profile == null) return (events: 0, cameraMayReturn: false);
+    // A camera a streamer fetches: which, found before its events go.
+    final os = profileDeviceDetails(
+      _log.events,
+      profileId: profile,
+      thisDevice: _deviceId,
+    ).where((d) => d.id == deviceId).firstOrNull?.os;
+    final streamers = switch (_sync) {
+      final sync? => BlinkSettings.streamersOf(_log, sync, profile, _deviceId),
+      null => const <String>[],
+    };
     var deleted = 0;
     if (events) {
       deleted = await _persistence.deleteDevice(deviceId, profileId: profile);
@@ -527,7 +546,20 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.live?.forget(deviceId);
     // And the next device takes its place among those that show.
     _sync?.releaseDevice(deviceId).ignore();
-    return deleted;
+    // A camera stops being fetched, or its streamer would add it again.
+    final camera = switch (_sync) {
+      final sync? => await removeCamera(
+        deviceId,
+        os: os,
+        streamers: streamers,
+        putFile: sync.putDeviceFile,
+        getFile: sync.getDeviceFile,
+        now: (widget.now ?? DateTime.now)(),
+      ),
+      null when cameraIntegrations.containsKey(os) => CameraRemoval.notSent,
+      null => CameraRemoval.none,
+    };
+    return (events: deleted, cameraMayReturn: camera == CameraRemoval.notSent);
   }
 
   /// Whether the sign-out under way is an account deletion's: its event

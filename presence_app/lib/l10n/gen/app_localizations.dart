@@ -1060,6 +1060,18 @@ abstract class AppLocalizations {
   /// **'Blink sent a PIN to {account}\'s email or phone: enter it here.'**
   String blinkPinRequired(String account);
 
+  /// No description provided for @blinkRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get blinkRemove;
+
+  /// No description provided for @blinkRemoveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.'**
+  String get blinkRemoveNote;
+
   /// No description provided for @blinkSendPin.
   ///
   /// In en, this message translates to:
@@ -3639,6 +3651,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minutes and seconds go up to 59'**
   String get settingsCoordinatesMinutes;
+
+  /// No description provided for @settingsDeleteDeviceCameraNotTold.
+  ///
+  /// In en, this message translates to:
+  /// **'Its streamer couldn\'t be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings\' camera section.'**
+  String get settingsDeleteDeviceCameraNotTold;
 
   /// No description provided for @settingsDeleteDeviceCancel.
   ///

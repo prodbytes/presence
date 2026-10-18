@@ -38,7 +38,9 @@ func startBlink(ctx context.Context, o *options, deviceID string, key []byte, se
 		for i, c := range cameras {
 			refs[i] = cameraRef{DeviceID: c.DeviceID, Name: c.Name}
 		}
-		pipelines.set(refs, false)
+		// Only these: a camera removed stops, and leaves the devices
+		// registered.
+		pipelines.set(refs, true)
 	}
 	b := &blink.Blink{
 		Dir: o.stateDir, DeviceID: deviceID, Key: key, Store: folder,

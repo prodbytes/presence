@@ -248,6 +248,7 @@
   "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
   "settingsDeleteDeviceCancel": "Cancel",
   "settingsDeleteDeviceKeep": "Keep videos",
+  "settingsDeleteDeviceCameraNotTold": "Its streamer couldn't be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings' camera section.",
   "settingsDeleteDeviceConfirm": "Delete videos",
   "settingsDeleteDeviceRemoved": "Removed {deviceId} from the list; its videos stay",
   "@settingsDeleteDeviceRemoved": {
@@ -289,6 +290,8 @@
   "blinkPin": "PIN",
   "blinkSendPin": "Send PIN",
   "blinkDisconnect": "Disconnect",
+  "blinkRemove": "Remove",
+  "blinkRemoveNote": "Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.",
   "blinkOff": "Not connected to Blink.",
   "blinkWaiting": "Sent to {device}; it looks every 30 s…",
   "@blinkWaiting": {

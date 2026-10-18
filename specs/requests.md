@@ -7354,3 +7354,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        cameras](gopro.md), [Reolink cameras](reolink.md),
        [Events](events.md), [Monitoring](monitoring.md), [Event
        copies](event-copies.md), [Data formats](data-formats.md).
+504. **Cameras can be removed.** (2026-10-18)
+     - Asked: "Let cameras be removed as well."
+     - Changed: Blink's Settings section lists each camera with a
+       **Remove** button, as GoPro's and Reolink's do (`{remove: <device
+       ID>, requestedAt}` sealed to the streamer). The streamer stops
+       fetching it, takes it from the cameras it registers with its
+       credentials requests (its pipeline stops: Blink's pipelines now
+       follow the camera list exactly, as the netcams' do) and from
+       `blink-status.json`, and keeps it as removed in `blink-state.json`,
+       so neither a fetch nor a new login makes it a device again; the
+       helper skips it (`presence-blink.py fetch --skip <ids>`) and a clip
+       of it that comes anyway is deleted. Disconnect forgets the removed
+       cameras, so a new Connect brings each back as a new device.
+       Deleting a Blink, GoPro or Reolink camera's device from the Profile
+       tab's device list now also sends that integration's remove to each
+       streamer whose `<kind>-status.json` lists it (the integration from
+       the device's events' `os`), so the camera isn't added again; when
+       no streamer can be told (cloud sync off, its key not here yet), the
+       device is still deleted and the snack bar says the camera may come
+       back. `DeleteDevice` returns the events deleted and whether a
+       camera may come back. New strings in en, es, pt. The streamer needs
+       a release for Blink's Remove. Specs: [Blink cameras](blink.md),
+       [GoPro cameras](gopro.md), [Reolink cameras](reolink.md), [Device
+       deletion](device-deletion.md).

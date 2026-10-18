@@ -35,9 +35,44 @@ shown** all at once ([Delete all](#delete-all)).
   (`EventLog.removedFromList`): a device that records again shows again.
   Its slot is released at the auth API (`CloudSync.releaseDevice`, see
   [Premium](premium.md)) so the next device takes its place, and its
-  presence dot is forgotten.
+  presence dot is forgotten. A camera a streamer fetches is removed there
+  too ([Camera devices](#camera-devices)).
 - Signed in with a profile only (the list shows only then); not in DEV.
   The dialog fits a 320 dp phone.
+
+## Camera devices
+
+A Blink, GoPro or Reolink camera is a device a Linux streamer fetches for
+([Blink](blink.md), [GoPro](gopro.md), [Reolink](reolink.md)): while it
+still fetches, the streamer would register it again at its next
+credentials renewal and record new events for it. So deleting a camera's
+device (either choice) also **removes the camera from its streamer**, as
+its Settings section's Remove does (`removeCamera`,
+[camera_removal.dart](../presence_app/lib/camera_removal.dart), from the
+app's `_deleteDevice`):
+
+- **Which integration:** the operating system its events say
+  (`ProfileDevice.os`, found before its events go): `Blink`, `GoPro` or
+  `Reolink` (`cameraIntegrations`). Another one is no camera: nothing
+  more is done. With none known (a device with no events here), every
+  integration is looked in, and only a camera found is told about.
+- **Which streamer:** each of the profile's Linux devices
+  (`BlinkSettings.streamersOf`, the leader first) whose integration
+  status (`devices/<streamer>/<kind>-status.json`, read with
+  `CloudSync.getDeviceFile`) lists the camera's device ID. Each one gets
+  `{remove: <device ID>, requestedAt}` in `<kind>.json`, sealed with its
+  key (`CloudSync.putDeviceFile`). The camera then stops being fetched
+  and registered; a Blink camera stays removed till Blink is disconnected
+  ([Blink](blink.md#on-the-streamer)).
+- **When it can't be told** (cloud sync off, the streamer's key not here
+  yet, a send that fails, no streamer's status readable), the device is
+  still deleted as before, and the snack bar says so in a second line:
+  "Its streamer couldn't be told to stop fetching this camera, so it may
+  come back. Delete it again once the streamer is online, or remove it in
+  Settings' camera section." (10 s). There's no retry button: a camera
+  that comes back is listed again with its new events and can be deleted
+  again. A camera no readable status lists isn't fetched (any more):
+  nothing more is said.
 
 ## This device
 
@@ -170,6 +205,8 @@ setting, and the bucket archives videos after 67 days and erases every object af
   timeline, Delete videos hides them, after a restart too.
 - A device deleted keeping its videos is listed again once it has a newer
   event.
+- In the app, a Blink camera's device deleted without cloud sync: it
+  leaves the list, and the snack bar says it may come back.
 - With storage and cloud sync (real `Persistence`, `CloudSync`,
   `LiveSync` on fakes): the device's events and the suggestion about its
   clip are marked deleted and leave the log, the devices list, the grid's
@@ -181,6 +218,15 @@ setting, and the bucket archives videos after 67 days and erases every object af
   uploaded yet (a start pass that reconciles doesn't upload over it).
   Over live sync, a deleted copy hides the event at once, even changed
   here, and the device's new events show it again.
+
+`camera_removal_test.dart`: a Blink camera's remove goes only to the
+streamer whose Blink status lists it (only Blink's statuses read); GoPro's
+and Reolink's go to their own files; every streamer listing it is told;
+not a camera, nothing read or sent; a camera no answering status lists,
+nothing sent; no operating system known, every integration looked in;
+a send that fails, no status readable or no streamer at all, a read or
+send that throws: it may come back. The delete dialog's snack bar adds
+the may-come-back line only then.
 
 `event_details_test.dart` (one event):
 
