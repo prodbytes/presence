@@ -2035,6 +2035,23 @@
       }
     }
   },
+  "streamerLeader": "Leader ({device})",
+  "@streamerLeader": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerLeaderUnknown": "Leader (none yet; {device} for now)",
+  "@streamerLeaderUnknown": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerPickerHelp": "Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.",
   "subjectsEvents": "{count, plural, =1{1 event} other{{count} events}}",
   "@subjectsEvents": {
     "placeholders": {

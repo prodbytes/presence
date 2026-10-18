@@ -17,10 +17,23 @@ premium profile with cloud sync, not in DEV:
 - **Without a Linux streamer** in the profile (a device whose events say
   `os: Linux`), it says to set one up first (Profile › Stream from a
   Raspberry Pi).
-- **The streamer** that fetches (a dropdown of the profile's Linux
-  devices, the [leading streamer](streamer-leader.md) first): the one with
-  Blink already, else the first. **Only that one fetches**: the request
-  goes to it alone, and it fetches only while it leads.
+- **The streamer** that fetches (`StreamerPicker`,
+  [streamer_picker.dart](../presence_app/lib/streamer_picker.dart)): a
+  dropdown whose first entry, the default, is **Leader (<device>)**: the
+  profile's [leading streamer](streamer-leader.md) (`DeviceSlots.leader`),
+  whichever it is at each refresh, so a new leader is followed (its status
+  read, the requests sent to it). With no leader known yet, or one that
+  isn't among the profile's Linux devices, it's the first of them,
+  "Leader (none yet; <device> for now)". Then the profile's Linux devices,
+  the leader first: picking one keeps it **for Blink only**
+  (`IntegrationsConfig`, [Configuration](configuration.md)), and that
+  streamer is used even when another leads; picking Leader again clears
+  it. A picked streamer no longer among the profile's Linux devices gives
+  way to the leader, its pick kept (the list fills as events load, so a
+  streamer missing for a moment isn't forgotten). **Only the leader
+  fetches**: the request goes to the streamer shown alone, and it fetches
+  only while it leads, so a streamer picked by hand fetches only while it
+  leads (the dropdown's help says so).
 - **Not connected:** the Blink account's **email** and **password**, and
   **Connect**. The request goes to the streamer's folder
   (`devices/<streamer>/blink.json`: `{email, password, requestedAt}`),
@@ -123,14 +136,21 @@ and `main_blink.go`; on unless `--blink off`:
 - The app (`blink_settings_test.dart`): no streamer; connect sends the
   login to the streamer, then the PIN without the password, then shows its
   cameras and disconnects; an error shows with the form; a send that
-  fails says so.
+  fails says so; the streamer is the leader by default, a new leader
+  followed at the next refresh, the first while none is known; one picked
+  sticks when another leads, is kept in the config, and Leader clears it;
+  a picked one that's gone gives way to the leader. `config_test.dart`:
+  `IntegrationsConfig` round-trips, ignoring unknown integrations and bad
+  IDs.
 - By hand: the helper with blinkpy 0.25.9 reached Blink, which refused a
   made-up login (`exit 2`, no token kept).
 
 ## Known limitations
 
 - **Only the leading streamer fetches.** Blink's login stays on the
-  streamer that logged in: when another takes the lead, connect again.
+  streamer that logged in: when another takes the lead, the section (on
+  Leader) shows the new leader, not connected, and you connect again. A
+  streamer picked by hand fetches only while it leads.
 
 - **Not tried with a real Blink account yet.**
 - Clips stored on a Sync Module's USB drive (no Blink subscription) aren't

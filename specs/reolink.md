@@ -23,7 +23,8 @@ Settings' last section, after [GoPro cameras](gopro.md): **Reolink
 cameras** (`NetCameraSettings` with `NetCameraKind.reolink`,
 [net_camera_settings.dart](../presence_app/lib/net_camera_settings.dart)),
 for a premium profile with cloud sync, not in DEV. As GoPro's (the
-streamer dropdown, the cameras with their last fetch or error, Remove,
+streamer dropdown, Leader by default and a pick kept for Reolink only,
+the cameras with their last fetch or error, Remove,
 "Sent to …", a send that can't go), but adding a camera asks for:
 
 - a **name**, its **address** (its IP address, as the Reolink app shows it
@@ -88,7 +89,8 @@ as for [GoPro](gopro.md#on-the-streamer), in `reolink-state.json`
   only, a password needed).
 - The app (`net_camera_settings_test.dart`): without a password nothing is
   sent; the user, password and channel go to `reolink.json`; the camera's
-  channel shows.
+  channel shows; the streamer is the leader by default, following a new
+  one, and one picked sticks for Reolink, not GoPro.
 
 ## Known limitations
 
@@ -98,3 +100,5 @@ as for [GoPro](gopro.md#on-the-streamer), in `reolink-state.json`
 - A streamer off for more than a week misses the older recordings.
 - Up to 16 cameras per streamer, Blink's, GoPro's and Reolink's together
   (the auth API's limit).
+- **Only the leading streamer fetches**, as for [GoPro](gopro.md#known-limitations):
+  a camera added to one streamer is added again when another leads.

@@ -7241,3 +7241,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        version, the health line and Add a device (its QR code). The
        Subjects section is **Events** (es, pt "Eventos"). Specs:
        [Settings screen](settings.md).
+
+497. **Camera integrations: the leading streamer by default.** (2026-10-18)
+     - Asked: on the cameras integrations, let the leader streamer be the
+       default if nothing is selected; only if the user sets one streamer
+       specifically, use that one.
+     - Changed: the Blink, GoPro and Reolink sections' streamer dropdown
+       starts with **Leader (<device>)**, the default: whichever streamer
+       leads at each refresh (the first while none is known). Picking a
+       streamer keeps it for that section alone, in the device's config
+       (`integrations.streamers`), and it's used even when another leads;
+       Leader again clears it; a picked one that's gone gives way to the
+       leader. The old pick (the streamer with the integration already,
+       else the first) is gone. es, pt translated. Specs: [Blink
+       cameras](blink.md), [GoPro cameras](gopro.md), [Reolink
+       cameras](reolink.md), [Configuration](configuration.md), [Settings
+       screen](settings.md).

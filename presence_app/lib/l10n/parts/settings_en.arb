@@ -338,6 +338,23 @@
   "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
   "goproNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras' videos.",
   "netcamStreamer": "The streamer that fetches them",
+  "streamerLeader": "Leader ({device})",
+  "@streamerLeader": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerLeaderUnknown": "Leader (none yet; {device} for now)",
+  "@streamerLeaderUnknown": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerPickerHelp": "Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.",
   "netcamName": "Camera name",
   "netcamAddress": "Camera address",
   "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",

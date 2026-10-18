@@ -4336,6 +4336,24 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 year} other{{count} years}}'**
   String storeYears(int count);
 
+  /// No description provided for @streamerLeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader ({device})'**
+  String streamerLeader(String device);
+
+  /// No description provided for @streamerLeaderUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader (none yet; {device} for now)'**
+  String streamerLeaderUnknown(String device);
+
+  /// No description provided for @streamerPickerHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.'**
+  String get streamerPickerHelp;
+
   /// No description provided for @subjectsEvents.
   ///
   /// In en, this message translates to:
