@@ -425,7 +425,8 @@ func run(o *options, setupOnly bool) int {
 			return exitError
 		}
 	}
-	api := &presence.API{BaseURL: o.api}
+	// Its memory: the streamer with the most leads the profile's streamers.
+	api := &presence.API{BaseURL: o.api, Memory: memTotal()}
 	if o.key != "" || o.deviceID != "" {
 		// The app's command: the device and its key, no Google sign-in.
 		if code := takeKey(ctx, o, s, profile, api); code != 0 {

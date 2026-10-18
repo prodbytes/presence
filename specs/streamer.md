@@ -10,8 +10,9 @@ from the Zero to the 5. The [Raspberry Pi camera](raspberry-pi.md) `.deb`
 (the web app in a kiosk) is the other way to make a Pi a camera.
 
 **One streamer streams per profile:** the leader, which the auth API
-grants. The others wait until a leader offline for an hour (or deleted)
-leaves them its place. See [Streamer leadership](streamer-leader.md).
+grants, preferring the one with the most memory. The others wait until a
+leader offline for an hour (or deleted) leaves them its place. See
+[Streamer leadership](streamer-leader.md).
 
 Not yet: [live sync](live-sync.md) (MQTT). The streamer doesn't connect to
 it, publish its events there or answer presence pings, as a phone does.

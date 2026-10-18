@@ -7021,7 +7021,48 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       with GoPro's (`main_cameras.go`). Specs: [GoPro cameras](gopro.md)
       (new), [Streamer](streamer.md), [Settings](settings.md).
 
-479. **Reolink cameras through a streamer.** (2026-10-18)
+479. **Fix the cost findings that don't change the experience or the
+     features.** (2026-10-18)
+    - Done in their own PRs: the streamer's exit on a free profile or the
+      device limit (#416), free live sync's retries and resumed
+      subscriptions (#418), AWS credentials kept across the session
+      token's refresh (#419), no rotation of the Apple token key (#415),
+      ingest chunks deleted for good (#417, which waits on the deploy
+      role's boundary), and 30-day retention on 26 old log groups.
+    - Left as they are: the recognition gate (the 403s would change),
+      the heartbeat on scheduled connections (it saves nothing within the
+      5-min rule), the recognition warm-ups, rbacr's memory (slower), the
+      orphaned tables (empty, $0) and SnapStart (needs the deploy role's
+      alias permissions).
+    - The release of these fixes (0.7.202610181514) failed its GA iOS
+      upload: the RC and GA runs had the same build number, and App Store
+      Connect refused the second as a duplicate, so the GA release wasn't
+      published. The upload now takes that duplicate as done.
+    - Specs: [Release](release.md).
+
+480. **The leading streamer: the one with the most memory.** (2026-10-18)
+    - Asked: when electing the leader streamer, prefer the one with more
+      memory.
+    - Changed: `presence-streamer` sends its total memory (`MemTotal`,
+      bytes) as `X-Presence-Memory` with its stream credentials and
+      leases. The auth API keeps the leader's (`streamLeaderMemory`) and
+      grants the leadership to a streamer with more memory than the
+      leader, at once; the old leader hears "another leads" at its next
+      lease and waits. Equal memory keeps the leader (no taking turns);
+      a streamer that says no memory (older ones) takes no leader's place
+      by it, and a leader with none gives way to any that says its own.
+      Specs: [Streamer leadership](streamer-leader.md),
+      [Streamer](streamer.md), [Auth API](auth-api.md).
+
+481. **The Blink PIN test no longer flakes on a busy machine.** (2026-10-18)
+    - Found while adding Reolink cameras: `TestLoginWithAPINFromTheApp`
+      failed ("bad PIN") under a loaded full test run.
+    - Fixed: its fake app stopped watching for the PIN prompt after 2 s,
+      before the fake helper asked on a slow machine; it now watches as
+      long as the streamer waits for the PIN. Test only; no behaviour
+      changed. Specs: none.
+
+482. **Reolink cameras through a streamer.** (2026-10-18)
     - Asked: also support Reolink cameras on the streamer, configured in
       the app, like GoPro's.
     - Changed: Settings' last section, Reolink cameras: pick the Linux
