@@ -6891,3 +6891,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       submission in the browser (the first subscription must go with a
       version; the API refuses it) and submitted all four items.
     - Specs: [Store readiness](store-readiness.md).
+
+471. **Set up Sign in with Apple for Presence.** (2026-10-18)
+    - Made the Sign in with Apple key "Presence Sign in with Apple"
+      (`YUVZ8W59A4`, primary App ID `com.nu01.presence`) in Apple
+      Developer, kept its `.p8` in the private credentials repo, and put
+      it in SSM as SecureStrings `/presence/apple-signin-key` and
+      `/presence-rc/apple-signin-key`.
+    - Repository variables: `APPLE_SIGNIN_KEY_ID`,
+      `APPLE_SIGNIN_KEY_PARAMETER` and the new
+      `APPLE_SIGNIN_KEY_PARAMETER_RC`.
+    - Fixed: the RC deploy passed the GA's parameter, which `deploy.sh`
+      refuses for the RC (it must be under `/presence-rc/`); it now reads
+      `APPLE_SIGNIN_KEY_PARAMETER_RC`.
+    - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
+      [Sessions](sessions.md).

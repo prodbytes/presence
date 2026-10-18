@@ -110,7 +110,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   [Sessions](sessions.md#the-authorizers); and Sign in with Apple's
   `APPLE_CLIENT_IDS` and, when set, its key: `APPLE_TEAM_ID`,
   `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`, also repository
-  variables in CI) and the
+  variables in CI, where the RC's parameter is `APPLE_SIGNIN_KEY_PARAMETER_RC`,
+  since each stage's must be under its own `/<prefix>/`) and the
   [health check](health-check.md) (`presence_health`, stack
   `<prefix>-health`, with `AuthStackName`, the release as `Version`, the
   same OIDC client, pool and bucket, rbacr's URL but not its token, and

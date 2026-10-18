@@ -42,16 +42,16 @@ signing](release.md#store-signing)).
   `store/app-store/review_notes.txt` says so. Needs `RBACR_GRANT_TOKEN`
   set on the GA deploy, or Join free answers 503.
 
-- **Sign in with Apple (4.8): built, needs Apple's setup.** The iOS app
-  offers Sign in with Apple beside Google, with equal prominence, asking
-  only for name and email (private relay addresses work), on top of
-  Presence's own [sessions](sessions.md); account deletion revokes the
-  Apple tokens ([Sessions](sessions.md#sign-in-with-apples-revocation)).
-  Still to do: enable Sign in with Apple on the App ID
-  `com.nu01.presence` (the App Store profile must include it), create a
-  Sign in with Apple key and put it in SSM
-  (`APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`), and give the
-  review notes a way to sign in with Apple too.
+- **Sign in with Apple (4.8): done (2026-10-18).** The iOS app offers
+  Sign in with Apple beside Google, with equal prominence, asking only for
+  name and email (private relay addresses work), on top of Presence's own
+  [sessions](sessions.md). The App ID `com.nu01.presence` has the
+  capability (the App Store profile includes it), and account deletion
+  revokes the Apple tokens with the Sign in with Apple key `YUVZ8W59A4`
+  (primary App ID `com.nu01.presence`), kept in the private credentials
+  repo and in SSM at `/presence/apple-signin-key` and
+  `/presence-rc/apple-signin-key` ([Sessions](sessions.md#sign-in-with-apples-revocation)).
+  The review notes tell the reviewer to sign in with any Apple ID.
 - **Signing and upload: set up (2026-10-15).** The team (`LMX88986F3`)
   is a paid Apple Developer Program member, and the release workflow's
   secrets are all set: the Apple Distribution certificate, the App Store

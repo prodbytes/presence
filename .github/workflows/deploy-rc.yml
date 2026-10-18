@@ -184,9 +184,10 @@ jobs:
           # Sign in with Apple (specs/sessions.md): the iOS bundle ID (unset:
           # com.nu01.presence) and, to revoke users' Apple tokens at account
           # deletion, the key's ID and the SSM parameter holding it (unset:
-          # no revocation), with the team ID.
+          # no revocation), with the team ID. The parameter must be under
+          # /presence-rc/, so the RC has its own variable.
           APPLE_CLIENT_IDS: ${{ vars.APPLE_CLIENT_IDS }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           APPLE_SIGNIN_KEY_ID: ${{ vars.APPLE_SIGNIN_KEY_ID }}
-          APPLE_SIGNIN_KEY_PARAMETER: ${{ vars.APPLE_SIGNIN_KEY_PARAMETER }}
+          APPLE_SIGNIN_KEY_PARAMETER: ${{ vars.APPLE_SIGNIN_KEY_PARAMETER_RC }}
         run: bash scripts/deploy.sh
