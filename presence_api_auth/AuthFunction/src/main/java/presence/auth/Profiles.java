@@ -69,6 +69,14 @@ public final class Profiles {
         }
     }
 
+    /**
+     * The profile's leading streamer: the one device of its streamers that
+     * may stream ({@link ProfileHandler#STREAM_LEASE}), and when it last
+     * said it's alive.
+     */
+    record Leader(String device, Instant seenAt) {
+    }
+
     /** A subject linked to a profile, with its email as last seen. */
     record Member(String subject, String profileId, String email) {
     }
@@ -120,6 +128,20 @@ public final class Profiles {
 
         /** The profile's devices, in the order they were added. */
         List<String> devices(String profileId);
+
+        /**
+         * Makes {@code deviceId} the profile's leading streamer, seen
+         * {@code now}, when the profile has none, it leads already, or its
+         * leader was last seen before {@code staleBefore}: at most one wins
+         * when several ask at once. The leader after (null: no such profile).
+         */
+        Leader claimLeader(String profileId, String deviceId, Instant now, Instant staleBefore);
+
+        /** The profile's leading streamer, or null. */
+        Leader leader(String profileId);
+
+        /** Forgets the profile's leading streamer if it's {@code deviceId}. */
+        void dropLeader(String profileId, String deviceId);
     }
 
     /** How many taken IDs a first sign-in tries before giving up. */
@@ -267,7 +289,8 @@ public final class Profiles {
      * Profiles in {@code profilesTable} ({@code id}, a {@link ProfileId},
      * {@code createdAt}, {@code lastSignInAt}, {@code ownerSubject},
      * {@code ownerEmail}, {@code ownerHd}, {@code identityId}, {@code devices},
-     * a list of device IDs in the order they were added) and links in
+     * a list of device IDs in the order they were added, {@code streamLeader}
+     * and {@code streamLeaderSeenAt}, its leading streamer) and links in
      * {@code subjectsTable} ({@code subject}, {@code profileId}, {@code email},
      * {@code linkedAt}; indexed by {@code profileId}). Times are epoch
      * milliseconds.
@@ -493,7 +516,64 @@ public final class Profiles {
                         .build()).item();
                 return devicesOf(item);
             }
+
+            @Override
+            public Leader claimLeader(String profileId, String deviceId, Instant now, Instant staleBefore) {
+                try {
+                    return leaderOf(dynamo.updateItem(UpdateItemRequest.builder()
+                            .tableName(profilesTable)
+                            .key(Map.of("id", AttributeValue.fromS(profileId)))
+                            .updateExpression("SET streamLeader = :device, streamLeaderSeenAt = :now")
+                            // One leader: two streamers taking over a silent
+                            // one at once can't both win.
+                            .conditionExpression("attribute_exists(id) AND (attribute_not_exists(streamLeader)"
+                                    + " OR streamLeader = :device OR streamLeaderSeenAt < :stale)")
+                            .expressionAttributeValues(Map.of(
+                                    ":device", AttributeValue.fromS(deviceId),
+                                    ":now", AttributeValue.fromN(Long.toString(now.toEpochMilli())),
+                                    ":stale", AttributeValue.fromN(Long.toString(staleBefore.toEpochMilli()))))
+                            .returnValues(ReturnValue.ALL_NEW)
+                            .build()).attributes());
+                } catch (ConditionalCheckFailedException e) {
+                    return leader(profileId);
+                }
+            }
+
+            @Override
+            public Leader leader(String profileId) {
+                return leaderOf(dynamo.getItem(GetItemRequest.builder()
+                        .tableName(profilesTable)
+                        .key(Map.of("id", AttributeValue.fromS(profileId)))
+                        .consistentRead(true)
+                        .build()).item());
+            }
+
+            @Override
+            public void dropLeader(String profileId, String deviceId) {
+                try {
+                    dynamo.updateItem(UpdateItemRequest.builder()
+                            .tableName(profilesTable)
+                            .key(Map.of("id", AttributeValue.fromS(profileId)))
+                            .updateExpression("REMOVE streamLeader, streamLeaderSeenAt")
+                            .conditionExpression("streamLeader = :device")
+                            .expressionAttributeValues(Map.of(":device", AttributeValue.fromS(deviceId)))
+                            .build());
+                } catch (ConditionalCheckFailedException e) {
+                    // Another leads, or none: nothing to forget.
+                }
+            }
         };
+    }
+
+    /** The {@code streamLeader} of a profile's item, or null. */
+    private static Leader leaderOf(Map<String, AttributeValue> item) {
+        var device = item == null ? null : item.get("streamLeader");
+        if (device == null || device.s() == null) {
+            return null;
+        }
+        var seen = item.get("streamLeaderSeenAt");
+        var millis = seen == null || seen.n() == null ? 0L : Long.parseLong(seen.n());
+        return new Leader(device.s(), Instant.ofEpochMilli(millis));
     }
 
     /** The {@code devices} list of a profile's item, in order; empty without one. */

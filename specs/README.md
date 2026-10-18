@@ -223,6 +223,11 @@ their data.
   less, the app's score) are deleted on the Pi before any upload; a Pi
   under 2 GB of memory has the cloud search its chunks (presence_ingest, a
   Python Lambda the bucket notifies). No live sync yet.
+- [Streamer leadership](streamer-leader.md): at most one of a profile's
+  streamers, the leader, streams to the cloud; the others wait, recording
+  nothing, until the auth API grants them the lead (a lease every 5
+  minutes); a leader offline for more than an hour, or deleted, is
+  replaced by a waiting one. The profile view labels the leader.
 
 **Backend**
 

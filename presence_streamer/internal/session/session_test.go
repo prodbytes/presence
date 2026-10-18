@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -143,5 +144,73 @@ func TestStreamKeyWithoutGoogle(t *testing.T) {
 	}
 	if _, err := CheckKey(ctx, api, "psk_bad", "p_q_r", "a_b_c"); !errors.Is(err, presence.ErrKeyRefused) || !Fatal(err) {
 		t.Fatalf("a refused key: %v", err)
+	}
+}
+
+func TestAnotherLeaderIsStandbyNotTheEnd(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/auth/stream/credentials", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(409)
+		w.Write([]byte(`{"error":"another streamer leads this profile","reason":"notLeader","streamLeader":{"device":"swift_gentle_fox","seenAt":1}}`))
+	})
+	mux.HandleFunc("/api/auth/stream/lease", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"leader":false,"streamLeader":{"device":"swift_gentle_fox","seenAt":1},"silenceMs":3600000}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	s := &Session{API: &presence.API{BaseURL: srv.URL}, StreamKey: "psk_good", ProfileID: "p_q_r", DeviceID: "calm_quiet_otter"}
+
+	_, err := s.Credentials(context.Background())
+	var notLeader presence.NotLeaderError
+	if !errors.As(err, &notLeader) || notLeader.Leader.Device != "swift_gentle_fox" {
+		t.Fatalf("credentials: %v", err)
+	}
+	// It stops streaming, and waits: not an exit.
+	if !Standby(err) || !Fatal(err) {
+		t.Errorf("standby %v, fatal %v", Standby(err), Fatal(err))
+	}
+	if Standby(ErrFree) || Standby(errors.New("network")) {
+		t.Error("only another leader, or a lapsed lease, is standby")
+	}
+	lease, err := s.Lease(context.Background())
+	if err != nil || lease.Leader || lease.StreamLeader.Device != "swift_gentle_fox" || lease.SilenceMs != 3600000 {
+		t.Errorf("lease %+v, %v", lease, err)
+	}
+}
+
+func TestLeaseSignedInWithGoogle(t *testing.T) {
+	f := &fake{tier: "premium", profile: "p_q_r", expires: time.Now().Add(time.Hour)}
+	g, api := f.server(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/api/auth/profile/stream-lease" || r.Header.Get("Authorization") != "Bearer pst" || string(body) != "calm_quiet_otter" {
+			t.Errorf("%s %s %q", r.URL.Path, r.Header.Get("Authorization"), body)
+		}
+		w.Write([]byte(`{"leader":true,"streamLeader":{"device":"calm_quiet_otter","seenAt":1},"silenceMs":3600000}`))
+	}))
+	t.Cleanup(srv.Close)
+	// The session exchange is the fake's; the lease, this server's.
+	mux := http.NewServeMux()
+	mux.Handle("/api/auth/profile/stream-lease", srv.Config.Handler)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		req, _ := http.NewRequest(r.Method, api.BaseURL+r.URL.Path, r.Body)
+		req.Header = r.Header
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			w.WriteHeader(502)
+			return
+		}
+		defer res.Body.Close()
+		w.WriteHeader(res.StatusCode)
+		io.Copy(w, res.Body)
+	})
+	both := httptest.NewServer(mux)
+	t.Cleanup(both.Close)
+	s := &Session{Google: g, API: &presence.API{BaseURL: both.URL}, RefreshToken: "r", ProfileID: "p_q_r", DeviceID: "calm_quiet_otter"}
+	for range 2 {
+		lease, err := s.Lease(context.Background())
+		if err != nil || !lease.Leader {
+			t.Fatalf("lease %+v, %v", lease, err)
+		}
 	}
 }

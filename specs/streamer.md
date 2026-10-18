@@ -9,6 +9,10 @@ OS **32-bit (armhf)** and **64-bit (arm64)**, Bookworm or newer, on every Pi
 from the Zero to the 5. The [Raspberry Pi camera](raspberry-pi.md) `.deb`
 (the web app in a kiosk) is the other way to make a Pi a camera.
 
+**One streamer streams per profile:** the leader, which the auth API
+grants. The others wait until a leader offline for an hour (or deleted)
+leaves them its place. See [Streamer leadership](streamer-leader.md).
+
 Not yet: [live sync](live-sync.md) (MQTT). The streamer doesn't connect to
 it, publish its events there or answer presence pings, as a phone does.
 Its events reach the profile's devices from the bucket, within their next
@@ -53,7 +57,9 @@ streamer get its profile's credentials with no Google account:
   does for that device (which joins the profile's devices), tiered by the
   profile owner's roles in rbacr, plus `userId`, the `sub` of who made the
   key (the events' `userId`). Anything else is the same 401. Throttled to
-  2 requests/s (burst 10).
+  2 requests/s (burst 10). **Only the profile's leading streamer** gets
+  them: another gets 409 (`"reason": "notLeader"`) and waits, asking `POST
+  /api/auth/stream/lease` ([Streamer leadership](streamer-leader.md)).
 - **Revoked** when the device is deleted in the app
   ([Device deletion](device-deletion.md); `POST
   /api/auth/profile/devices/remove` deletes its key), or replaced by a new
@@ -65,8 +71,11 @@ streamer get its profile's credentials with no Google account:
 
 ## Starting it
 
-`presence-streamer` (or `presence-streamer run`) streams.
-`presence-streamer setup` does everything before the streaming and exits.
+`presence-streamer` (or `presence-streamer run`) streams, once it leads
+the profile's streamers; until then it waits, asking every 5 minutes
+([Streamer leadership](streamer-leader.md)).
+`presence-streamer setup` does everything before the streaming and exits
+(a key whose streamer would wait is still ready).
 
 **With a stream key** (`--profile`, `--device-id` and `--key`, or
 `PRESENCE_STREAMER_PROFILE`, `_DEVICE_ID`, `_KEY`), as the app's command
@@ -344,6 +353,12 @@ take too much of it. There the chunks are searched in the cloud instead:
      `media/<clipId>.mp4`. Then the clip record and, last, the event with
      its object tags (0.6 or more, plus the subject). Then it deletes
      ingest's copies and the job, last.
+
+  Its deletes in ingest are **for good**: it deletes the version it read
+  (or, for a chunk it didn't read, the current one), so ingest's passing
+  copies aren't kept 30 days as old versions, the bucket's undo window for
+  users' data. A newer upload of the same key, made since, is left to its
+  own notification.
 - **It trusts only the job's key.** The identity, device and clip come
   from the key (`<identity>/ingest/<device>/<clip>.ingest.json`, each
   checked by pattern). The job must agree with it: same clip and device, a
@@ -375,7 +390,8 @@ take too much of it. There the chunks are searched in the cloud instead:
   raised. Its role
   may get jobs, chunks and devices' settings, list the bucket (so a
   missing object answers 404), put `media/`, `clips/` and `events/`, and
-  delete in `ingest/`, under the stage's permissions boundary. The package
+  delete in `ingest/`, versions included (`s3:DeleteObjectVersion`, on
+  `*/ingest/*` only), under the stage's permissions boundary. The package
   is 179 MB of Linux arm64 wheels (OpenCV, NumPy, cryptography) and the
   model, built by its Makefile whatever the machine.
 - **Deploy:** `scripts/deploy.sh` downloads the model (`scripts/models.sh`,
@@ -613,6 +629,8 @@ cameras' clips, each camera a device of its own: see
 
 ## Known limitations
 
+- **One streamer per profile streams** at a time; see [Streamer
+  leadership](streamer-leader.md#known-limitations) for its own.
 - **No live sync** (above): events reach the other devices from the bucket
   within 15 s, not within a second, and the streamer doesn't show as
   present.
@@ -642,10 +660,15 @@ cameras' clips, each camera a device of its own: see
   local files only narrow that. Credentials scoped to the job's folder (an
   assumed role with a session policy) would close it, but need a new role,
   which the deploy roles can't make yet.
-- **Ingest's deleted chunks stay 30 days as old versions** (the bucket is
-  versioned), paying their storage. Deleting the version too needs
-  `s3:DeleteObjectVersion`, which the permissions boundary (applied by
-  hand) doesn't allow yet.
+- **Until the permissions boundary allows `s3:DeleteObjectVersion`,
+  ingest's deleted chunks still stay 30 days as old versions** (the bucket
+  is versioned), paying their storage. The function's role has it, but the
+  stage's boundary (`<prefix>-app-boundary`, from `github-deploy.yaml`,
+  applied by hand) doesn't yet; while it's refused, the function deletes as
+  before (a delete marker) and logs `version kept`. The streamer's own
+  deletes and moves in ingest (detecting on the Pi) leave old versions too.
+  A lifecycle rule can't be the backstop: its filters are key prefixes, and
+  ingest's keys are `<identity>/ingest/…`.
 - **The SD card is written continuously** (the spool). `--state-dir` (or
   `PRESENCE_STREAMER_STATE_DIR`) on another disk or a tmpfs spares it.
 - **No subject recognition** (who it is): only object detection. The app's
