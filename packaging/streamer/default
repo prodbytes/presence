@@ -35,3 +35,11 @@
 # The Presence site: https://presence.nu01.com, or the release candidate's,
 # https://rc.presence.nu01.com.
 #PRESENCE_STREAMER_API=https://presence.nu01.com
+# Live sync (MQTT, AWS IoT): the profile's devices hear of each event at
+# once, and see this streamer as live. The AWS IoT endpoint is built in
+# (release builds); "off" turns live sync off. Events still reach the
+# profile's devices from the bucket without it.
+#PRESENCE_STREAMER_IOT_ENDPOINT=<id>-ats.iot.us-east-1.amazonaws.com
+# Live sync's stage, prod or rc: by default rc when PRESENCE_STREAMER_API is
+# the release candidate's site (rc.…), else prod.
+#PRESENCE_STREAMER_STAGE=prod

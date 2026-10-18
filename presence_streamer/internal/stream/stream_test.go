@@ -224,6 +224,40 @@ func TestSubjectIsStoredAsAPhoneWould(t *testing.T) {
 	}
 }
 
+// Each stored event goes to live sync once it's in the bucket: the very
+// JSON uploaded, its key and its MD5 (the object's ETag); none when the
+// event's upload fails, and once when it's tried again.
+func TestStoredEventsArePublished(t *testing.T) {
+	b := &bucket{objects: map[string][]byte{}, failOn: "put events/"}
+	s, spool := streamer(t, b, "person")
+	type published struct {
+		body      []byte
+		key, etag string
+	}
+	var got []published
+	s.Publish = func(body []byte, key, etag string) { got = append(got, published{body, key, etag}) }
+	c := chunk(t, spool, "video")
+	if err := s.Process(context.Background(), c); err == nil {
+		t.Fatal("no error")
+	}
+	if len(got) != 0 {
+		t.Fatalf("published before it was stored: %v", got)
+	}
+	if err := s.Process(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("published %d times", len(got))
+	}
+	uploaded, ok := b.objects[got[0].key]
+	if !ok || !strings.HasPrefix(got[0].key, "events/year=2026/day=269/") || !bytes.Equal(uploaded, got[0].body) {
+		t.Fatalf("published %s at %s, uploaded %s", got[0].body, got[0].key, uploaded)
+	}
+	if sum := md5.Sum(uploaded); got[0].etag != fmt.Sprintf("%x", sum) {
+		t.Fatalf("etag %s", got[0].etag)
+	}
+}
+
 func TestCarriesOnAfterAFailure(t *testing.T) {
 	for _, step := range []string{"put ingest/", "put media/", "put clips/", "put events/"} {
 		t.Run(step, func(t *testing.T) {

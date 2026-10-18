@@ -132,6 +132,19 @@ owned by `CloudSync`:
     recording), the device acks it: a `copied` message on `acks`, batched
     (see [Event copies](event-copies.md)).
 
+### The streamer
+
+A [streamer](streamer.md#live-sync) (`presence-streamer`, a Raspberry Pi,
+Go) is on live sync too while it leads its profile, as an always-connected
+device: a clean session as `<identityId>-<deviceId>-<session>`, reconnecting
+and renewing as above. It **publishes** each event it stores, once it's in
+the bucket, in the format below (without `clip`: its profile is premium),
+and **answers pings** ([device presence](device-presence.md)). It
+subscribes to `requests` only: it takes no other device's events, sends no
+`copied` acks and ignores `sync` requests. Its endpoint is built in from
+`IOT_ENDPOINT` (or `PRESENCE_STREAMER_IOT_ENDPOINT`), and its stage is
+`rc` for the RC's site, else `prod` (`PRESENCE_STREAMER_STAGE`).
+
 ## When it connects
 
 The **Connect to live sync** setting ([Settings](settings.md), stored per
@@ -391,7 +404,9 @@ already keeps other profiles off the topic.
   checked to look like `<id>-ats.iot.<region>.amazonaws.com`) and passes it
   to the web build as `IOT_ENDPOINT` (a public dart-define, in
   `scripts/dart-defines.sh`'s allowlist). Android and local builds take it
-  from `.env` (`IOT_ENDPOINT`, see `.env.example`).
+  from `.env` (`IOT_ENDPOINT`, see `.env.example`). The streamer's builds
+  (`scripts/streamer.sh`) take it from `IOT_ENDPOINT` too: the Release
+  workflow's repository variable, or `.env`.
 - **The deploy roles** (`github-deploy.yaml`) may manage `presence-*` (RC:
   `presence-rc-*`) IoT policies and their versions, and call
   `iot:DescribeEndpoint`. An administrator updates that stack by hand (see

@@ -41,12 +41,14 @@ import (
 	"github.com/prodbytes/presence/presence_streamer/internal/stream"
 )
 
-// Set at build time (-ldflags -X): the version, and the Google OAuth
-// client ("TVs and Limited Input devices") the device sign-in uses.
+// Set at build time (-ldflags -X): the version, the Google OAuth client
+// ("TVs and Limited Input devices") the device sign-in uses, and live
+// sync's AWS IoT endpoint (the app's IOT_ENDPOINT).
 var (
 	version            = "dev"
 	googleClientID     = ""
 	googleClientSecret = ""
+	iotEndpoint        = ""
 )
 
 // Exit codes: the service doesn't restart for usage (2) or a free
@@ -77,6 +79,9 @@ type options struct {
 	reolink, reolinkVideo                                     string
 	reolinkEvery                                              time.Duration
 	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
+	// Live sync (specs/streamer.md, "Live sync"): the AWS IoT endpoint (off:
+	// none) and the topics' stage (empty: from the API).
+	iotEndpoint, stage string
 }
 
 // env is the PRESENCE_STREAMER_<name> setting, or def.
@@ -257,6 +262,8 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 		reolinkEvery = 2 * time.Minute
 	}
 	fs.DurationVar(&o.reolinkEvery, "reolink-every", reolinkEvery, "how often Reolink cameras' new recordings are fetched")
+	fs.StringVar(&o.iotEndpoint, "iot-endpoint", env("IOT_ENDPOINT", iotEndpoint), "live sync's AWS IoT endpoint (<id>-ats.iot.<region>.amazonaws.com), or off")
+	fs.StringVar(&o.stage, "stage", env("STAGE", ""), "live sync's stage, prod or rc (default: rc for an rc. site, else prod)")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
 	fs.StringVar(&o.ffmpeg, "ffmpeg", env("FFMPEG", "ffmpeg"), "ffmpeg")
 	fs.StringVar(&o.ffprobe, "ffprobe", env("FFPROBE", "ffprobe"), "ffprobe")
@@ -856,6 +863,13 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		Logf:        logf,
 	}
 
+	// Live sync: each stored event goes to the profile's devices at once
+	// (the camera pipelines below copy Publish), and pings are answered.
+	live := liveSync(o, s.DeviceID, creds.IdentityID, key, sess, logf)
+	if live != nil {
+		st.Publish = func(event []byte, objectKey, etag string) { live.PublishEvent(event, objectKey, etag) }
+	}
+
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -881,6 +895,13 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
+	if live != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			live.Run(ctx)
+		}()
+	}
 	// Blink's, GoPro's and Reolink's cameras, when this streamer is the one
 	// the app picked: their devices join the profile's at each renewal.
 	var cameras []func() []string

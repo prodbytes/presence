@@ -18,7 +18,9 @@
 # secrets: they're compiled into the app). The streamer's Google device
 # sign-in client comes from the GOOGLE_DEVICE_CLIENT_ID variable and the
 # GOOGLE_DEVICE_CLIENT_SECRET secret (Google doesn't treat that kind of
-# client's secret as confidential: it ships in the binary).
+# client's secret as confidential: it ships in the binary). Its live sync
+# endpoint comes from the IOT_ENDPOINT variable (the account's AWS IoT
+# iot:Data-ATS endpoint, public; one for prod and the RC).
 #
 # Store builds, when their secrets are set (never on pull requests; see
 # specs/release.md for how to make each one):
@@ -576,6 +578,7 @@ jobs:
         env:
           GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}
           GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.GOOGLE_DEVICE_CLIENT_SECRET }}
+          IOT_ENDPOINT: ${{ vars.IOT_ENDPOINT }}
         run: make streamer
 
       - name: Package

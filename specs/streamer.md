@@ -14,10 +14,11 @@ grants, preferring the one with the most memory. The others wait until a
 leader offline for an hour (or deleted) leaves them its place. See
 [Streamer leadership](streamer-leader.md).
 
-Not yet: [live sync](live-sync.md) (MQTT). The streamer doesn't connect to
-it, publish its events there or answer presence pings, as a phone does.
-Its events reach the profile's devices from the bucket, within their next
-sync pass (15 s). That comes next, once streaming is tested on a Pi.
+While it leads, the streamer is on [live sync](live-sync.md) (MQTT, AWS
+IoT Core) as an always-connected device: each event it stores reaches the
+profile's devices within a second, and it answers [device
+presence](device-presence.md)'s pings, so it shows live. See **Live
+sync** below.
 
 ## Installing it
 
@@ -492,6 +493,13 @@ Details:
   client, the only kind Google's device flow takes. Google doesn't treat
   its secret as confidential (it ships in the binary). A build without
   it needs `PRESENCE_STREAMER_GOOGLE_CLIENT_ID` and `_SECRET` at run time.
+- **Live sync's IoT endpoint** (`IOT_ENDPOINT`, from the environment or
+  `.env`, as the app's builds) is built in with `-X main.iotEndpoint`,
+  only in AWS IoT's `<id>-ats.iot.<region>.amazonaws.com` form (another
+  value, such as a local `.env`'s `ws://localhost:4566`, is left out with a
+  warning). It's the account's `iot:Data-ATS` endpoint, one for prod and
+  the RC (one AWS account): the stage tells them apart. A build without
+  it has live sync off unless `PRESENCE_STREAMER_IOT_ENDPOINT` sets one.
 
 **The `.deb`** (`packaging/streamer/`):
 
@@ -545,7 +553,9 @@ Every flag is also `PRESENCE_STREAMER_<NAME>` (the service reads them from
 (https://presence.nu01.com; https://rc.presence.nu01.com for the RC),
 `bucket`, `s3-endpoint`, `source`, `device`, `encoder`, `width`, `height`,
 `fps`, `bitrate`, `rotation`, `chunk`, `motion-min` (5), `detection`
-(`auto`), `spool-max-mb`, `bwlimit`,
+(`auto`), `spool-max-mb`, `bwlimit`, `iot-endpoint` (live sync's AWS IoT
+endpoint: the build's, or `off`), `stage` (live sync's, `prod` or `rc`;
+by default `rc` when `api` is the RC's `rc.` site, else `prod`),
 `camera-label`, `location`, `detector-threads`, `state-dir`, `blink`
 (`auto`, or `off`), `blink-every` (2m), `gopro` (`auto`, or `off`),
 `gopro-video` (`low`, or `full`), `gopro-every` (2m), `reolink`
@@ -553,6 +563,68 @@ Every flag is also `PRESENCE_STREAMER_<NAME>` (the service reads them from
 (2m), the tools'
 paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 `models`, `blink-helper`) and the Google client.
+
+## Live sync
+
+`internal/livesync` (with `internal/mqtt`, `internal/ws` and
+`internal/sigv4`, standard library only), started by `streamCamera`
+(`main_live.go`) while the streamer leads the profile, as the app's
+`LiveSync` for an always-connected device (an admin's):
+
+- **Connects** to `wss://<IoT endpoint>/mqtt`, presigned with SigV4
+  (service `iotdevicegateway`, only `host` signed, valid 1 h, the session
+  token appended after signing; the app's `presignWebSocket`, tested
+  against the app's own vector), with the session's Cognito credentials
+  (the same ones rclone uses), over TLS checked against the system's
+  roots, subprotocol `mqtt`. MQTT 3.1.1, a **clean session**, client ID
+  `<identityId>-<deviceId>-<session>` (six random `[a-z0-9]` per run, as
+  the app's: the IoT policy allows only IDs that start with the
+  identity), keep-alive 60 s (a PINGREQ every 45 s; a broker silent for
+  90 s drops the connection).
+- **Subscribes** (QoS 1) to the profile's `requests` topic only: it takes
+  no other device's events or `copied` acks. A refused subscription is
+  logged and leaves the connection up for publishing.
+- **Publishes** each event it stores (its own camera's, and its Blink,
+  GoPro and Reolink cameras'), once the event's JSON is verified in the
+  bucket (`stream.Streamer.Publish`), on `events` at QoS 1, in the app's
+  format: `v` 1, `kind` `event`, `deviceId` (the streamer's), `identityId`,
+  `sentAt`, `key` (the event's object key), `etag` (the uploaded JSON's
+  MD5, which is the object's ETag), `mediaKey` (the device's key, base64)
+  and `event` (the record exactly as uploaded). No `clip`: a streamer's
+  profile is premium, and premium devices take clips from the bucket. A
+  message over 64 KB isn't sent. The broker's PUBACK isn't waited for.
+- **Answers pings** on `requests` with a pong on `acks`
+  (`{"v":1,"kind":"pong","deviceId","identityId","sentAt","nonce"}`, the
+  ping's nonce), as a phone: not its own, not one older than 2 min by its
+  `sentAt`, at most one pong every 5 s. Pings are checked as the app's
+  `parsePresence` does (at most 1 KB, strict JSON, version 1, the
+  identity, a safe device ID, an integer `sentAt`, a nonce of 8–64
+  letters and digits); a malformed one is dropped and logged (the first,
+  then every 100th). Another device's `sync` request (its Sync button) is
+  ignored. Its Blink, GoPro and Reolink cameras don't answer: they show
+  from their events.
+- **Never holds up recording:** events wait in a queue of 100 that never
+  blocks; more are dropped (logged), and the bucket carries them as
+  before. Live sync runs in its own goroutine; a slow or stalled network
+  only stalls it.
+- **Reconnects** after a drop (1 s) and after a failed attempt (credentials,
+  TLS, a refused handshake or CONNACK) with a back-off that doubles up to
+  2 min, each attempt with fresh credentials and a newly signed URL, each
+  step within 15 s; logged on the first failure of a streak and every
+  tenth. **Renews** the connection 2 min before the credentials expire
+  (the session renews them 5 min before). It stops with the streaming (a
+  stop, or another streamer taking the lead).
+- **Never logs a secret:** the URL (whose query holds the credentials) is
+  never quoted, and any query in an error is cut (`?…`), as the app's
+  `LiveSync.redact`.
+- **Untrusted input:** WebSocket messages at most 256 KB (frames from the
+  server must be unmasked, no text, extensions or reserved bits; control
+  frames short and whole), the handshake answer at most 16 KB, MQTT
+  packets at most 256 KB with strict parsing (QoS 2, wildcard or invalid
+  topics, a 5-byte length, a zero packet ID drop the connection), and at
+  most 64 received messages buffered.
+- **Off** without an IoT endpoint (`iot-endpoint` empty or `off`), or with
+  a wrong `stage`: it says so once at start, and streams as before.
 
 ## Blink cameras
 
@@ -587,6 +659,12 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
   deploy workflows), when set ([Sessions](sessions.md)). The tokens carry
   the same Google `sub`, so the same account finds the same profile.
 - **The credentials answer names the bucket** (`bucket`).
+- **Live sync's endpoint** is the repository **variable** `IOT_ENDPOINT`
+  (public: the account's `aws iot describe-endpoint --endpoint-type
+  iot:Data-ATS`), which the Release workflow's `streamer` job builds in.
+  The auth API attaches the live-sync IoT policy to the identity at the
+  stream credentials too (`POST /api/auth/stream/credentials`), as at
+  the app's.
 - A profile's Cognito identity is made by the auth API for the profile
   (its developer identifier), whoever asks first; the streamer's Google
   tokens never reach Cognito.
@@ -624,6 +702,33 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
   - **cameras** (`main_cameras_test.go`): a Blink and a GoPro clip through
     its camera's pipeline, its first upload failing verification, stored
     once verified and then deleted from the device;
+  - **live sync:** the presigned URL equal to the app's test vector;
+    the WebSocket (masking both ways, 16- and 64-bit lengths, fragments
+    with a ping between them answered, empty messages, a close; text,
+    masked-from-server, reserved-bit, unknown-opcode, long or fragmented
+    control, oversized and interleaved frames refused; a 403 handshake
+    quoting neither URL nor body; an untrusted certificate refused; a hung
+    server timing out; a 64 KB handshake refused); MQTT (remaining lengths
+    from 1 to 4 bytes and a fifth refused, the packets' bytes, PUBLISH
+    parsing with QoS 2, DUP, bad, wildcard, NUL and empty topics, and
+    packet ID 0 refused, CONNACK and SUBACK, a refused connection, a
+    connect timing out, malformed and oversized packets and a vanished
+    server dropping the connection, keep-alive pings and a silent broker
+    dropped, a full buffer dropping); pings parsed as the app's (and every
+    malformed case refused, `sync` ignored); the event message's shape;
+    and **end to end**, against an in-process TLS WebSocket server with a
+    fake broker: a presigned URL with the session token, the client ID and
+    clean session, the `requests` subscription, an event published on
+    `events`, a ping answered on `acks` with its nonce, a second one within
+    5 s, a `sync` and a malformed one not answered, its own and a 3-min-old
+    ping not answered, one dated in the future answered, a reconnection
+    with a new URL after the server drops it, a renewal before the
+    credentials expire (the old connection disconnected), a back-off with
+    fresh credentials through three 403s, a refused CONNACK and failing
+    credentials logged, a refused subscription still publishing, a queue
+    that never blocks and drops past 100, and no secret in any log line;
+  - **stream:** an event published once it's in the bucket, with the very
+    JSON uploaded, its key and MD5; not when its upload failed;
   - **state:** the lock against a second streamer;
   - **auth API:** `ProfileTest` (the bucket in the answer).
 - **End to end** (`main_e2e_test.go`): a video (10 s of nothing, 10 s of a
@@ -719,9 +824,17 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
 
 - **One streamer per profile streams** at a time; see [Streamer
   leadership](streamer-leader.md#known-limitations) for its own.
-- **No live sync** (above): events reach the other devices from the bucket
-  within 15 s, not within a second, and the streamer doesn't show as
-  present.
+- **Live sync isn't verified against AWS IoT yet**, only against the
+  fake broker (as the app's own tests); the Release builds carry the
+  endpoint once the repository variable `IOT_ENDPOINT` is set.
+- **Events the cloud detector stores** (a Pi under 2 GB, or
+  `detection cloud`) aren't published over live sync: the cloud detector
+  (`presence_ingest`) stores them, and they reach the devices from the
+  bucket (15 s), as before.
+- **Its Blink, GoPro and Reolink cameras don't answer pings**: only the
+  streamer's own device shows live; the cameras show from their events.
+- **No live sync while it waits** for the lead: a standby streamer has no
+  credentials, so it doesn't show live.
 - **Unattended sign-in lasts as long as Google's refresh token.** An OAuth
   app in Google's "Testing" status has its refresh tokens expire after 7
   days: publish it. A revoked or expired one stops the streamer (exit 2)
