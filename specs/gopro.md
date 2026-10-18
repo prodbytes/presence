@@ -89,7 +89,9 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   (see [Streamer](streamer.md#the-stream-key)), so they join the profile's
   devices at once (`Session.Register`).
 - **Remove:** the camera is forgotten (its password too) and its pipeline
-  stops; its device and events stay.
+  stops; its device no longer goes with the credentials requests, and its
+  events stay. Deleting the camera's device from the Profile tab's device
+  list sends the same remove ([Device deletion](device-deletion.md#camera-devices)).
 - **Fetching, every 2 minutes** (`--gopro-every`), each camera in turn:
   its media list's `.MP4` videos newer than the last fetched (a new
   camera's first fetch goes back 24 hours), oldest first. The camera's
