@@ -74,7 +74,8 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   shows, it pings that at once and keeps its interval from then on).
   Nothing pings otherwise.
 - **Answering:** a device that receives another device's ping answers on
-  `acks` with `{"v":1,"kind":"pong",…,"nonce":"<the ping's>"}`; at most
+  `acks` (a [streamer](streamer.md#live-sync) too, while it leads its
+  profile) with `{"v":1,"kind":"pong",…,"nonce":"<the ping's>"}`; at most
   one pong every **5 s** (`answerEvery`: pings from several devices at
   once get one answer, heard by all, as `acks` is shared), and none to a
   ping older than **2 min** by its `sentAt` (`pingFresh`: one a

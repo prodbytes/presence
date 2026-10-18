@@ -7119,3 +7119,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        device, came back by itself after a reboot, and stored a clip with a
        person as an event. Specs: [Streamer](streamer.md) (verified on a Pi 4
        with a USB camera and at boot).
+
+487. **The Pi streamer joins live sync.** (2026-10-18)
+     - Asked: can the Pi use live sync? yes (whether the streamer could be on
+       live sync like a phone, then yes to building it).
+     - Changed: the streamer connects to live sync while it leads its
+       profile, with a standard-library MQTT 3.1.1 client over a SigV4
+       presigned WebSocket (new `internal/sigv4`, `ws`, `mqtt` and
+       `livesync` packages): always connected with a clean session, it
+       publishes each event it stores once it's in the bucket (the app's
+       message, with the uploaded JSON's key and ETag, no clip), answers
+       presence pings with pongs, reconnects with back-off and renews before
+       its credentials expire; its queue never holds up recording, and off
+       or failing, events still go through the bucket. Its endpoint is built
+       in from `IOT_ENDPOINT` (the Release workflow's repository variable),
+       overridable with `PRESENCE_STREAMER_IOT_ENDPOINT`; its stage is `rc`
+       for the RC's site (`PRESENCE_STREAMER_STAGE`). Specs:
+       [Streamer](streamer.md), [Live sync](live-sync.md), [Device
+       presence](device-presence.md), [Release builds](release.md).

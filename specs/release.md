@@ -80,7 +80,10 @@ app binaries with `make` and publishes them as a GitHub release.
   given to the workflow. The streamer job gets its device sign-in client from
   the variable `GOOGLE_DEVICE_CLIENT_ID` and the secret
   `GOOGLE_DEVICE_CLIENT_SECRET` (that kind of client's secret isn't
-  confidential to Google: it ships in the binary).
+  confidential to Google: it ships in the binary), and its [live
+  sync](live-sync.md) endpoint from the variable `IOT_ENDPOINT` (the
+  account's public AWS IoT endpoint; without it the streamer's live sync is
+  off unless set on the Pi).
 - **Security:** actions are pinned to commit SHAs, Flutter to a commit and
   the SAM CLI to a version (1.165.0, in the deploy workflows); the
   workflow token is read-only except in the release job (`contents:
