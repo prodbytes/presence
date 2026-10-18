@@ -28,13 +28,22 @@ class FakeLiveConnection implements LiveConnection {
   bool closed = false;
 
   @override
+  bool sessionPresent = false;
+
+  @override
   Stream<(String, Uint8List)> get messages => _messages.stream;
 
   @override
   Future<void> get done => _done.future;
 
+  /// Topics whose subscription the broker refuses.
+  Set<String> refused = {};
+
   @override
-  Future<void> subscribe(String topic) async => subscriptions.add(topic);
+  Future<void> subscribe(String topic) async {
+    if (refused.contains(topic)) throw StateError('subscription refused');
+    subscriptions.add(topic);
+  }
 
   @override
   Future<void> publish(
@@ -79,6 +88,13 @@ class FakeBroker {
   /// How many of the next connections are refused.
   int refuse = 0;
 
+  /// Persistent sessions the broker holds, by client ID: a persistent
+  /// connection with one of these resumes it (session present).
+  final sessions = <String>{};
+
+  /// Topics each connection's subscription to is refused.
+  final refusedTopics = <String>{};
+
   Future<LiveConnection> connect(
     String url,
     String clientId, {
@@ -91,7 +107,10 @@ class FakeBroker {
       refuse--;
       throw StateError('refused');
     }
-    final connection = FakeLiveConnection();
+    final connection = FakeLiveConnection()
+      ..sessionPresent = persistent && sessions.contains(clientId)
+      ..refused = refusedTopics;
+    if (persistent) sessions.add(clientId);
     connections.add(connection);
     return connection;
   }
@@ -1734,6 +1753,87 @@ void main() {
       live.stop();
       expect(live.watching, isFalse);
       expect(watch.closed, isTrue);
+    });
+
+    test('a failed connection waits for the next slot of the schedule, '
+        'not the back-off', () async {
+      broker.refuse = 2;
+      final live = make(every: const Duration(milliseconds: 250))
+        ..start(link());
+      final started = DateTime.now();
+      await until(() => live.state == LiveSyncState.error);
+      // The back-off alone would have tried again after 5 ms.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(broker.urls, hasLength(1));
+      await until(() => broker.urls.length == 2, reason: 'next slot');
+      expect(
+        DateTime.now().difference(started),
+        greaterThanOrEqualTo(const Duration(milliseconds: 240)),
+      );
+      await until(() => broker.urls.length == 3, reason: 'the slot after');
+      expect(
+        DateTime.now().difference(started),
+        greaterThanOrEqualTo(const Duration(milliseconds: 490)),
+      );
+      await until(() => shares == 1);
+      expect(broker.connections, hasLength(1));
+    });
+
+    test('a resumed persistent session isn\'t subscribed again; a new one, '
+        'or a topic refused before, is', () async {
+      final live = make(every: const Duration(milliseconds: 100))
+        ..start(link());
+      await until(() => broker.connections.isNotEmpty);
+      final first = broker.last;
+      expect(first.sessionPresent, isFalse);
+      expect(first.subscriptions, [eventsTopic, requestsTopic, acksTopic]);
+      // The broker kept the session: nothing subscribed, and what it
+      // kept (or sends now) still comes.
+      await until(() => broker.connections.length == 2, reason: 'on time');
+      final second = broker.last;
+      await until(() => live.state == LiveSyncState.connected);
+      expect(second.sessionPresent, isTrue);
+      expect(second.subscriptions, isEmpty);
+      second.deliver(eventsTopic, messageOf({'id': 'kept', 'time': 1}));
+      await until(() => received.isNotEmpty);
+      expect(received.single.event['id'], 'kept');
+      // The session expired: all three again.
+      await until(() => live.state == LiveSyncState.idle);
+      broker.sessions.clear();
+      broker.refusedTopics.add(requestsTopic);
+      await until(() => broker.connections.length == 3, reason: 'on time');
+      final third = broker.last;
+      await until(() => live.state == LiveSyncState.idle);
+      expect(third.sessionPresent, isFalse);
+      expect(third.subscriptions, [eventsTopic, acksTopic]);
+      // Resumed, the refused one is tried again, alone.
+      broker.refusedTopics.clear();
+      await until(() => broker.connections.length == 4, reason: 'on time');
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.sessionPresent, isTrue);
+      expect(broker.last.subscriptions, [requestsTopic]);
+    });
+
+    test('a premium device subscribes on every scheduled connection', () async {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: const LiveConfig(every: Duration(milliseconds: 80)),
+        random: Random(1),
+        drainQuiet: const Duration(milliseconds: 20),
+        maxJitter: const Duration(milliseconds: 1),
+      );
+      made.add(live);
+      live.start(link());
+      await until(() => broker.connections.length == 2, reason: 'on time');
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.sessionPresent, isTrue);
+      expect(broker.last.subscriptions, [
+        eventsTopic,
+        requestsTopic,
+        acksTopic,
+      ]);
     });
 
     test('a premium device never beats or watches', () async {

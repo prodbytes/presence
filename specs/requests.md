@@ -6907,7 +6907,103 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
       [Sessions](sessions.md).
 
-472. **GoPro cameras through a streamer.** (2026-10-18)
+472. **Streamer management: one leader streams.** (2026-10-18)
+    - At most one of a profile's streamers, the leader, pushes to the
+      cloud; a streamer streams only once the auth API grants it the
+      leadership. The auth API keeps the leader on the profile
+      (`streamLeader`, `streamLeaderSeenAt`), grants it with one
+      conditional write, gives stream credentials only to the leader
+      (409 `notLeader` otherwise), and has two lease routes, `POST
+      /api/auth/stream/lease` (the stream key) and `POST
+      /api/auth/profile/stream-lease` (Google sign-in).
+    - A leader silent for more than an hour is replaced by the next
+      waiting streamer to ask; deleting the leader frees its place.
+    - presence-streamer waits (records nothing) until it leads, asking
+      every 5 minutes; leading, it renews every 5 minutes and goes back to
+      waiting when replaced, refused, or unable to renew for 55 minutes.
+    - The app's profile view labels the leader "leader" in the device
+      list (en, es, pt); Blink's streamer list puts it first.
+    - Specs: [Streamer leadership](streamer-leader.md) (new),
+      [Streamer](streamer.md), [Auth API](auth-api.md),
+      [Sign-in](sign-in.md), [Blink cameras](blink.md).
+
+473. **Stop rotating the Apple refresh-token data key.** (2026-10-18)
+    - `SessionDataKey` now has `EnableKeyRotation: false`: each yearly
+      rotation would add $1/month per stage. CloudFormation changes
+      that property in place (no replacement), and KMS keeps old key
+      material, so sealed tokens still decrypt. Takes effect at the
+      next auth API deploy.
+    - Specs: [Sessions](sessions.md).
+
+474. **Ingest: delete processed chunks for good.** (2026-10-18)
+    - Asked: the cloud detector deletes the streamer's `<id>/ingest/*`
+      jobs and chunks without a version ID, so on the versioned user-data
+      bucket each lingers 30 days as an old version (one profile had about
+      2,490, 11.7 GB, 80 % of the bucket). Delete them for good, with no
+      user-visible change.
+    - Changed: presence_ingest deletes the version it read (or, for a chunk
+      it didn't read, the current one's, from a HEAD); its role may
+      `s3:DeleteObjectVersion` on `*/ingest/*` only. If that's refused
+      (AccessDenied) it deletes as before and logs `version kept`.
+    - Not done: the stage's permissions boundary (`<prefix>-app-boundary`
+      in `github-deploy.yaml`, applied by hand) doesn't allow
+      `s3:DeleteObjectVersion` yet, so the versions are still kept until
+      it's added (scoped to `*/ingest/*`). No lifecycle backstop: its
+      filters are key prefixes, and ingest's keys are `<identity>/ingest/…`.
+    - Specs: [Streamer](streamer.md), [Cloud sync](cloud-sync.md).
+
+475. **Cut free live sync's AWS IoT requests, without changing what it
+     does.** (2026-10-18)
+    - A free device's failed scheduled connection now tries again at the
+      schedule's next slot (the interval plus jitter from the failed
+      attempt), or after the back-off when that's longer, instead of
+      after the 1 s … 2 min back-off: never more often than every 15 min.
+      Members' retries are unchanged.
+    - A free device's scheduled connection no longer re-sends its 3
+      SUBSCRIBEs when the broker resumed its persistent session
+      (CONNACK session-present, now `LiveConnection.sessionPresent`):
+      only a new session, or a topic refused before, subscribes. Checked
+      in `mqtt_client` 10.11.11 that the flag is read (3.1.1) and that
+      every received PUBLISH reaches the updates stream whether or not
+      the connection subscribed. Free scheduled connections: ~11,500 →
+      ~2,900 billed messages per device and month.
+    - Not done: sending the heartbeat over each scheduled connection and
+      restarting its 5-min timer from there. With beats at least every
+      5 min and connections more than 15 min apart (the wait starts when
+      the last one closes, plus jitter), three beats of their own are
+      still needed between connections, so it would only add a beat
+      (2 billed messages) per connection.
+    - Specs: [Live sync](live-sync.md), [Premium and free](premium.md).
+
+476. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
+    - The auth API answers a free profile's stream key with HTTP 403
+      `"streamers are Premium only"`, and a device past the plan's limit
+      with 403 `"reason": "deviceLimit"`; presence-streamer read only a
+      401 as a refusal, so it exited 1 and systemd restarted it every 10
+      seconds (about 8,600 auth calls a day per Pi), and mid-run renewals
+      retried every 2 minutes.
+    - Fixed to match the spec: the Premium-only 403 is a free profile
+      (exit 3), the device-limit 403 a refusal (exit 2), at the start and
+      at a renewal (which ends the run); the service restarts neither.
+      Other 403s and 5xx are retried as before. Unit tests for both 403s,
+      at a renewal, and for the exit codes.
+    - Specs: [Streamer](streamer.md).
+
+477. **Keep AWS credentials across the session token's refresh.**
+     (2026-10-18)
+    - `CognitoCredentials` reused credentials only for the same session
+      token, which rotates about hourly, so the auth API (and rbacr) and
+      Cognito were asked again more often than the credentials needed.
+      They're now kept per account (the token's `iss` and `sub`) until
+      five minutes before they expire, or until `CloudBackend.reset()`:
+      a sign-out, another profile, a link or unlink, rejected
+      credentials, or a change of plan (which changes their `tier` tag;
+      `CloudSync` already resets on it). Another account's token never
+      gets them; credentials without an expiry (the local stack) stay per
+      token.
+    - Specs: [Cloud sync](cloud-sync.md).
+
+478. **GoPro cameras through a streamer.** (2026-10-18)
     - Asked: add GoPro support to the streamer, like Blink cameras: the
       configuration in the app, read by the streamer. (GoPro has no
       cloud API; chosen: the Open GoPro HTTP API on the streamer's

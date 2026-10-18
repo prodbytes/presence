@@ -47,6 +47,11 @@
   "@authHidden": {
     "description": "A device whose events are hidden"
   },
+  "authLeader": "leader",
+  "@authLeader": {
+    "description": "The profile's leading streamer, in the device list"
+  },
+  "authLeaderTooltip": "The profile's leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it's been offline for an hour.",
   "authNoEvents": "No events",
   "authHideDevice": "Hide {device}'s events",
   "authShowDevice": "Show {device}'s events",

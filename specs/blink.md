@@ -18,8 +18,9 @@ premium profile with cloud sync, not in DEV:
   `os: Linux`), it says to set one up first (Profile › Stream from a
   Raspberry Pi).
 - **The streamer** that fetches (a dropdown of the profile's Linux
-  devices): the one with Blink already, else the first. **Only that one
-  fetches**: the request goes to it alone.
+  devices, the [leading streamer](streamer-leader.md) first): the one with
+  Blink already, else the first. **Only that one fetches**: the request
+  goes to it alone, and it fetches only while it leads.
 - **Not connected:** the Blink account's **email** and **password**, and
   **Connect**. The request goes to the streamer's folder
   (`devices/<streamer>/blink.json`: `{email, password, requestedAt}`),
@@ -112,6 +113,9 @@ and `main_blink.go`; on unless `--blink off`:
   made-up login (`exit 2`, no token kept).
 
 ## Known limitations
+
+- **Only the leading streamer fetches.** Blink's login stays on the
+  streamer that logged in: when another takes the lead, connect again.
 
 - **Not tried with a real Blink account yet.**
 - Clips stored on a Sync Module's USB drive (no Blink subscription) aren't

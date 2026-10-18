@@ -193,6 +193,13 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get authLeader => 'líder';
+
+  @override
+  String get authLeaderTooltip =>
+      'O streamer líder do perfil: o único que transmite para a nuvem. Os outros esperam, e um assume o lugar dele quando fica uma hora offline.';
+
+  @override
   String get authLinkAnother => 'Vincular outra conta';
 
   @override

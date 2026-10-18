@@ -44,6 +44,8 @@
   "authJoinFree": "Participar grátis",
   "authJoinFreeFailed": "Não foi possível participar agora. Tente de novo em instantes.",
   "authJoinFreeText": "{email} ainda não é membro do Presence. Participe grátis para usá-lo neste dispositivo.",
+  "authLeader": "líder",
+  "authLeaderTooltip": "O streamer líder do perfil: o único que transmite para a nuvem. Os outros esperam, e um assume o lugar dele quando fica uma hora offline.",
   "authLinkAnother": "Vincular outra conta",
   "authLinkCode": "Código de vínculo",
   "authLinkCodeHelp": "Em até 10 minutos, entre com a outra conta do Google e digite este código em Contas vinculadas.",

@@ -41,7 +41,7 @@ enum Plan {
 /// their events are hidden: on the devices that show, the others' events;
 /// on one that doesn't, every other device's.
 class DeviceSlots {
-  const DeviceSlots({required this.limit, required this.devices});
+  const DeviceSlots({required this.limit, required this.devices, this.leader});
 
   /// How many devices show for a free profile.
   static const int freeLimit = 10;
@@ -62,6 +62,11 @@ class DeviceSlots {
   /// The profile's devices, in the order they came.
   final List<String> devices;
 
+  /// The profile's leading streamer (the auth API's `streamLeader`): the
+  /// one of its streamers that streams to the cloud while the others wait;
+  /// null without one.
+  final String? leader;
+
   /// The auth API's answer's `deviceLimit` and `devices`; null when it has
   /// neither (an older API).
   static DeviceSlots? fromJson(Map<String, Object?> json) {
@@ -71,6 +76,10 @@ class DeviceSlots {
     return DeviceSlots(
       limit: limit,
       devices: List.unmodifiable(devices.whereType<String>()),
+      leader: switch (json['streamLeader']) {
+        {'device': final String device} => device,
+        _ => null,
+      },
     );
   }
 
@@ -98,10 +107,11 @@ class DeviceSlots {
   bool operator ==(Object other) =>
       other is DeviceSlots &&
       other.limit == limit &&
+      other.leader == leader &&
       _sameList(other.devices, devices);
 
   @override
-  int get hashCode => Object.hash(limit, Object.hashAll(devices));
+  int get hashCode => Object.hash(limit, leader, Object.hashAll(devices));
 
   static bool _sameList(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
@@ -112,7 +122,7 @@ class DeviceSlots {
   }
 
   @override
-  String toString() => 'DeviceSlots($limit of $devices)';
+  String toString() => 'DeviceSlots($limit of $devices, led by $leader)';
 }
 
 /// A cloud session that knows its profile's [DeviceSlots] (from the auth

@@ -34,7 +34,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
 | `<identityId>/media/<clipId>/frames/<frameId>.jpg` | sealed, each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/year=<YYYY>/day=<DDD>/<clipId>.json` | the clip record: camera, window, lengths, state, media reference; in its event's day partition (the event's `time`, which is the clip's `requestedAt`) |
 | `<identityId>/devices/<deviceId>/settings.json` | the device's settings for this profile: `{deviceId, mediaKey, profileId, updatedAt, config, location}`, every Settings value, the location set on the map (see [Configuration](configuration.md)) and the device's media key, which the profile's other devices read to open its media ([Media encryption](encryption.md)) |
-| `<identityId>/ingest/<deviceId>/<clipId>.mp4` (and `.ingest.json`) | a [streamer](streamer.md)'s recorded chunk, sealed, only while it's searched for people and animals (on the Pi, or by the cloud detector, which its job calls): then moved to `media/` (with its records) or deleted. The app never lists `ingest/` |
+| `<identityId>/ingest/<deviceId>/<clipId>.mp4` (and `.ingest.json`) | a [streamer](streamer.md)'s recorded chunk, sealed, only while it's searched for people and animals (on the Pi, or by the cloud detector, which its job calls): then moved to `media/` (with its records) or deleted (by the cloud detector, for good: no old version kept). The app never lists `ingest/` |
 | `<identityId>/encryption.json` | the marker of when the profile's media was first sealed: each device deletes, once, what's older under `events/`, `clips/` and `media/` ([Media encryption](encryption.md#deleting-unencrypted-data)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images, and the object tags, `objectTags`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
@@ -481,9 +481,17 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
     unsigned: the token is the proof;
   - credentials are reused until five minutes before they expire (by
-    AWS's time, see **Clock**); callers asking at once (a pass, live
-    sync, a playback download) share one fetch, and one that a sign-out
-    or reset cleared meanwhile isn't kept;
+    AWS's time, see **Clock**), across the session token's hourly
+    refresh: they're kept per account (the token's `iss` and `sub`, read
+    without verifying, as only the auth API needs to), so a refreshed
+    token of the same account reuses them and another account's never
+    does (credentials without an expiry, the local stack's, are kept for
+    their own token only). A sign-out, another profile, a change of plan
+    (premium came or went: the credentials' `tier` tag,
+    `CloudSync._onAuthChanged`), a link or unlink, and credentials AWS
+    rejected all drop them (`CloudBackend.reset`). Callers asking at once
+    (a pass, live sync, a playback download) share one fetch, and one
+    that a sign-out or reset cleared meanwhile isn't kept;
   - after a link or unlink, `CloudSync.reconnect()` drops them and starts
     over, as for a new user (the folder changed).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to
