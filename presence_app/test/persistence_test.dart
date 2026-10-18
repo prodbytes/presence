@@ -767,6 +767,10 @@ void main() {
         'clipId': 'remote-clip',
         'clipState': 'complete',
         'trigger': 'manual',
+        // A camera a streamer fetches clips from: its name, and when the
+        // streamer stored it.
+        'cameraName': 'Garage',
+        'storedAt': requested + 60000,
       }),
       contentType: 'application/json',
     );
@@ -778,6 +782,12 @@ void main() {
     await showEvents(tester);
 
     expect(inEvents(find.text('Garage')), findsOneWidget);
+    expect(clipEvent(tester).cameraName, 'Garage');
+    expect(
+      clipEvent(tester).storedAt,
+      DateTime.fromMillisecondsSinceEpoch(requested + 60000),
+    );
+    expect(inEvents(find.textContaining('Garage | ')), findsOneWidget);
     // The downloaded recording plays from local storage.
     final restored = clipEvent(tester).clip;
     expect(restored.id, 'remote-clip');

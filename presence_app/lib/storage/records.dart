@@ -54,6 +54,7 @@ abstract final class Records {
     'userId',
     'profileId',
     'os',
+    'cameraName',
     'clipId',
     'trigger',
     'clipEventId',
@@ -89,12 +90,14 @@ abstract final class Records {
       _skip('event $id', 'unsafe clip id');
       return null;
     }
-    if (record.containsKey('deletedAt')) {
-      final at = intOf(record['deletedAt']);
+    // Times: dropped when they aren't whole numbers.
+    for (final key in const ['deletedAt', 'storedAt']) {
+      if (!record.containsKey(key)) continue;
+      final at = intOf(record[key]);
       if (at == null) {
-        clean.remove('deletedAt');
+        clean.remove(key);
       } else {
-        clean['deletedAt'] = at;
+        clean[key] = at;
       }
     }
     return clean;

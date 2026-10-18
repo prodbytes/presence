@@ -948,6 +948,55 @@ void main() {
       },
     );
 
+    test("a camera's clip a streamer fetched (Blink, GoPro, Reolink) is "
+        'recognized as the streamer\'s own: recorded long before, stored lately '
+        'too; history stored long ago left', () async {
+      final sampler = FakeSampler(2);
+      final r = recognizer(FakeVision({}, {}), sampler);
+      final now = DateTime.now();
+      ClipRequested camera(
+        String id,
+        String os, {
+        required DateTime time,
+        DateTime? storedAt,
+      }) => ClipRequested(clip(), id: id, time: time)
+        ..os = os
+        ..deviceId = 'pungent_orbital_canal'
+        ..cameraName = 'Garden'
+        ..storedAt = storedAt
+        // Kept with no one found by the streamer's detector.
+        ..annotations.setObjects(const []);
+      final blink = camera('blink', 'Blink', time: now);
+      // A GoPro back on the network: recorded 3 days ago, fetched now.
+      final gopro = camera(
+        'gopro',
+        'GoPro',
+        time: now.subtract(const Duration(days: 3)),
+        storedAt: now.subtract(const Duration(minutes: 5)),
+      );
+      // A Reolink's clip stored 2 days ago: history.
+      final reolink = camera(
+        'reolink',
+        'Reolink',
+        time: now.subtract(const Duration(days: 2)),
+        storedAt: now.subtract(const Duration(days: 2)),
+      );
+      r.recognizeSynced([blink, gopro, reolink], now: now);
+      await Future<void>.delayed(Duration.zero);
+      await r.idle;
+      expect(blink.annotations.subjectSearch, isNotNull);
+      expect(gopro.annotations.subjectSearch, isNotNull);
+      expect(reolink.annotations.subjectSearch, isNull);
+      expect(sampler.samples, 2, reason: 'Blink and GoPro, again for tags');
+    });
+
+    test('the cameras a streamer fetches clips from never recognize', () {
+      for (final os in ['Blink', 'GoPro', 'Reolink', 'Linux']) {
+        expect(SubjectRecognizer.canRecognize(os, null), isFalse, reason: os);
+      }
+      expect(SubjectRecognizer.canRecognize('Android', null), isTrue);
+    });
+
     test('a question about a hidden device\'s clip, asked by another '
         'device, shows nowhere here', () {
       final theClip = ClipRequested(clip(), id: 'c')

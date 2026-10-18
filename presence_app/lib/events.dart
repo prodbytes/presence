@@ -132,6 +132,19 @@ class AppEvent {
   /// (`deviceMemoryMb`), when it says; for the device list.
   int? memoryMb;
 
+  /// The name of the camera that recorded the event, when it's a camera
+  /// a streamer fetches clips from (Blink, GoPro, Reolink: "Garden"),
+  /// each its own device: shown before the device, "Garden | device"
+  /// ([EventDeviceTag], `EventDevice`). Null for a phone's or a streamer's
+  /// own camera.
+  String? cameraName;
+
+  /// When the event was stored, if later than [time]: a streamer says so
+  /// (`storedAt`), as a camera's clip may be fetched long after it was
+  /// recorded. Synced clips stored lately are recognized
+  /// (`SubjectRecognizer.recognizeSynced`). Null: when it was recorded.
+  DateTime? storedAt;
+
   /// When the event was deleted, with every other event of its device
   /// (`Persistence.deleteDevice`): a soft delete. The record stays, with
   /// this time, in storage and in the cloud, so the deletion syncs to the
@@ -154,6 +167,8 @@ class AppEvent {
     'location': location?.toJson(),
     if (os != null) 'os': os,
     if (memoryMb != null) 'memoryMb': memoryMb,
+    if (cameraName != null) 'cameraName': cameraName,
+    if (storedAt case final at?) 'storedAt': at.millisecondsSinceEpoch,
     if (deletedAt case final at?) deletedAtField: at.millisecondsSinceEpoch,
   };
 
@@ -212,8 +227,36 @@ class AppEvent {
       ..profileId = profileOf(record)
       ..os = osOf(record)
       ..memoryMb = memoryOf(record)
+      ..cameraName = cameraNameOf(record)
+      ..storedAt = storedAtOf(record)
       ..deletedAt = deletedAtOf(record);
   }
+
+  /// The operating systems of the cameras a streamer fetches clips from,
+  /// each its own device ([cameraName]).
+  static const Set<String> fetchedCameraOs = {'Blink', 'GoPro', 'Reolink'};
+
+  /// The camera name of a stored event ([cameraName]): its `cameraName`,
+  /// or, on a fetched camera's event stored before events had one (`os`
+  /// Blink, GoPro or Reolink), its `detail`, which was the camera's name.
+  /// Null if it has none.
+  static String? cameraNameOf(Map<String, Object?> record) {
+    final name = record['cameraName'];
+    if (name is String) return name.trim().isEmpty ? null : name.trim();
+    final detail = record['detail'];
+    return fetchedCameraOs.contains(osOf(record)) &&
+            detail is String &&
+            detail.trim().isNotEmpty
+        ? detail.trim()
+        : null;
+  }
+
+  /// When a stored event was stored ([storedAt]); null if it doesn't say.
+  static DateTime? storedAtOf(Map<String, Object?> record) =>
+      switch (record['storedAt']) {
+        final int ms when ms > 0 => DateTime.fromMillisecondsSinceEpoch(ms),
+        _ => null,
+      };
 
   /// The total memory (MB) of the device a stored event was recorded on;
   /// null if it doesn't say.
@@ -943,25 +986,40 @@ class _EventTimelineState extends State<EventTimeline> {
             // edge to edge under the header.
             child: FeedCard(
               header: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (device != null)
-                    Flexible(
-                      child: EventDeviceTag(
-                        key: Key('event-device-${event.id}'),
-                        device: device,
-                        thisDevice: device == widget.deviceId,
-                        os: event.os,
-                        value: _filters.search,
-                      ),
-                    ),
+                  Expanded(
+                    child: device == null
+                        ? const SizedBox.shrink()
+                        : Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: EventDeviceTag(
+                              key: Key('event-device-${event.id}'),
+                              device: device,
+                              thisDevice: device == widget.deviceId,
+                              os: event.os,
+                              cameraName: event.cameraName,
+                              value: _filters.search,
+                            ),
+                          ),
+                  ),
                   const SizedBox(width: 8),
-                  // Their full size, always: the device's name gives way
-                  // (it ellipsizes) on a narrow card.
-                  EventIndicators(event: event),
-                  if (EventDetailsScope.maybeOf(context) case final scope?
-                      when scope.canDelete(event))
-                    EventDeleteButton(event: event, delete: scope.deleteEvent!),
+                  // Every button of the card together, top right, in one
+                  // row: the indicators (each does something when tapped)
+                  // and delete. Their full size, always: the device's
+                  // name gives way (it ellipsizes) on a narrow card.
+                  Row(
+                    key: Key('event-actions-${event.id}'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      EventIndicators(event: event),
+                      if (EventDetailsScope.maybeOf(context) case final scope?
+                          when scope.canDelete(event))
+                        EventDeleteButton(
+                          event: event,
+                          delete: scope.deleteEvent!,
+                        ),
+                    ],
+                  ),
                 ],
               ),
               child: event.buildCard(context),
@@ -1387,10 +1445,11 @@ class DeleteShownEvents extends StatelessWidget {
 
 /// The device an event was taken on, small and quiet above its card in the
 /// timeline: its operating system's icon ([DeviceOs.iconOf]; no name, for
-/// the room) and its ID, this device's in bold. Tapping it searches for the
-/// device ([value], the timeline's [EventFilters.search]): only its events
-/// show ([EventFilters.showDevice]); tapped again, the search clears and
-/// every device's show.
+/// the room) and its ID, this device's in bold; a fetched camera's name
+/// before it ([cameraName]: "Garden | device"). Tapping it searches for
+/// the device ([value], the timeline's [EventFilters.search]): only its
+/// events show ([EventFilters.showDevice]); tapped again, the search
+/// clears and every device's show.
 class EventDeviceTag extends StatelessWidget {
   const EventDeviceTag({
     super.key,
@@ -1398,9 +1457,13 @@ class EventDeviceTag extends StatelessWidget {
     required this.thisDevice,
     required this.value,
     this.os,
+    this.cameraName,
   });
 
   final String device;
+
+  /// The camera's name ([AppEvent.cameraName]), shown before [device].
+  final String? cameraName;
 
   /// The operating system the event was recorded on, if it says: its icon
   /// (no name, so the device's has the room).
@@ -1438,7 +1501,7 @@ class EventDeviceTag extends StatelessWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      device,
+                      cameraName == null ? device : '$cameraName | $device',
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: color,
