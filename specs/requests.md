@@ -6906,3 +6906,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `APPLE_SIGNIN_KEY_PARAMETER_RC`.
     - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
       [Sessions](sessions.md).
+
+472. **Cut free live sync's AWS IoT requests, without changing what it
+     does.** (2026-10-18)
+    - A free device's failed scheduled connection now tries again at the
+      schedule's next slot (the interval plus jitter from the failed
+      attempt), or after the back-off when that's longer, instead of
+      after the 1 s … 2 min back-off: never more often than every 15 min.
+      Members' retries are unchanged.
+    - A free device's scheduled connection no longer re-sends its 3
+      SUBSCRIBEs when the broker resumed its persistent session
+      (CONNACK session-present, now `LiveConnection.sessionPresent`):
+      only a new session, or a topic refused before, subscribes. Checked
+      in `mqtt_client` 10.11.11 that the flag is read (3.1.1) and that
+      every received PUBLISH reaches the updates stream whether or not
+      the connection subscribed. Free scheduled connections: ~11,500 →
+      ~2,900 billed messages per device and month.
+    - Not done: sending the heartbeat over each scheduled connection and
+      restarting its 5-min timer from there. With beats at least every
+      5 min and connections more than 15 min apart (the wait starts when
+      the last one closes, plus jitter), three beats of their own are
+      still needed between connections, so it would only add a beat
+      (2 billed messages) per connection.
+    - Specs: [Live sync](live-sync.md), [Premium and free](premium.md).
