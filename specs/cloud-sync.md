@@ -481,9 +481,17 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
     unsigned: the token is the proof;
   - credentials are reused until five minutes before they expire (by
-    AWS's time, see **Clock**); callers asking at once (a pass, live
-    sync, a playback download) share one fetch, and one that a sign-out
-    or reset cleared meanwhile isn't kept;
+    AWS's time, see **Clock**), across the session token's hourly
+    refresh: they're kept per account (the token's `iss` and `sub`, read
+    without verifying, as only the auth API needs to), so a refreshed
+    token of the same account reuses them and another account's never
+    does (credentials without an expiry, the local stack's, are kept for
+    their own token only). A sign-out, another profile, a change of plan
+    (premium came or went: the credentials' `tier` tag,
+    `CloudSync._onAuthChanged`), a link or unlink, and credentials AWS
+    rejected all drop them (`CloudBackend.reset`). Callers asking at once
+    (a pass, live sync, a playback download) share one fetch, and one
+    that a sign-out or reset cleared meanwhile isn't kept;
   - after a link or unlink, `CloudSync.reconnect()` drops them and starts
     over, as for a new user (the folder changed).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to

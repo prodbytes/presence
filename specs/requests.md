@@ -6988,3 +6988,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       Other 403s and 5xx are retried as before. Unit tests for both 403s,
       at a renewal, and for the exit codes.
     - Specs: [Streamer](streamer.md).
+
+477. **Keep AWS credentials across the session token's refresh.**
+     (2026-10-18)
+    - `CognitoCredentials` reused credentials only for the same session
+      token, which rotates about hourly, so the auth API (and rbacr) and
+      Cognito were asked again more often than the credentials needed.
+      They're now kept per account (the token's `iss` and `sub`) until
+      five minutes before they expire, or until `CloudBackend.reset()`:
+      a sign-out, another profile, a link or unlink, rejected
+      credentials, or a change of plan (which changes their `tier` tag;
+      `CloudSync` already resets on it). Another account's token never
+      gets them; credentials without an expiry (the local stack) stay per
+      token.
+    - Specs: [Cloud sync](cloud-sync.md).
