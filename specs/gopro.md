@@ -101,8 +101,10 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   **its camera's spool** (`spool/gopro/<device>/`), where a pipeline of its
   own takes it, as for a [Blink camera](blink.md#on-the-streamer): the
   Pi's own settings, the camera's device ID and name (`detail`,
-  `cameraLabel`), `cameraId: gopro`, `os: GoPro`, every video kept (no
-  motion filter). Where it got to is saved after each video, so a restart
+  `cameraLabel`, the event's `cameraName`), `cameraId: gopro`, `os:
+  GoPro`, every video kept (no motion filter), and `storedAt`: a video
+  fetched days after it was recorded is still recognized by the app
+  ([Subject recognition](recognition.md#when-it-runs)). Where it got to is saved after each video, so a restart
   doesn't fetch it again.
 - **Deleted from the device once verified:** a video, its sealed copy
   and thumbnail leave the Pi only as the Pi's own chunks do, once each

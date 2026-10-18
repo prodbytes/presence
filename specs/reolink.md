@@ -8,7 +8,8 @@ disk, as if it had recorded them: each recording goes through the
 streamer's chunk pipeline (sealed, uploaded, searched for people and
 animals), as a device of its own, and **every recording is kept** as a
 motion event, tagged with whoever's in it (`KeepAll`: Reolink records
-only on motion).
+only on motion), then recognized by the app like the streamer's own
+clips.
 Premium only (the streamer is). It works like [GoPro cameras](gopro.md)
 (the same `netcam` package and Settings widget), with a login and an NVR
 channel.
@@ -56,7 +57,10 @@ to, deleting each video from the Pi once its upload is verified, and
 handing over a video a stop left downloaded (a cut-off one deleted) are
 as for [GoPro](gopro.md#on-the-streamer), in `reolink-state.json`
 (mode 600), `reolink-incoming/<device>/` and `spool/reolink/<device>/`, its events `cameraId: reolink`,
-`os: Reolink`. What's Reolink's:
+`os: Reolink`, `cameraName` the camera's name (shown before its device:
+"Garden | device") and `storedAt`, so a backlog fetched days late is still
+recognized by the app ([Subject recognition](recognition.md#when-it-runs)).
+What's Reolink's:
 
 - **Login** (`cmd=Login`, the user and password in the body, over
   HTTPS): the token the other commands carry; a refused login says "the

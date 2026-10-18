@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -140,6 +141,20 @@ func TestFetchedClipsAreDeletedOnceVerified(t *testing.T) {
 			if n, _ := bucket.count("ingest/"); n != 0 {
 				t.Fatal("left in ingest")
 			}
+			// Its events name the camera beside its device, and say it's one.
+			bucket.mu.Lock()
+			for key, data := range bucket.objects {
+				if !strings.HasPrefix(key, "events/") {
+					continue
+				}
+				var event map[string]any
+				json.Unmarshal(data, &event)
+				if event["cameraName"] != "Porch" || event["detail"] != "Porch" ||
+					event["deviceId"] != "calm_quiet_camera" || event["os"] != kind || event["cameraId"] != kind {
+					t.Errorf("event %v", event)
+				}
+			}
+			bucket.mu.Unlock()
 			if left, _ := os.ReadDir(incoming); len(left) != 0 {
 				t.Fatalf("left in incoming: %v", left)
 			}

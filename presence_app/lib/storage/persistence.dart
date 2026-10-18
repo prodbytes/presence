@@ -1339,6 +1339,8 @@ class Persistence implements DeviceSettings {
     ..profileId ??= AppEvent.profileOf(record)
     ..os ??= AppEvent.osOf(record)
     ..memoryMb ??= AppEvent.memoryOf(record)
+    ..cameraName ??= AppEvent.cameraNameOf(record)
+    ..storedAt ??= AppEvent.storedAtOf(record)
     ..deletedAt ??= AppEvent.deletedAtOf(record);
 
   AppEvent _restoreEventOnly(

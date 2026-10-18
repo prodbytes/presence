@@ -247,9 +247,9 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		// The cloud detector takes it from here: the job, uploaded after
 		// the chunk, is what it's called for.
 		if !p.Job {
-			event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length},
+			event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, StoredAt: time.Now()},
 				p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
-			job := records.Job{V: 1, Event: event, Clip: clip}
+			job := records.Job{V: 1, Event: event, Clip: clip, KeepAll: s.KeepAll}
 			if err := s.putJSON(ctx, chunk+".job.json", records.JobKey(s.DeviceID, p.ClipID), job); err != nil {
 				return fmt.Errorf("uploading %s's job: %w", name, err)
 			}
@@ -365,7 +365,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		tags = append(tags, records.ObjectTag{Label: sub.Label, Ms: sub.Ms, Score: sub.Score})
 	}
 	sort.Slice(tags, func(i, j int) bool { return tags[i].Label < tags[j].Label })
-	event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, Tags: tags},
+	event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, Tags: tags, StoredAt: time.Now()},
 		p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
 
 	if !p.Clip {

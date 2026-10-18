@@ -99,9 +99,14 @@ and `main_blink.go`; on unless `--blink off`:
   (`spool/blink/<device>/`), where a pipeline of its own takes it: the
   Pi's own settings (detection here or in the cloud, the object scores,
   the spool's size), but the camera's device ID, its name as the camera
-  (`detail`, `cameraLabel`), `cameraId: blink`, `os: Blink`, and **every
-  clip kept**: no motion filter, and kept with no one in it too (the
-  pipeline's `KeepAll`; Blink records on motion already). Its
+  (`detail`, `cameraLabel`, and the event's **`cameraName`**, which the
+  app shows before the device: "Garden | device"), `cameraId: blink`,
+  `os: Blink`, and **every clip kept**: no motion filter, and kept with
+  no one in it too (the pipeline's `KeepAll`, in the cloud detector's
+  mode too; Blink records on motion already). Its events say when they
+  were stored (`storedAt`). Then the app's [recognition](recognition.md)
+  searches them as it does the streamer's own clips: one device that can
+  recognize, for subjects and objects. Its
   settings (`devices/<camera>/settings.json`, the streamer's media key)
   go up first, as for the Pi's own device, so the other devices open its
   clips. Its sealed clips carry its own device ID as their key's ID.

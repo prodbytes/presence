@@ -83,7 +83,9 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
 | `location` | object | `{lat, lng, accuracy, source, time}`: where the device was (see [Device location](device-location.md)); may be null |
 | `memoryMb` | number | the recording device's total memory in MB (Android's `ActivityManager`, iOS's `physicalMemory`, a browser's `navigator.deviceMemory`, rounded); missing where it doesn't say, and on events saved before 2026-10-14 |
-| `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
+| `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, `Blink`, `GoPro`, `Reolink`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
+| `cameraName` | string | the camera's own name, on the events of a camera a [streamer](streamer.md) fetches clips from (Blink, GoPro, Reolink: "Garden"), each its own device; shown before the device, "Garden \| device" ([Events](events.md)); missing on other events and on those stored before 2026-10-18 (the app then takes `detail` when `os` is `Blink`, `GoPro` or `Reolink`) |
+| `storedAt` | integer (ms, UTC) | when a [streamer](streamer.md) stored the event; a camera's clip may be fetched long after it was recorded (`time`). Synced clips recorded or stored within a day are recognized ([Subject recognition](recognition.md#when-it-runs)); missing on the app's own events and older ones |
 | `deletedAt` | integer (ms, UTC) | when the event was deleted, alone from its details or with its device ([Device deletion](device-deletion.md)): the event is hidden on every device; missing on events that aren't deleted. Once set it stays (a copy without it doesn't undo it) |
 
 Clip events (`clip_requested`) add:

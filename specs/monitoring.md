@@ -33,7 +33,8 @@ the separate Events and Subjects tabs.
   were asked to", or, with live sync off or offline, that only this
   device syncs.
 - **Above each event's card,** the **device it was taken on**, small and
-  quiet; tapping it sets the search to the device's ID, which shows only
+  quiet (a fetched camera's name before it: "Garden | device"), with
+  the card's buttons together at its top right; tapping it sets the search to the device's ID, which shows only
   that device's events in the events list (every device by default; the
   map keeps every subject); tapped again, the search clears. A device's name
   tapped anywhere else in the app (an event's details, the account
