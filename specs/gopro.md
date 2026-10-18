@@ -11,7 +11,10 @@ in it (`KeepAll`: they're taken on purpose). Premium only (the
 streamer is). GoPro has no cloud API, so unlike [Blink](blink.md) the
 streamer talks to the cameras themselves, with no helper.
 
-A camera is reached in one of three ways (HERO9 or newer):
+A camera is reached in one of three ways (HERO9 or newer; a **HERO5 to
+HERO8** has no Open GoPro HTTP API, and by USB shows up only as a camera:
+plug it into the streamer and add it under [USB cameras](usb-cameras.md),
+no address needed):
 
 - **On the home network** (Camera on the Home Network, HERO12 or newer):
   HTTPS, user `gopro` and the camera's password. Its address is an IP

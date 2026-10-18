@@ -23,6 +23,7 @@ import '../cloud/cloud_sync.dart';
 import '../config.dart';
 import '../delete_device.dart';
 import '../net_camera_settings.dart';
+import '../usb_camera_settings.dart';
 import '../show_device.dart';
 import '../device_events.dart';
 import '../events.dart';
@@ -204,6 +205,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         _ => null,
       };
+
+  /// Settings' USB cameras section: as [_netCameras].
+  Widget? _usbCameras() => switch ((widget.sync, widget.roles.profile)) {
+    (final sync?, final profile?)
+        when !_dev && (widget.roles.isPremium || widget.roles.isAdmin) =>
+      UsbCameraSettings.of(
+        sync: sync,
+        log: widget.log,
+        profileId: profile,
+        config: widget.config,
+        thisDevice: widget.deviceId,
+      ),
+    _ => null,
+  };
 
   /// Opens Help as a page of its own, over the tabs.
   void _openHelp() {
@@ -738,6 +753,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   },
                   gopro: _netCameras(NetCameraKind.gopro),
                   reolink: _netCameras(NetCameraKind.reolink),
+                  usbcam: _usbCameras(),
                   liveAdmin: widget.roles.isAdmin,
                   liveFree:
                       widget.roles.hasAccess &&

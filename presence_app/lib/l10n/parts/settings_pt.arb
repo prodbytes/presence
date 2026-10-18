@@ -143,7 +143,7 @@
   "blinkLastFetch": "Clipes buscados por último às {time}.",
   "blinkNotSent": "Não foi possível enviar: a chave do streamer ainda não chegou, ou a sincronização está desligada. Tente em um minuto.",
   "settingsGoProSection": "Câmeras GoPro",
-  "goproAbout": "Um streamer seu busca os vídeos novos das suas câmeras GoPro pela rede dele: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Uma GoPro HERO9 ou mais nova, na rede de casa (HERO12 ou mais nova), ligada por USB, ou no próprio Wi-Fi.",
+  "goproAbout": "Um streamer seu busca os vídeos novos das suas câmeras GoPro pela rede dele: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Uma GoPro HERO9 ou mais nova, na rede de casa (HERO12 ou mais nova), ligada por USB, ou no próprio Wi-Fi. Uma HERO5 a HERO8: conecte-a ao streamer e adicione-a em Câmeras USB.",
   "goproNoStreamer": "Configure primeiro um streamer (Perfil › Streamer); ele busca os vídeos das câmeras GoPro.",
   "netcamStreamer": "O streamer que os busca",
   "streamerLeader": "Líder ({device})",
@@ -175,5 +175,16 @@
   "reolinkNone": "Ainda sem câmeras Reolink.",
   "reolinkCameras": "As câmeras Reolink dele:",
   "reolinkError": "Reolink: {error}",
-  "netcamChannelOf": "canal {channel}"
+  "netcamChannelOf": "canal {channel}",
+  "settingsUsbCamSection": "Câmeras USB",
+  "usbcamAbout": "Um streamer seu busca os vídeos novos das câmeras ligadas a ele por USB, sem rede nem endereço: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Câmeras que aparecem como câmera ou dispositivo de mídia (PTP ou MTP), como uma GoPro HERO5 a HERO8 ou a maioria das câmeras digitais; ligadas, conectadas ao streamer.",
+  "usbcamNoStreamer": "Configure primeiro um streamer (Perfil › Streamer); as câmeras são conectadas a ele.",
+  "usbcamStreamer": "O streamer em que estão conectadas",
+  "usbcamCameras": "As câmeras USB dele:",
+  "usbcamNone": "Nenhuma câmera USB adicionada ainda.",
+  "usbcamDetected": "Conectadas a ele, para adicionar:",
+  "usbcamNoneDetected": "Nenhuma outra câmera conectada a ele. Conecte uma e ligue-a: ela aparece aqui em até um minuto.",
+  "usbcamAdd": "Adicionar",
+  "usbcamUnplugged": "Desconectada: os vídeos novos são buscados quando ela voltar.",
+  "usbcamError": "Câmeras USB: {error}"
 }

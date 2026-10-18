@@ -26,6 +26,7 @@ class SettingsView extends StatefulWidget {
     this.blink,
     this.gopro,
     this.reolink,
+    this.usbcam,
     this.location,
     this.tiles,
     this.onMapHeld,
@@ -99,6 +100,10 @@ class SettingsView extends StatefulWidget {
   /// (`NetCameraSettings`): for a premium profile with cloud sync. None: no
   /// section.
   final Widget? gopro, reolink;
+
+  /// After them, **USB cameras** (`UsbCameraSettings`): for a premium
+  /// profile with cloud sync. None: no section.
+  final Widget? usbcam;
 
   /// The app's configuration; every control edits it.
   final ConfigController config;
@@ -473,6 +478,13 @@ class _SettingsViewState extends State<SettingsView> {
                 key: const Key('reolink-section'),
                 title: l.settingsReolinkSection,
                 children: [reolink],
+              ),
+            // Cameras plugged into a streamer by USB.
+            if (widget.usbcam case final usbcam?)
+              SettingsSection(
+                key: const Key('usbcam-section'),
+                title: l.settingsUsbCamSection,
+                children: [usbcam],
               ),
             // Syncing: how this device hears of the others' events.
             if (widget.liveSync)

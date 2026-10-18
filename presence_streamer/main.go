@@ -76,8 +76,12 @@ type options struct {
 	goproEvery        time.Duration
 	// Reolink (specs/reolink.md): auto or off; low (the sub stream's
 	// recordings) or full (the main stream's); how often they're fetched.
-	reolink, reolinkVideo                                     string
-	reolinkEvery                                              time.Duration
+	reolink, reolinkVideo string
+	reolinkEvery          time.Duration
+	// USB cameras (specs/usb-cameras.md): auto or off; gphoto2; how often
+	// videos are fetched.
+	usbcam, gphoto2                                           string
+	usbcamEvery                                               time.Duration
 	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
 	// Live sync (specs/streamer.md, "Live sync"): the AWS IoT endpoint (off:
 	// none) and the topics' stage (empty: from the API).
@@ -262,6 +266,13 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 		reolinkEvery = 2 * time.Minute
 	}
 	fs.DurationVar(&o.reolinkEvery, "reolink-every", reolinkEvery, "how often Reolink cameras' new recordings are fetched")
+	fs.StringVar(&o.usbcam, "usbcam", env("USBCAM", "auto"), "USB cameras (PTP/MTP, e.g. a GoPro HERO5-8): auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.gphoto2, "gphoto2", env("GPHOTO2", "gphoto2"), "gphoto2 (USB cameras)")
+	usbcamEvery, err := time.ParseDuration(env("USBCAM_EVERY", "2m"))
+	if err != nil {
+		usbcamEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.usbcamEvery, "usbcam-every", usbcamEvery, "how often USB cameras' new videos are fetched")
 	fs.StringVar(&o.iotEndpoint, "iot-endpoint", env("IOT_ENDPOINT", iotEndpoint), "live sync's AWS IoT endpoint (<id>-ats.iot.<region>.amazonaws.com), or off")
 	fs.StringVar(&o.stage, "stage", env("STAGE", ""), "live sync's stage, prod or rc (default: rc for an rc. site, else prod)")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
@@ -902,7 +913,7 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 			live.Run(ctx)
 		}()
 	}
-	// Blink's, GoPro's and Reolink's cameras, when this streamer is the one
+	// Blink's, GoPro's, Reolink's and USB cameras, when this streamer is the one
 	// the app picked: their devices join the profile's at each renewal.
 	var cameras []func() []string
 	var runs []func()
@@ -922,6 +933,10 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 			continue
 		}
 		devices, run := startNetcam(ctx, n.kind, n.os, n.every, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
+	if o.usbcam != "off" {
+		devices, run := startUSBCams(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
 		cameras, runs = append(cameras, devices), append(runs, run)
 	}
 	sess.Cameras = func() []string {

@@ -2593,7 +2593,7 @@ abstract class AppLocalizations {
   /// No description provided for @goproAbout.
   ///
   /// In en, this message translates to:
-  /// **'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.'**
+  /// **'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.'**
   String get goproAbout;
 
   /// No description provided for @goproAddressHelp.
@@ -4174,6 +4174,12 @@ abstract class AppLocalizations {
   /// **'Events'**
   String get settingsSubjectsSection;
 
+  /// No description provided for @settingsUsbCamSection.
+  ///
+  /// In en, this message translates to:
+  /// **'USB cameras'**
+  String get settingsUsbCamSection;
+
   /// A free trial's length
   ///
   /// In en, this message translates to:
@@ -4431,6 +4437,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recognized automatically'**
   String get subjectsRecognizedAuto;
+
+  /// No description provided for @usbcamAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.'**
+  String get usbcamAbout;
+
+  /// No description provided for @usbcamAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usbcamAdd;
+
+  /// No description provided for @usbcamCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'Its USB cameras:'**
+  String get usbcamCameras;
+
+  /// No description provided for @usbcamDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Plugged into it, to add:'**
+  String get usbcamDetected;
+
+  /// No description provided for @usbcamError.
+  ///
+  /// In en, this message translates to:
+  /// **'USB cameras: {error}'**
+  String usbcamError(String error);
+
+  /// No description provided for @usbcamNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a streamer first (Profile › Streamer); the cameras are plugged into it.'**
+  String get usbcamNoStreamer;
+
+  /// No description provided for @usbcamNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No USB cameras added yet.'**
+  String get usbcamNone;
+
+  /// No description provided for @usbcamNoneDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.'**
+  String get usbcamNoneDetected;
+
+  /// No description provided for @usbcamStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'The streamer they\'re plugged into'**
+  String get usbcamStreamer;
+
+  /// No description provided for @usbcamUnplugged.
+  ///
+  /// In en, this message translates to:
+  /// **'Not plugged in: its new videos are fetched once it\'s back.'**
+  String get usbcamUnplugged;
 }
 
 class _AppLocalizationsDelegate

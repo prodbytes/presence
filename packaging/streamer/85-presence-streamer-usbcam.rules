@@ -1,0 +1,21 @@
+# presence-streamer: USB still-image cameras (interface class 6: PTP, and
+# MTP on most cameras, e.g. a GoPro HERO5 to HERO8) are for the streamer
+# (specs/usb-cameras.md), which fetches their videos with gphoto2:
+#
+# - the plugdev group (presence-streamer is in it) may open them;
+# - the desktop leaves them alone: gvfs's gphoto2 and MTP volume monitors
+#   take only devices with ID_GPHOTO2 or ID_MTP_DEVICE (set by libgphoto2's
+#   and libmtp's rules, before this one), and a mounted camera is busy for
+#   anyone else. The desktop user keeps access (uaccess).
+#
+# Other USB devices are untouched. To let the desktop have cameras again:
+#   sudo ln -s /dev/null /etc/udev/rules.d/85-presence-streamer-usbcam.rules
+# then replug the camera.
+ACTION=="remove", GOTO="presence_streamer_usbcam_end"
+SUBSYSTEM!="usb", GOTO="presence_streamer_usbcam_end"
+ENV{DEVTYPE}!="usb_device", GOTO="presence_streamer_usbcam_end"
+ENV{ID_USB_INTERFACES}=="", IMPORT{builtin}="usb_id"
+ENV{ID_USB_INTERFACES}!="*:06????:*", GOTO="presence_streamer_usbcam_end"
+GROUP="plugdev", MODE="0660"
+ENV{ID_GPHOTO2}="", ENV{ID_MTP_DEVICE}=""
+LABEL="presence_streamer_usbcam_end"

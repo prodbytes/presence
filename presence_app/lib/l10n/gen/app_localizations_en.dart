@@ -1549,7 +1549,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get goproAbout =>
-      'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.';
+      'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.';
 
   @override
   String get goproAddressHelp =>
@@ -2542,6 +2542,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSubjectsSection => 'Events';
 
   @override
+  String get settingsUsbCamSection => 'USB cameras';
+
+  @override
   String storeDays(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2752,4 +2755,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subjectsRecognizedAuto => 'Recognized automatically';
+
+  @override
+  String get usbcamAbout =>
+      'A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.';
+
+  @override
+  String get usbcamAdd => 'Add';
+
+  @override
+  String get usbcamCameras => 'Its USB cameras:';
+
+  @override
+  String get usbcamDetected => 'Plugged into it, to add:';
+
+  @override
+  String usbcamError(String error) {
+    return 'USB cameras: $error';
+  }
+
+  @override
+  String get usbcamNoStreamer =>
+      'Set up a streamer first (Profile › Streamer); the cameras are plugged into it.';
+
+  @override
+  String get usbcamNone => 'No USB cameras added yet.';
+
+  @override
+  String get usbcamNoneDetected =>
+      'No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.';
+
+  @override
+  String get usbcamStreamer => 'The streamer they\'re plugged into';
+
+  @override
+  String get usbcamUnplugged =>
+      'Not plugged in: its new videos are fetched once it\'s back.';
 }
