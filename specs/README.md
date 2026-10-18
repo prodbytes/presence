@@ -189,8 +189,8 @@ their data.
   with the profile's credentials), metadata only; S3 keeps everything, and
   clips and thumbnails still come from it.
 - [Device presence](device-presence.md): devices ping each other over
-  live sync; a green (answered within 90 s), yellow (heard from or an
-  event within 24 h) or red dot by each device in the All grid and the
+  live sync; a green (active within 5 sync timeouts), yellow (within
+  10) or red dot by each device in the All grid and the
   account sheet's devices list.
 - [Event copies](event-copies.md): each event card and the event's
   details count the copies of the event (this device, the cloud, other

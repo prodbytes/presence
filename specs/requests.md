@@ -7200,3 +7200,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        latest event and their latest live sync answer (`recentFirst`);
        devices never active come last, by ID. Specs:
        [Sign-in](sign-in.md).
+
+493. **Presence colors by the sync timeout.** (2026-10-18)
+     - Asked: recently active devices green; yellow after 5 times the sync
+       timeout without hearing from a device, red after 10 times; the
+       timeout set from how often devices sync.
+     - Changed: the timeout T is `LiveSync.presenceTimeout`: 5 min for a
+       free profile (its heartbeat), else the live sync schedule, a
+       minute at least. A device is green when its newer of last answer
+       and latest event is within 5 T, yellow within 10 T, red past that
+       or never (was: green on an answer within 90 s, yellow within
+       24 h). An event now counts toward green, also without live sync.
+       Specs: [Device presence](device-presence.md), [Camera
+       screen](camera.md), [Sign-in](sign-in.md), [README](README.md).

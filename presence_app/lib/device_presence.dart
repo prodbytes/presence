@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'cloud/live_sync.dart';
+import 'config.dart';
 import 'events.dart';
 import 'l10n/l10n.dart';
 import 'theme.dart';
@@ -19,23 +20,27 @@ class DevicePresence {
   final PresenceLevel level;
   final String reason;
 
-  /// A device that answered a ping within this is live (green): three
-  /// rounds of the 30 s pings the All grid and the devices list send. A
-  /// free profile's devices beat instead ([LiveSync.liveWithin], 11 min).
-  static const Duration liveWithin = Duration(seconds: 90);
+  /// The sync timeout: how long between hearing from a device, as often
+  /// as devices sync ([LiveSync.presenceTimeout]); by default a member's
+  /// live sync schedule, every minute ([LiveConfig.defaultEvery]).
+  static const Duration timeout = LiveConfig.defaultEvery;
 
-  /// A device heard from (an answer, or an event) within this is recently
-  /// known (yellow); older, or never, is red.
-  static const Duration recentWithin = Duration(hours: 24);
+  /// Heard from (an answer over live sync, or an event) within this many
+  /// [timeout]s: recently active, green.
+  static const int liveTimeouts = 5;
+
+  /// Within this many [timeout]s: yellow; longer, or never, red.
+  static const int recentTimeouts = 10;
 
   /// The presence of a device that last answered over live sync at
   /// [answeredAt] ([LiveSync.seenOf]) and whose latest event is from
-  /// [lastEvent], at [now]. [liveAvailable]: live sync is on here (without
-  /// it nothing answers, so nothing is green, and the reason says so).
-  /// [thisDevice]: this one, green while [connected] to live sync (for a
-  /// free device: its last heartbeat recent, [LiveSync.showsLive]). Heard
-  /// from within [within] is green ([LiveSync.liveWithin]). The reason is
-  /// worded in [l], English by default.
+  /// [lastEvent], at [now]: green when the newer of the two is within
+  /// [liveTimeouts] × [timeout], yellow within [recentTimeouts] ×, red
+  /// past that or never. [liveAvailable]: live sync is on here (without
+  /// it nothing answers, and the reason says so). [thisDevice]: this one,
+  /// green while [connected] to live sync (for a free device: its last
+  /// heartbeat recent, [LiveSync.showsLive]). The reason is worded in
+  /// [l], English by default.
   factory DevicePresence.of({
     AppLocalizations? l,
     DateTime? answeredAt,
@@ -44,7 +49,7 @@ class DevicePresence {
     required bool liveAvailable,
     bool thisDevice = false,
     bool connected = false,
-    Duration within = DevicePresence.liveWithin,
+    Duration timeout = DevicePresence.timeout,
   }) {
     final t = l ?? lookupAppLocalizations(const Locale('en'));
     if (thisDevice) {
@@ -58,16 +63,8 @@ class DevicePresence {
             );
     }
     final unavailable = liveAvailable ? '' : t.connectivityPresenceUnavailable;
-    if (liveAvailable && answeredAt != null) {
-      final age = now.difference(answeredAt);
-      if (age < within) {
-        return DevicePresence(
-          PresenceLevel.live,
-          t.connectivityPresenceAnswered(describeSince(age, t)),
-        );
-      }
-    }
-    final last = switch ((answeredAt, lastEvent)) {
+    final answered = liveAvailable ? answeredAt : null;
+    final last = switch ((answered, lastEvent)) {
       (final a?, final e?) => a.isAfter(e) ? a : e,
       (final a?, null) => a,
       (null, final e?) => e,
@@ -80,9 +77,16 @@ class DevicePresence {
       );
     }
     final age = now.difference(last);
+    final level = age < timeout * liveTimeouts
+        ? PresenceLevel.live
+        : age < timeout * recentTimeouts
+        ? PresenceLevel.recent
+        : PresenceLevel.old;
     return DevicePresence(
-      age < recentWithin ? PresenceLevel.recent : PresenceLevel.old,
-      t.connectivityPresenceLastSeen(describeSince(age, t), unavailable),
+      level,
+      level == PresenceLevel.live && last == answered
+          ? t.connectivityPresenceAnswered(describeSince(age, t))
+          : t.connectivityPresenceLastSeen(describeSince(age, t), unavailable),
     );
   }
 

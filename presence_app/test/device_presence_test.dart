@@ -277,20 +277,21 @@ void main() {
   group('DevicePresence', () {
     final now = DateTime(2026, 10, 6, 12);
 
-    test('a free device: green while its last beat is within 11 min', () {
-      DevicePresence at(Duration age, Duration within) => DevicePresence.of(
+    test('the timeout scales: a free profile\'s 5 min beats', () {
+      DevicePresence at(Duration age, Duration timeout) => DevicePresence.of(
         answeredAt: now.subtract(age),
         now: now,
         liveAvailable: true,
-        within: within,
+        timeout: timeout,
       );
-      const free = LiveSync.beatLiveWithin;
-      expect(at(const Duration(minutes: 9), free).level, PresenceLevel.live);
-      expect(at(const Duration(minutes: 12), free).level, PresenceLevel.recent);
-      // Pings (premium): 90 s.
+      const free = LiveSync.beatEvery;
+      expect(at(const Duration(minutes: 24), free).level, PresenceLevel.live);
+      expect(at(const Duration(minutes: 26), free).level, PresenceLevel.recent);
+      expect(at(const Duration(minutes: 51), free).level, PresenceLevel.old);
+      // A member's: every minute.
       expect(
-        at(const Duration(minutes: 9), DevicePresence.liveWithin).level,
-        PresenceLevel.recent,
+        at(const Duration(minutes: 24), DevicePresence.timeout).level,
+        PresenceLevel.old,
       );
     });
 
@@ -305,46 +306,53 @@ void main() {
       liveAvailable: available,
     );
 
-    test('green: answered within 90 s', () {
+    test('green: heard from within 5 timeouts (5 min)', () {
       final p = of(answered: const Duration(seconds: 5));
       expect(p.level, PresenceLevel.live);
       expect(p.reason, 'Live — answered 5 s ago');
       expect(p.color, Gruvbox.green);
       expect(
-        of(answered: const Duration(seconds: 89)).level,
+        of(answered: const Duration(minutes: 4, seconds: 59)).level,
         PresenceLevel.live,
       );
+      // An event counts as activity too.
+      final e = of(event: const Duration(minutes: 3));
+      expect(e.level, PresenceLevel.live);
+      expect(e.reason, 'Last seen 3 min ago');
     });
 
-    test('yellow: heard from or an event within 24 h', () {
-      final p = of(answered: const Duration(seconds: 90));
+    test('yellow: within 10 timeouts (10 min)', () {
+      final p = of(answered: const Duration(minutes: 5));
       expect(p.level, PresenceLevel.recent);
-      expect(p.reason, 'Last seen 1 min ago');
-      expect(of(event: const Duration(hours: 3)).reason, 'Last seen 3 h ago');
+      expect(p.reason, 'Last seen 5 min ago');
+      expect(p.color, Gruvbox.yellow);
       // The newer of the two.
       expect(
         of(
           answered: const Duration(hours: 30),
-          event: const Duration(hours: 2),
+          event: const Duration(minutes: 8),
         ).level,
         PresenceLevel.recent,
       );
-      expect(of(event: const Duration(hours: 3)).color, Gruvbox.yellow);
     });
 
-    test('red: older than 24 h, or never', () {
-      final p = of(event: const Duration(days: 4));
+    test('red: past 10 timeouts, or never', () {
+      final p = of(event: const Duration(minutes: 10));
       expect(p.level, PresenceLevel.old);
-      expect(p.reason, 'Last seen 4 d ago');
+      expect(p.reason, 'Last seen 10 min ago');
       expect(p.color, Gruvbox.red);
-      expect(of(event: const Duration(hours: 24)).level, PresenceLevel.old);
+      expect(of(event: const Duration(days: 4)).level, PresenceLevel.old);
       expect(of().reason, 'Never seen');
     });
 
-    test('without live sync, never green, and it says so', () {
+    test('without live sync, answers don\'t count, events do, and it says '
+        'so', () {
       final p = of(answered: const Duration(seconds: 5), available: false);
-      expect(p.level, PresenceLevel.recent);
-      expect(p.reason, 'Last seen 5 s ago · live status unavailable');
+      expect(p.level, PresenceLevel.old);
+      expect(p.reason, 'Never seen · live status unavailable');
+      final e = of(event: const Duration(minutes: 2), available: false);
+      expect(e.level, PresenceLevel.live);
+      expect(e.reason, 'Last seen 2 min ago · live status unavailable');
     });
 
     test('this device: green while connected', () {
@@ -395,7 +403,7 @@ void main() {
       addTearDown(bus.close);
       final log = EventLog(bus.stream)
         ..addHistory([
-          eventOf('brave_fox', const Duration(hours: 2)),
+          eventOf('brave_fox', const Duration(minutes: 7)),
           eventOf('quiet_cat', const Duration(days: 3)),
           eventOf('zesty_owl', const Duration(days: 3)),
         ]);
@@ -427,7 +435,7 @@ void main() {
       expect(colorOf(tester, 'presence-brave_fox'), Gruvbox.yellow);
       expect(colorOf(tester, 'presence-quiet_cat'), Gruvbox.red);
       expect(find.bySemanticsLabel(RegExp('^Live — answered')), findsOneWidget);
-      expect(find.byTooltip('Last seen 2 h ago'), findsOneWidget);
+      expect(find.byTooltip('Last seen 7 min ago'), findsOneWidget);
       // And every 30 s while it shows.
       await tester.pump(const Duration(seconds: 30));
       expect(live.pings, 2);
@@ -494,7 +502,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('without live sync: yellow and red from events, and it says '
+    testWidgets('without live sync: the colors from events, and it says '
         'live status is unavailable', (tester) async {
       final live = FakePresenceLive(connected: false);
       addTearDown(live.dispose);
@@ -510,7 +518,7 @@ void main() {
                 (
                   id: 'brave_fox',
                   os: null,
-                  lastEvent: now.subtract(const Duration(hours: 3)),
+                  lastEvent: now.subtract(const Duration(minutes: 7)),
                   memoryMb: null,
                 ),
               ],
@@ -521,7 +529,7 @@ void main() {
       expect(colorOf(tester, 'presence-this_device'), Gruvbox.yellow);
       expect(colorOf(tester, 'presence-brave_fox'), Gruvbox.yellow);
       expect(
-        find.byTooltip('Last seen 3 h ago · live status unavailable'),
+        find.byTooltip('Last seen 7 min ago · live status unavailable'),
         findsOneWidget,
       );
     });

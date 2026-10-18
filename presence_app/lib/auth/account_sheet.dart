@@ -833,8 +833,9 @@ class ProfileDevices extends StatelessWidget {
                               liveAvailable: available,
                               thisDevice: device.id == thisDevice,
                               connected: live?.showsLive ?? false,
-                              within:
-                                  live?.liveWithin ?? DevicePresence.liveWithin,
+                              timeout:
+                                  live?.presenceTimeout ??
+                                  DevicePresence.timeout,
                             ),
                           },
                         ),

@@ -330,10 +330,10 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
       device whose events are all from before events recorded an OS gets
       the generic icon and just the time.
     - A **presence dot** before each ID ([Device
-      presence](device-presence.md)): green (answered a ping within 90 s;
-      this device while connected to live sync), yellow (heard from or an
-      event within 24 h), red (older, or never), with the reason ("Live —
-      answered 5 s ago", "Last seen 3 h ago") as tooltip and screen-reader
+      presence](device-presence.md)): green (active within 5 sync
+      timeouts; this device while connected to live sync), yellow
+      (within 10), red (older, or never), with the reason ("Live —
+      answered 5 s ago", "Last seen 7 min ago") as tooltip and screen-reader
       label. **This device's** dot is the connectivity row's color, with
       its headline as the reason ("This device — Live sync failed"),
       updating with it (`ProfileDevices.thisPresence`). Without live sync, yellow or red from the latest event, and

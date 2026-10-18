@@ -1683,9 +1683,10 @@ void main() {
       expect(message['sentAt'], isA<int>());
       // Tiny: one billed message (5 KB).
       expect(beat.published.single.$2.length, lessThan(512));
-      // This device shows live for 11 min after it.
+      // This device shows live for 11 min after it; the profile's devices'
+      // sync timeout is the beat's.
       expect(live.showsLive, isTrue);
-      expect(live.liveWithin, const Duration(minutes: 11));
+      expect(live.presenceTimeout, const Duration(minutes: 5));
     });
 
     test('beats soon after start, then every 5 min', () async {
@@ -1852,7 +1853,12 @@ void main() {
       expect(await live.beat(), isFalse);
       expect(live.lastBeat, isNull);
       expect(broker.connections.expand((c) => c.retained), isEmpty);
-      expect(live.liveWithin, const Duration(seconds: 90));
+      // A member's sync timeout: the schedule, a minute at least.
+      expect(live.presenceTimeout, const Duration(minutes: 1));
+      live.config = const LiveConfig(every: Duration(minutes: 15));
+      expect(live.presenceTimeout, const Duration(minutes: 15));
+      live.config = const LiveConfig(every: Duration(seconds: 30));
+      expect(live.presenceTimeout, const Duration(minutes: 1));
     });
   });
 }
