@@ -84,7 +84,8 @@ func (p *cameraPipelines) set(cameras []cameraRef, only bool) {
 			Spool: dir, Store: b.Store, Searcher: b.Searcher, Cloud: b.Cloud,
 			Keyframes: b.Keyframes, Duration: b.Duration, Motion: b.Motion,
 			Key: b.Key, DeviceID: c.DeviceID, ProfileID: b.ProfileID, UserID: b.UserID,
-			Camera:      records.Camera{ID: p.kind, Label: c.Name, OS: p.os},
+			// Its name is the events' camera name too, beside its device.
+			Camera:      records.Camera{ID: p.kind, Label: c.Name, OS: p.os, Name: c.Name},
 			Location:    b.Location,
 			ObjectScore: b.ObjectScore, MaxSpool: b.MaxSpool, Logf: b.Logf,
 			// The camera records only on motion: every clip is kept.

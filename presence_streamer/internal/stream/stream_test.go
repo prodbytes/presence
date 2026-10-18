@@ -201,6 +201,32 @@ func TestKeepAllKeepsAClipWithNoOneThere(t *testing.T) {
 	}
 }
 
+// A fetched camera's events carry its name (cameraName) beside its
+// device, and when they were stored (storedAt), its clips being fetched
+// after they're recorded; the Pi's own camera has no name.
+func TestACamerasEventsSayItsNameAndWhenTheyWereStored(t *testing.T) {
+	for _, name := range []string{"Garden", ""} {
+		b := &bucket{objects: map[string][]byte{}}
+		s, spool := streamer(t, b, "person")
+		s.Camera = records.Camera{ID: "blink", Label: "Garden", OS: "Blink", Name: name}
+		var stored []records.Event
+		s.Stored = func(e records.Event) { stored = append(stored, e) }
+		before := time.Now().UnixMilli()
+		if err := s.Process(context.Background(), chunk(t, spool, "video")); err != nil {
+			t.Fatal(err)
+		}
+		var event map[string]any
+		json.Unmarshal(b.objects["events/year=2026/day=269/"+stored[0].ID+".json"], &event)
+		got, said := event["cameraName"]
+		if name != "" && got != name || name == "" && said {
+			t.Errorf("camera name %q: %v", name, event["cameraName"])
+		}
+		if at, _ := event["storedAt"].(float64); int64(at) < before || int64(at) > time.Now().UnixMilli() {
+			t.Errorf("stored at %v", event["storedAt"])
+		}
+	}
+}
+
 func TestSubjectIsStoredAsAPhoneWould(t *testing.T) {
 	b := &bucket{objects: map[string][]byte{}}
 	s, spool := streamer(t, b, "person")
@@ -412,9 +438,10 @@ func TestCloudDetection(t *testing.T) {
 		t.Fatalf("ops %v", b.ops)
 	}
 	var job struct {
-		V     int            `json:"v"`
-		Event map[string]any `json:"event"`
-		Clip  map[string]any `json:"clip"`
+		V       int            `json:"v"`
+		Event   map[string]any `json:"event"`
+		Clip    map[string]any `json:"clip"`
+		KeepAll bool           `json:"keepAll"`
 	}
 	jobKey := strings.TrimPrefix(b.ops[2], "put ")
 	if err := json.Unmarshal(b.objects[jobKey], &job); err != nil {
@@ -426,11 +453,40 @@ func TestCloudDetection(t *testing.T) {
 		jobKey != "ingest/able_adept_gadget/"+clipID+".ingest.json" {
 		t.Fatalf("job %s: %+v", jobKey, job)
 	}
+	// The Pi's own chunks: one with no one goes.
+	if job.KeepAll {
+		t.Fatal("the Pi's own chunks are kept only with someone in them")
+	}
 	if got := open(t, b.objects["ingest/able_adept_gadget/"+clipID+".mp4"]); got != "video" {
 		t.Fatalf("the chunk opens to %q", got)
 	}
 	if len(leftovers(spool)) != 0 {
 		t.Fatalf("left %v", leftovers(spool))
+	}
+}
+
+// A fetched camera's chunk keeps every clip in the cloud's mode too: its
+// job says so, and the cloud detector stores it with no one in it.
+func TestCloudDetectionKeepsAllOfACamerasClips(t *testing.T) {
+	b := &bucket{objects: map[string][]byte{}}
+	s, spool := streamer(t, b, "empty")
+	s.Cloud, s.KeepAll = true, true
+	s.Camera = records.Camera{ID: "gopro", Label: "Bike", OS: "GoPro", Name: "Bike"}
+	if err := s.Settings(context.Background(), time.UnixMilli(5)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Process(context.Background(), chunk(t, spool, "video")); err != nil {
+		t.Fatal(err)
+	}
+	var job struct {
+		Event   records.Event `json:"event"`
+		KeepAll bool          `json:"keepAll"`
+	}
+	if err := json.Unmarshal(b.objects[strings.TrimPrefix(b.ops[2], "put ")], &job); err != nil {
+		t.Fatal(err)
+	}
+	if !job.KeepAll || job.Event.CameraName != "Bike" || job.Event.StoredAt == 0 {
+		t.Fatalf("job %+v", job)
 	}
 }
 

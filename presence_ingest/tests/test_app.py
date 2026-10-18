@@ -185,6 +185,23 @@ def test_no_one_there_is_deleted(tmp_path, found):
     assert s3.noncurrent == []
 
 
+def test_a_cameras_clip_with_no_one_is_kept(tmp_path, found):
+    # A fetched camera's (keepAll): stored, tagged with what's there, no
+    # thumbnail; its camera name passes through.
+    found["objects"] = [{"label": "car", "ms": 0, "score": 0.9}]
+    record = job(event__cameraName="Garden", event__os="Blink", event__storedAt=TIME + 60000)
+    record["keepAll"] = True
+    s3 = bucket(job_record=record)
+    assert app.process(s3, "b", JOB_KEY, str(tmp_path)) == "stored"
+    root = IDENTITY + "/"
+    assert f"{root}media/{CLIP}.mp4" in s3.objects and f"{root}media/{CLIP}.jpg" not in s3.objects
+    event = json.loads(s3.objects[f"{root}events/year=2026/day=269/hmnhfi8000-0aaaaaa.json"])
+    assert event["objectTags"] == [{"label": "car", "ms": 0, "score": 0.9}]
+    assert event["cameraName"] == "Garden" and event["storedAt"] == TIME + 60000
+    assert "keepAll" not in event
+    assert s3.kept() == []
+
+
 def test_a_job_twice_is_done_once(tmp_path, found):
     found["subject"] = {"label": "dog", "ms": 0, "score": 0.9}
     s3 = bucket()
