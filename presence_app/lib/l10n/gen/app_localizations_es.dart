@@ -1563,7 +1563,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get goproAbout =>
-      'Un streamer tuyo trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi.';
+      'Un streamer tuyo trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi. Una HERO5 a HERO8: conéctala al streamer y agrégala en Cámaras USB.';
 
   @override
   String get goproAddressHelp =>
@@ -2562,6 +2562,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSubjectsSection => 'Eventos';
 
   @override
+  String get settingsUsbCamSection => 'Cámaras USB';
+
+  @override
   String storeDays(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2773,4 +2776,40 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get subjectsRecognizedAuto => 'Reconocido automáticamente';
+
+  @override
+  String get usbcamAbout =>
+      'Un streamer tuyo trae los videos nuevos de las cámaras conectadas a él por USB, sin red ni dirección: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Cámaras que aparecen como cámara o dispositivo multimedia (PTP o MTP), como una GoPro HERO5 a HERO8 o la mayoría de las cámaras digitales; encendidas, conectadas al streamer.';
+
+  @override
+  String get usbcamAdd => 'Agregar';
+
+  @override
+  String get usbcamCameras => 'Sus cámaras USB:';
+
+  @override
+  String get usbcamDetected => 'Conectadas a él, para agregar:';
+
+  @override
+  String usbcamError(String error) {
+    return 'Cámaras USB: $error';
+  }
+
+  @override
+  String get usbcamNoStreamer =>
+      'Configura primero un streamer (Perfil › Streamer); las cámaras se conectan a él.';
+
+  @override
+  String get usbcamNone => 'Aún no hay cámaras USB agregadas.';
+
+  @override
+  String get usbcamNoneDetected =>
+      'No hay otra cámara conectada a él. Conecta una y enciéndela: aparece aquí en menos de un minuto.';
+
+  @override
+  String get usbcamStreamer => 'El streamer al que están conectadas';
+
+  @override
+  String get usbcamUnplugged =>
+      'No está conectada: sus videos nuevos se traen cuando vuelva.';
 }

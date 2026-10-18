@@ -413,7 +413,7 @@
   "feedbackTeam": "Equipe Presence",
   "feedbackTooManyTries": "Tentativas demais. Aguarde um minuto.",
   "feedbackYou": "Você",
-  "goproAbout": "Um streamer seu busca os vídeos novos das suas câmeras GoPro pela rede dele: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Uma GoPro HERO9 ou mais nova, na rede de casa (HERO12 ou mais nova), ligada por USB, ou no próprio Wi-Fi.",
+  "goproAbout": "Um streamer seu busca os vídeos novos das suas câmeras GoPro pela rede dele: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Uma GoPro HERO9 ou mais nova, na rede de casa (HERO12 ou mais nova), ligada por USB, ou no próprio Wi-Fi. Uma HERO5 a HERO8: conecte-a ao streamer e adicione-a em Câmeras USB.",
   "goproAddressHelp": "O endereço IP dela: na rede de casa, o que o app GoPro Quik mostra; por USB 172.2x.1yz.51; no Wi-Fi da câmera 10.5.5.9.",
   "goproCameras": "As câmeras GoPro dele:",
   "goproError": "GoPro: {error}",
@@ -676,6 +676,7 @@
   "settingsStartupClip": "Clipe inicial: quando a câmera estiver pronta",
   "settingsSubjectEvents": "Quantos eventos carregar de uma vez",
   "settingsSubjectsSection": "Eventos",
+  "settingsUsbCamSection": "Câmeras USB",
   "storeDays": "{count, plural, =1{1 dia} other{{count} dias}}",
   "storeDeleteAccountSubscription": "Excluir sua conta não cancela uma assinatura Premium: cancele-a antes nas configurações de assinaturas {store, select, apple{da App Store} google{do Google Play} other{da loja}}.",
   "storeEveryDay": "dia",
@@ -718,5 +719,15 @@
   "subjectsNobodyTagged": "Ninguém está mais marcado com este nome.",
   "subjectsOpen": "Abrir {name}",
   "subjectsOpenEvent": "Abrir evento {label}",
-  "subjectsRecognizedAuto": "Reconhecido automaticamente"
+  "subjectsRecognizedAuto": "Reconhecido automaticamente",
+  "usbcamAbout": "Um streamer seu busca os vídeos novos das câmeras ligadas a ele por USB, sem rede nem endereço: cada câmera vira um dispositivo, e os vídeos com uma pessoa ou um animal viram eventos. Câmeras que aparecem como câmera ou dispositivo de mídia (PTP ou MTP), como uma GoPro HERO5 a HERO8 ou a maioria das câmeras digitais; ligadas, conectadas ao streamer.",
+  "usbcamAdd": "Adicionar",
+  "usbcamCameras": "As câmeras USB dele:",
+  "usbcamDetected": "Conectadas a ele, para adicionar:",
+  "usbcamError": "Câmeras USB: {error}",
+  "usbcamNoStreamer": "Configure primeiro um streamer (Perfil › Streamer); as câmeras são conectadas a ele.",
+  "usbcamNone": "Nenhuma câmera USB adicionada ainda.",
+  "usbcamNoneDetected": "Nenhuma outra câmera conectada a ele. Conecte uma e ligue-a: ela aparece aqui em até um minuto.",
+  "usbcamStreamer": "O streamer em que estão conectadas",
+  "usbcamUnplugged": "Desconectada: os vídeos novos são buscados quando ela voltar."
 }

@@ -507,7 +507,7 @@ class LogConfig {
   int get hashCode => show.hashCode;
 }
 
-/// The streamer each camera integration (Blink, GoPro, Reolink) goes
+/// The streamer each camera integration (Blink, GoPro, Reolink, USB) goes
 /// through, when the user picked one in Settings; an integration left out
 /// follows the profile's leading streamer (specs/blink.md). Kept per
 /// device.
@@ -516,7 +516,7 @@ class IntegrationsConfig {
   const IntegrationsConfig({this.streamers = const {}});
 
   /// The integrations that pick a streamer, by ID.
-  static const List<String> known = ['blink', 'gopro', 'reolink'];
+  static const List<String> known = ['blink', 'gopro', 'reolink', 'usbcam'];
 
   /// The streamer's device ID, by integration.
   final Map<String, String> streamers;

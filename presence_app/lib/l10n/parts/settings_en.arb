@@ -335,7 +335,7 @@
   },
   "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
   "settingsGoProSection": "GoPro cameras",
-  "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
+  "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.",
   "goproNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras' videos.",
   "netcamStreamer": "The streamer that fetches them",
   "streamerLeader": "Leader ({device})",
@@ -421,6 +421,24 @@
     "placeholders": {
       "channel": {
         "type": "int"
+      }
+    }
+  },
+  "settingsUsbCamSection": "USB cameras",
+  "usbcamAbout": "A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.",
+  "usbcamNoStreamer": "Set up a streamer first (Profile › Streamer); the cameras are plugged into it.",
+  "usbcamStreamer": "The streamer they're plugged into",
+  "usbcamCameras": "Its USB cameras:",
+  "usbcamNone": "No USB cameras added yet.",
+  "usbcamDetected": "Plugged into it, to add:",
+  "usbcamNoneDetected": "No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.",
+  "usbcamAdd": "Add",
+  "usbcamUnplugged": "Not plugged in: its new videos are fetched once it's back.",
+  "usbcamError": "USB cameras: {error}",
+  "@usbcamError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
       }
     }
   }

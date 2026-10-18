@@ -35,7 +35,7 @@ class StreamerPicker extends StatelessWidget {
   /// The dropdown's value for Leader (a device ID is never empty).
   static const String leaderValue = '';
 
-  /// `blink`, `gopro` or `reolink` ([IntegrationsConfig.known]).
+  /// `blink`, `gopro`, `reolink` or `usbcam` ([IntegrationsConfig.known]).
   final String integration;
   final List<String> streamers;
   final String? leader;
