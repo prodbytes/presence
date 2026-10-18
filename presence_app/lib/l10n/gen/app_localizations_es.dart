@@ -609,6 +609,13 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get blinkRemove => 'Quitar';
+
+  @override
+  String get blinkRemoveNote =>
+      'Quitar deja de traer una cámara, y sale de tus dispositivos; sus eventos se quedan. Desconecta y vuelve a conectar para recuperar las cámaras quitadas.';
+
+  @override
   String get blinkSendPin => 'Enviar PIN';
 
   @override
@@ -2228,6 +2235,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get settingsCoordinatesMinutes =>
       'Los minutos y segundos llegan hasta 59';
+
+  @override
+  String get settingsDeleteDeviceCameraNotTold =>
+      'No se pudo avisar a su streamer de que deje de traer esta cámara, así que puede volver. Bórrala de nuevo cuando el streamer esté en línea, o quítala en la sección de la cámara en Ajustes.';
 
   @override
   String get settingsDeleteDeviceCancel => 'Cancelar';

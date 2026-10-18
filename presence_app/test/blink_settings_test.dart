@@ -120,6 +120,45 @@ void main() {
     expect(sent.last.$3, {'disconnect': true, 'requestedAt': 1000});
   });
 
+  testWidgets("remove: a camera's request goes to the streamer; once "
+      'answered, the camera is gone from the list', (tester) async {
+    status = {
+      'state': 'connected',
+      'account': 'a@b.c',
+      'requestedAt': 1,
+      'cameras': [
+        {'name': 'Garden', 'deviceId': 'odd_shy_fox'},
+        {'name': 'Porch', 'deviceId': 'brave_little_lamp'},
+      ],
+    };
+    await show(tester);
+    expect(find.textContaining('connect again to bring'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('blink-remove-brave_little_lamp')));
+    await tester.pumpAndSettle();
+    expect(sent.single.$1, 'calm_quiet_otter');
+    expect(sent.single.$2, 'blink.json');
+    expect(sent.single.$3, {
+      'remove': 'brave_little_lamp',
+      'requestedAt': 1000,
+    });
+    // The streamer answers: it's no longer one of its cameras.
+    status = {
+      'state': 'connected',
+      'account': 'a@b.c',
+      'requestedAt': 1000,
+      'cameras': [
+        {'name': 'Garden', 'deviceId': 'odd_shy_fox'},
+      ],
+    };
+    await tester.pumpWidget(Container());
+    await show(tester);
+    expect(find.byKey(const Key('blink-camera-odd_shy_fox')), findsOneWidget);
+    expect(
+      find.byKey(const Key('blink-camera-brave_little_lamp')),
+      findsNothing,
+    );
+  });
+
   testWidgets('an error shows, with the login form again; a send that fails '
       'says so', (tester) async {
     status = {'state': 'error', 'error': 'bad password', 'requestedAt': 1};

@@ -607,6 +607,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get blinkRemove => 'Remove';
+
+  @override
+  String get blinkRemoveNote =>
+      'Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.';
+
+  @override
   String get blinkSendPin => 'Send PIN';
 
   @override
@@ -2202,6 +2209,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsCoordinatesMinutes => 'Minutes and seconds go up to 59';
+
+  @override
+  String get settingsDeleteDeviceCameraNotTold =>
+      'Its streamer couldn\'t be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings\' camera section.';
 
   @override
   String get settingsDeleteDeviceCancel => 'Cancel';

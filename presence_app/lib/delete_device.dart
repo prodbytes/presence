@@ -5,11 +5,17 @@ import 'l10n/l10n.dart';
 
 /// Deletes a device of the signed-in profile from its devices list
 /// (`EventLog.removedDevices`), and with [events] every event it recorded
-/// too (`Persistence.deleteDevice`), returning how many events went.
-typedef DeleteDevice = Future<int> Function(
+/// too (`Persistence.deleteDevice`). A camera a streamer fetches (Blink,
+/// GoPro, Reolink) is removed from its streamer too (`removeCamera`).
+typedef DeleteDevice = Future<DeviceDeleted> Function(
   String deviceId, {
   required bool events,
 });
+
+/// What deleting a device did: how many of its events went, and whether
+/// it's a camera whose streamer couldn't be told to stop fetching it, so
+/// it may come back.
+typedef DeviceDeleted = ({int events, bool cameraMayReturn});
 
 /// What the delete dialog chose.
 enum DeviceDeletion {
@@ -51,13 +57,31 @@ Future<void> deleteDeviceAfterConfirming(
   try {
     final withEvents = choice == DeviceDeletion.deleteVideos;
     final deleted = await delete(deviceId, events: withEvents);
+    final done = Text(
+      withEvents
+          ? l.settingsDeleteDeviceDone(deviceId, deleted.events)
+          : l.settingsDeleteDeviceRemoved(deviceId),
+    );
     messenger?.showSnackBar(
       SnackBar(
-        content: Text(
-          withEvents
-              ? l.settingsDeleteDeviceDone(deviceId, deleted)
-              : l.settingsDeleteDeviceRemoved(deviceId),
-        ),
+        content: deleted.cameraMayReturn
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 4,
+                children: [
+                  done,
+                  Text(
+                    l.settingsDeleteDeviceCameraNotTold,
+                    key: const Key('delete-device-camera-not-told'),
+                  ),
+                ],
+              )
+            : done,
+        // Longer, to read why it may come back.
+        duration: deleted.cameraMayReturn
+            ? const Duration(seconds: 10)
+            : const Duration(milliseconds: 4000),
       ),
     );
   } catch (e) {
