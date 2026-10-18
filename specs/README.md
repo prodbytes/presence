@@ -64,6 +64,11 @@ their data.
   API over HTTPS; the login sealed to it) and fetches their motion
   recordings, each camera a device of its own; shares GoPro's `netcam`
   code.
+- [USB cameras](usb-cameras.md): cameras plugged into a Linux streamer by
+  USB (PTP/MTP: a GoPro HERO5–8, most digital cameras), with no address:
+  the streamer detects them (gphoto2), the Settings add one by name (known
+  by its USB serial), and it fetches their new videos, each camera a
+  device of its own; a udev rule keeps the desktop from mounting them.
 - [Hiding a device](device-hiding.md): the Profile tab's device list's
   eye button hides or shows a device's events, on this device only,
   remembered across restarts.

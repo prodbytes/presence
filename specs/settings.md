@@ -6,7 +6,8 @@
   - capturing: **Camera**, **Motion**, **Clips**, **Scheduled clips**;
   - events: **Recognition**, **Events** (how many load), **History**;
   - other cameras, through a streamer: **Blink cameras**, **GoPro
-    cameras**, **Reolink cameras** (premium, cloud sync);
+    cameras**, **Reolink cameras**, **USB cameras** (premium, cloud
+    sync);
   - syncing: **Live sync** (with live sync in the build);
   - the app: **Language**, **Advanced** (admins only);
   - then the device and profile IDs, and last the version, the health
@@ -97,9 +98,10 @@
     90 % (that version's default) reads as the new 85 %, once: saved
     again as version 2, a 90 % chosen later stays. A stored level under
     50 % reads as 50 %.
-- **Blink cameras** section, then **GoPro cameras** and **Reolink
-  cameras**, after History (premium, cloud sync): see [Blink cameras](blink.md),
-  [GoPro cameras](gopro.md) and [Reolink cameras](reolink.md). Each has a
+- **Blink cameras** section, then **GoPro cameras**, **Reolink
+  cameras** and **USB cameras**, after History (premium, cloud sync): see
+  [Blink cameras](blink.md), [GoPro cameras](gopro.md), [Reolink
+  cameras](reolink.md) and [USB cameras](usb-cameras.md). Each has a
   streamer dropdown, **Leader** (the leading streamer) by default, or a
   streamer picked for that section alone.
 - **Language** section, after Live sync (see [Languages](i18n.md)): an

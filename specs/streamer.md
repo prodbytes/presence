@@ -53,8 +53,8 @@ streamer get its profile's credentials with no Google account:
 - **Used by the streamer** (`POST /api/auth/stream/credentials`, no
   authorizer: `Authorization: Bearer <key>`, the body `<profile ID>
   <device ID> [<camera device ID>...]`: the IDs after its own are the
-  cameras it streams for, its [Blink](blink.md), [GoPro](gopro.md) and
-  [Reolink](reolink.md) cameras, up to 16, which join the profile's
+  cameras it streams for, its [Blink](blink.md), [GoPro](gopro.md),
+  [Reolink](reolink.md) and [USB](usb-cameras.md) cameras, up to 16, which join the profile's
   devices too): when the key's hash is that device's (compared in
   constant time), the auth API answers as `POST /api/auth/credentials`
   does for that device (which joins the profile's devices), tiered by the
@@ -302,7 +302,7 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
      it's stored, ms) and its
      **`objectTags`**: the labels scoring 0.6 or more (the app's object tag
      score), plus the subject's. A fetched camera's (Blink, GoPro,
-     Reolink) also has **`cameraName`**, the camera's own name, which the
+     Reolink, USB) also has **`cameraName`**, the camera's own name, which the
      app shows before its device ("Garden | device"); the Pi's own camera
      has none. A clip with a person or pet nobody named
      shows the app's yellow **unidentified** flag, with **Identify**.
@@ -389,8 +389,8 @@ take too much of it. There the chunks are searched in the cloud instead:
 - **On the Pi**, each chunk with motion is sealed and uploaded to ingest,
   then its **job**, `ingest/<deviceId>/<clipId>.ingest.json`:
   `{"v": 1, "event", "clip"}`, the clip record and event a phone would
-  store, without object tags; a fetched camera's (Blink, GoPro, Reolink)
-  adds `"keepAll": true`, so its clip is kept with no one in it too, as
+  store, without object tags; a fetched camera's (Blink, GoPro, Reolink,
+  USB) adds `"keepAll": true`, so its clip is kept with no one in it too, as
   when the streamer searches it itself. The sealed copy is deleted once the chunk is
   verified in ingest, and the chunk once its job is: it's then **deleted
   from the device**. Nothing waits for the cloud's answer, and Python,
@@ -518,17 +518,21 @@ Details:
 | `/usr/lib/presence-streamer/presence-detect.py` | the detector |
 | `/usr/share/presence-streamer/models/` | the model |
 | `/lib/systemd/system/presence-streamer.service` | the service |
+| `/lib/udev/rules.d/85-presence-streamer-usbcam.rules` | [USB cameras](usb-cameras.md#the-desktop-and-permissions): `plugdev` may open still-image cameras; the desktop (gvfs) leaves them alone |
 | `/etc/default/presence-streamer` | settings, `PRESENCE_STREAMER_*` (conffile) |
 | `/var/lib/presence-streamer/` | the state and spool (the user's home, 700) |
 
-- **Depends:** `adduser`, `ffmpeg (>= 7:5.1)`, `rclone`, from Debian /
+- **Depends:** `adduser`, `ffmpeg (>= 7:5.1)`, `rclone`, `gphoto2` (USB
+  cameras), from Debian /
   Raspberry Pi OS for both architectures. **Recommends:** `rpicam-apps |
   libcamera-apps`. **Suggests:** `python3`, `python3-opencv`,
   `python3-numpy`, needed only to search on the device. The install script
   adds them on a Pi with 2 GB or more; one under 2 GB searches in the
   cloud.
 - **postinst** makes the `presence-streamer` system user (groups `video`
-  and `render`, for the camera and the encoder) and its folder, and
+  and `render`, for the camera and the encoder; `plugdev`, for USB
+  cameras), reloads the udev rules and re-triggers the cameras plugged
+  in, makes its folder, and
   **enables the service for every boot**. On an upgrade, it restarts it if
   it's set up. Until it's set up, the service stops at once (exit 2) and
   isn't restarted: `sudo presence-streamer setup` starts it.
@@ -547,7 +551,8 @@ Details:
   IP, netlink), `UMask=0077`; `systemd-analyze security` rates it 2.5 (OK).
   Not `PrivateDevices`, `DeviceAllow` or **`ProtectClock`**, which implies
   `DeviceAllow=char-rtc r` and so a device allowlist: any of them would
-  shut out the camera, the encoder and the DMA heaps (found in review).
+  shut out the camera, the encoder, the DMA heaps and USB cameras
+  (`/dev/bus/usb`) (found in review).
 
 **Releases** ([Release builds](release.md)): the Release workflow's
 `streamer` job (ubuntu-latest, Go from `go.mod` with `actions/setup-go`)
@@ -569,9 +574,9 @@ by default `rc` when `api` is the RC's `rc.` site, else `prod`),
 (`auto`, or `off`), `blink-every` (2m), `gopro` (`auto`, or `off`),
 `gopro-video` (`low`, or `full`), `gopro-every` (2m), `reolink`
 (`auto`, or `off`), `reolink-video` (`low`, or `full`), `reolink-every`
-(2m), the tools'
+(2m), `usbcam` (`auto`, or `off`), `usbcam-every` (2m), the tools'
 paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
-`models`, `blink-helper`) and the Google client.
+`models`, `blink-helper`, `gphoto2`) and the Google client.
 
 ## Live sync
 
@@ -610,7 +615,7 @@ paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
   identity, a safe device ID, an integer `sentAt`, a nonce of 8–64
   letters and digits); a malformed one is dropped and logged (the first,
   then every 100th). Another device's `sync` request (its Sync button) is
-  ignored. Its Blink, GoPro and Reolink cameras don't answer: they show
+  ignored. Its Blink, GoPro, Reolink and USB cameras don't answer: they show
   from their events.
 - **Never holds up recording:** events wait in a queue of 100 that never
   blocks; more are dropped (logged), and the bucket carries them as
@@ -646,8 +651,19 @@ cameras' clips, each camera a device of its own: see
 A streamer the app's Settings pick also fetches GoPro and Reolink cameras'
 videos over its network, each camera a device of its own: see
 [GoPro cameras](gopro.md) and [Reolink cameras](reolink.md). Both are
-kinds of the `netcam` package (`main_netcams.go`), and Blink's, GoPro's
-and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
+kinds of the `netcam` package (`main_netcams.go`), and Blink's, GoPro's,
+Reolink's and USB cameras share the per-camera pipelines
+(`main_cameras.go`).
+
+## USB cameras
+
+A streamer the app's Settings pick also fetches the videos of
+still-image cameras plugged into it by USB (PTP/MTP: a GoPro HERO5 to
+HERO8, most digital cameras), with no network or address: it detects
+them (the kernel's USB list, then `gphoto2 --auto-detect`), the app adds
+one by name, known by its USB serial, and each becomes a device of its
+own. See [USB cameras](usb-cameras.md) (the `usbcam` package,
+`main_usbcams.go`).
 
 ## Infrastructure it needs
 
@@ -708,8 +724,8 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
     without uploading again; a search failing 3 times given up, but not a
     detector that's down; a broken chunk deleted, a cancelled probe not;
     the spool cap; the settings' key;
-  - **cameras** (`main_cameras_test.go`): a Blink and a GoPro clip through
-    its camera's pipeline, its first upload failing verification, stored
+  - **cameras** (`main_cameras_test.go`): a Blink, GoPro, Reolink and USB
+    camera's clip through its camera's pipeline, its first upload failing verification, stored
     once verified and then deleted from the device;
   - **live sync:** the presigned URL equal to the app's test vector;
     the WebSocket (masking both ways, 16- and 64-bit lengths, fragments
@@ -842,7 +858,7 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
   `detection cloud`) aren't published over live sync: the cloud detector
   (`presence_ingest`) stores them, and they reach the devices from the
   bucket (15 s), as before.
-- **Its Blink, GoPro and Reolink cameras don't answer pings**: only the
+- **Its Blink, GoPro, Reolink and USB cameras don't answer pings**: only the
   streamer's own device shows live; the cameras show from their events.
 - **No live sync while it waits** for the lead: a standby streamer has no
   credentials, so it doesn't show live.

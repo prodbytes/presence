@@ -7354,3 +7354,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        cameras](gopro.md), [Reolink cameras](reolink.md),
        [Events](events.md), [Monitoring](monitoring.md), [Event
        copies](event-copies.md), [Data formats](data-formats.md).
+
+505. **USB cameras, added without an address.** (2026-10-18)
+     - Asked: "let usb cameras like that be added, if possible without
+       IP" (a GoPro HERO6 Black plugged into the Pi streamer by USB).
+     - Found: a HERO6 has no Open GoPro HTTP API (HERO9+), and by USB it
+       shows up only as a PTP/MTP camera (`gphoto2 --auto-detect` lists
+       it), with no network; the desktop's gvfs had mounted it, so
+       gphoto2 couldn't claim it ("Could not claim the USB device").
+     - Changed: a new **USB cameras** integration for still-image
+       cameras (USB class 6: PTP/MTP; a GoPro HERO5–8, most digital
+       cameras). The streamer (`usbcam` package, `main_usbcams.go`)
+       detects them cheaply (the kernel's USB list; `gphoto2
+       --auto-detect` only when it changes), reports them in
+       `usbcam-status.json` (`detected: [{model, serial, port}]`), and
+       Settings' new **USB cameras** section (after Reolink, the same
+       streamer picker) adds one with a name (its model at first): `{add:
+       {name, serial}}`, known by its **USB serial**, never an IP. Each
+       becomes a device of its own; its new `.MP4`/`.MOV` videos (not
+       photos, `.LRV`, `.THM`) are fetched with gphoto2 every 2 minutes
+       and when it's plugged in, the last 24 hours on the first fetch,
+       none twice, a cut-off download retried, nothing deleted on the
+       camera, through its own pipeline (`os: USB camera`, every video
+       kept). Unplugged cameras show "Not plugged in"; a camera the
+       desktop holds says "the camera is busy: …". The `.deb` depends on
+       `gphoto2`, adds the user to `plugdev`, and ships
+       `85-presence-streamer-usbcam.rules`: plugdev may open still-image
+       cameras, and their `ID_GPHOTO2`/`ID_MTP_DEVICE` are unset so gvfs
+       leaves them alone (replug once after installing). The GoPro section
+       points HERO5–8 owners to it. es, pt translated. Specs: [USB
+       cameras](usb-cameras.md), [Streamer](streamer.md),
+       [Settings](settings.md), [GoPro cameras](gopro.md).
