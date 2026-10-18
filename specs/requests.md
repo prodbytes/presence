@@ -7192,3 +7192,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        pass, as in the other modes. Specs: [Camera screen](camera.md),
        [Navigation](navigation.md), [Cloud sync](cloud-sync.md),
        [Configuration](configuration.md), [Premium](premium.md#devices).
+
+492. **The device list puts the most recently active first.** (2026-10-18)
+     - Asked: sort the device list by most recently active first.
+     - Changed: the Profile tab's list keeps this device first, then
+       orders the others by their latest activity, the newer of their
+       latest event and their latest live sync answer (`recentFirst`);
+       devices never active come last, by ID. Specs:
+       [Sign-in](sign-in.md).

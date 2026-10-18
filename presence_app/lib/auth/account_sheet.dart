@@ -608,6 +608,41 @@ List<String> profileDevices(
   return [?thisDevice, ...others.toList()..sort()];
 }
 
+/// [devices] with [thisDevice] first, then the most recently active: the
+/// newer of a device's latest event and its latest answer over live sync
+/// ([seenOf]). Devices never active come last; ties go by ID.
+List<ProfileDevice> recentFirst(
+  List<ProfileDevice> devices, {
+  String? thisDevice,
+  DateTime? Function(String device)? seenOf,
+}) {
+  DateTime? activeAt(ProfileDevice d) {
+    final seen = seenOf?.call(d.id);
+    final event = d.lastEvent;
+    if (seen == null) return event;
+    if (event == null) return seen;
+    return seen.isAfter(event) ? seen : event;
+  }
+
+  final active = {for (final d in devices) d.id: activeAt(d)};
+  int rank(ProfileDevice d) => d.id == thisDevice ? 0 : 1;
+  int byActivity(ProfileDevice a, ProfileDevice b) {
+    final (x, y) = (active[a.id], active[b.id]);
+    if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+    return y.compareTo(x);
+  }
+
+  return [...devices]..sort(
+    (a, b) => switch (rank(a).compareTo(rank(b))) {
+      0 => switch (byActivity(a, b)) {
+        0 => a.id.compareTo(b.id),
+        final c => c,
+      },
+      final c => c,
+    },
+  );
+}
+
 /// One of the profile's devices, as the account sheet lists it: its ID,
 /// its operating system ([AppEvent.os] of its latest event that has one;
 /// [DeviceOs.current] for this device when none does) and the time of its
@@ -757,7 +792,11 @@ class ProfileDevices extends StatelessWidget {
       spacing: 4,
       children: [
         Text(l10n.authDeviceCount(devices.length), style: muted),
-        for (final device in devices)
+        for (final device in recentFirst(
+          devices,
+          thisDevice: thisDevice,
+          seenOf: (id) => live?.seenOf(id),
+        ))
           Row(
             key: Key('profile-device-${device.id}'),
             spacing: 8,
