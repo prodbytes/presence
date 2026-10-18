@@ -585,7 +585,30 @@ func (g *GoPro) fetchCamera(ctx context.Context, c Camera) error {
 			g.save()
 		}
 	}
+	g.leftovers(ctx, c)
 	return nil
+}
+
+// leftovers hands over the videos a stop left in the camera's incoming
+// folder between their download and their hand-over, once a fetch went
+// through them all (one the camera still lists is fetched again over it
+// before, as where fetching got to hadn't moved on), so none stays here
+// unsent. A download cut off (`.part`) is deleted: it's fetched again
+// while the camera has it.
+func (g *GoPro) leftovers(ctx context.Context, c Camera) {
+	dir := filepath.Join(g.Dir, "gopro-incoming", c.DeviceID)
+	files, _ := os.ReadDir(dir)
+	for _, f := range files {
+		file := filepath.Join(dir, f.Name())
+		switch {
+		case strings.HasSuffix(f.Name(), ".part"):
+			os.Remove(file)
+		case strings.HasPrefix(f.Name(), "rec-") && strings.HasSuffix(f.Name(), ".mp4"):
+			if err := g.Clip(ctx, c, file); err != nil {
+				g.Logf("gopro: %q: %s: %v", c.Name, f.Name(), err)
+			}
+		}
+	}
 }
 
 func (g *GoPro) fetchFile(ctx context.Context, c Camera, f File, start time.Time) error {

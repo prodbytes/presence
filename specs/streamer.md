@@ -260,7 +260,8 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
    `streamer_seal_test.dart` opens the streamer's fixture), and **uploaded
    to ingest**: `<identityId>/ingest/<deviceId>/<clipId>.mp4`. The clip ID
    (and the event ID) are made like the app's (`AppEvent.newId`), from the
-   chunk's start. The sealed copy is kept until the chunk is stored or
+   chunk's start. The sealed copy is kept until the recording is verified
+   in `media/` (or, in the cloud's mode, in ingest), or the chunk is
    deleted.
 4. **Searched** (here, with 2 GB of memory or more; else see [Cloud detection](#cloud-detection)): ffmpeg decodes only its **keyframes** (`-skip_frame
    nokey`, one a second, as on Android), at most 1280 px wide, to JPEGs. The
@@ -303,9 +304,24 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
      and JSON `application/json`, in Intelligent-Tiering, as single PUTs
      ([Recording and data formats](data-formats.md)).
 7. **Its progress** is kept beside it (`<chunk>.json`: the IDs, whether
-   it's ingested, the detector's answer, each upload done). A chunk
-   interrupted by a restart or the network carries on where it was, with
-   the same IDs, and nothing is uploaded twice.
+   it's ingested, the detector's answer, each upload done, the event's or
+   the job's last). A chunk interrupted by a restart or the network
+   carries on where it was, with the same IDs, and nothing is uploaded
+   twice: one stopped after its last upload, before it was deleted, is
+   deleted at the next start without uploading anything again.
+8. **Deleted from the device once verified in the bucket**, and not
+   before: an upload or move counts only once it's verified by size and
+   MD5 ([Uploads](#uploads-rclone)), and only then is what it was made
+   from deleted here. The thumbnail (and its sealed copy) and each JSON
+   record as soon as each is verified; the sealed copy
+   once the recording is verified in `media/` (in the cloud's mode, in
+   ingest); the chunk itself and its progress once the event (in the
+   cloud's mode, the job) is verified, its last upload. The chunk stays
+   till then: its search needs it, and it's what's picked up after a
+   restart. An upload that fails verification is a failed upload: what it
+   was for stays, and it's tried again as below. Only the chunks deleted
+   above without being kept (no motion, broken, no subject, a search given
+   up) and the spool's oldest past its cap go without an upload.
 - **Failures** (the network, AWS): the chunk stays and is tried again
   after 5 s, doubling to 2 min. A chunk whose search fails **3 times**
   (ffmpeg can't decode its keyframes, the detector fails or dies on it) is
@@ -326,10 +342,30 @@ on-the-fly S3 remote, `:s3:<bucket>/<identityId>/<key>`.
 - **Credentials** go in the environment (`RCLONE_S3_ACCESS_KEY_ID`,
   `_SECRET_ACCESS_KEY`, `_SESSION_TOKEN`), never on the command line, and
   are fetched for each command (current, renewed as above).
-- `--s3-no-check-bucket` and `--s3-no-head` (the role may only put, get,
-  delete and list in its folder), `RCLONE_S3_STORAGE_CLASS=INTELLIGENT_TIERING`,
+- `--s3-no-check-bucket` (the role may only put, get, delete and list in
+  its folder: no bucket made or checked), `--s3-no-head` (no HEAD after an
+  upload: its PUT's answer is checked instead), `--checksum`,
+  `RCLONE_S3_STORAGE_CLASS=INTELLIGENT_TIERING`,
   `RCLONE_S3_UPLOAD_CUTOFF=5G` (single PUTs: an object's ETag is its MD5,
-  which the app's sync relies on), `--bwlimit` from `--bwlimit`.
+  which the app's sync relies on; the bucket's SSE-S3 encryption keeps it
+  so), `--bwlimit` from `--bwlimit`.
+- **Every upload and move is verified, by size and MD5**, before it
+  succeeds, by rclone itself (1.60, Debian's and Raspberry Pi OS's, and
+  later; read in its source, and tested against a fake S3):
+  - **an upload** (`copyto`, one PUT) sends the file's MD5 as
+    `Content-MD5`, so S3 refuses a body that doesn't match it, and
+    compares the ETag the PUT answers (the object's MD5) with the file's:
+    a difference fails it ("corrupted on transfer") and deletes the copy.
+    The size is the PUT's `Content-Length`, which the MD5 covers. Each
+    upload is a HEAD (is it there already?) and the PUT: an object already
+    there with the same size and MD5 (`--checksum`) isn't uploaded again;
+  - **a move** (`moveto`) copies server side, then HEADs the copy and
+    compares its size and MD5 with the source's before it deletes the
+    source.
+
+  So verifying costs no request more than an upload did. A failed
+  verification is a failed upload: the local files stay, and it's tried
+  again with the chunk's backoff.
 - **The bucket** is the credentials answer's `bucket` (the auth API names
   it; see [Auth API](auth-api.md)), or `--bucket`. `--s3-endpoint` points at
   another S3 (tests).
@@ -347,9 +383,10 @@ take too much of it. There the chunks are searched in the cloud instead:
 - **On the Pi**, each chunk with motion is sealed and uploaded to ingest,
   then its **job**, `ingest/<deviceId>/<clipId>.ingest.json`:
   `{"v": 1, "event", "clip"}`, the clip record and event a phone would
-  store, without object tags. The chunk is then **deleted from the
-  device**. Nothing waits for the cloud's answer, and Python, OpenCV and
-  the model aren't needed or started.
+  store, without object tags. The sealed copy is deleted once the chunk is
+  verified in ingest, and the chunk once its job is: it's then **deleted
+  from the device**. Nothing waits for the cloud's answer, and Python,
+  OpenCV and the model aren't needed or started.
 - **The device's key must be in the bucket first** (its settings,
   uploaded at start): the detector needs it to open the chunk. Until it
   is, chunks wait in the spool.
@@ -565,14 +602,24 @@ pipelines (`main_cameras.go`).
     1 s chunks from ffmpeg's test pattern, never the one being written;
   - **detect:** the detector process, restarted after it dies, and
     keyframe extraction;
-  - **rclone:** secrets only in the environment, and put, move and delete
-    against `rclone serve s3`;
+  - **rclone:** secrets only in the environment, nothing turning its
+    verification off, and put, move and delete against `rclone serve s3`;
+    against a fake S3 (with rclone 1.60.1 and 1.69.3), an upload whose PUT
+    answers another MD5 and a move whose copy does fail (`ErrNotVerified`)
+    and leave no copy, no HEAD after a PUT, and an object there already
+    whole not uploaded again;
   - **stream:** an empty chunk deleted; a subject stored as a phone would,
     in order, with sealed media that opens; resuming after a failure at
     each step without uploading twice; a failed move uploading the sealed
-    copy; a search failing 3 times given up, but not a detector that's
-    down; a broken chunk deleted, a cancelled probe not; the spool cap; the
-    settings' key;
+    copy; an upload at each step that fails verification keeping what it
+    was for and deleting what's verified already, here and in the cloud's
+    mode; a stop after the last upload deleting the chunk at the next try
+    without uploading again; a search failing 3 times given up, but not a
+    detector that's down; a broken chunk deleted, a cancelled probe not;
+    the spool cap; the settings' key;
+  - **cameras** (`main_cameras_test.go`): a Blink and a GoPro clip through
+    its camera's pipeline, its first upload failing verification, stored
+    once verified and then deleted from the device;
   - **state:** the lock against a second streamer;
   - **auth API:** `ProfileTest` (the bucket in the answer).
 - **End to end** (`main_e2e_test.go`): a video (10 s of nothing, 10 s of a
@@ -582,6 +629,9 @@ pipelines (`main_cameras.go`).
   (`human` 0.99–1.00, with `dog` and `horse` from the photo), their
   recording and thumbnail opened with the device's key, ingest was empty
   after, and the settings carried the key. Passed on macOS (OpenCV 4.10).
+  In the cloud's mode, with rclone 1.60.1 as the streamer's (Debian's)
+  against 1.69.3's `serve s3`, each chunk was uploaded, verified and
+  deleted from the device.
 - **On 32- and 64-bit ARM** (Docker, emulated), the .deb installed from
   Debian's archive with its dependencies:
   - **Debian 13 Trixie arm64:** ffmpeg 7.1, rclone 1.60, OpenCV 4.10. The

@@ -87,6 +87,17 @@ and `main_blink.go`; on unless `--blink off`:
   settings (`devices/<camera>/settings.json`, the streamer's media key)
   go up first, as for the Pi's own device, so the other devices open its
   clips. Its sealed clips carry its own device ID as their key's ID.
+- **Deleted from the device once verified:** a clip, its sealed copy and
+  thumbnail leave the Pi only as the Pi's own chunks do, once each upload
+  is verified in the bucket by size and MD5
+  ([Streamer](streamer.md#each-chunk), step 8); one that fails
+  verification stays and is tried again. A clip downloaded but never
+  handed to its pipeline (the streamer stopped before it read the
+  helper's answer, and the helper skips a clip it finds downloaded; a
+  hand-over that failed) is handed over after the next fetch, so none
+  stays in `blink-incoming/` unsent; a download cut off (`.part`) is
+  deleted there, and fetched again while Blink lists it (where fetching
+  got to moves on only after a whole fetch).
 - **A token Blink refuses** (the helper exits 2): fetching stops, and the
   status says "log in again", till a new login.
 - **Disconnect:** the token goes; the cameras' devices and events stay.
@@ -98,7 +109,11 @@ and `main_blink.go`; on unless `--blink off`:
   cameras' devices (a new camera from a fetch gets one too), clips handed
   to their camera's device, the same request not handled twice; a wrong
   password said and nothing kept; a refused token stops fetching;
-  disconnect forgets the token. The tests' clock starts at 2026-10-14
+  disconnect forgets the token; a clip left downloaded before a stop
+  handed over once at the next fetch, a cut-off download deleted, nothing
+  left in `blink-incoming/`. `main_cameras_test.go`: a clip through its
+  camera's pipeline, its first upload failing verification, stored once
+  verified, then deleted from the device. The tests' clock starts at 2026-10-14
   13:00 UTC, an hour after the fake clips, and runs at real speed, so the
   24-hour backfill always covers them. `rclone`: `Get`, and a missing object is
   `os.ErrNotExist`. `records`: a Blink camera's events say `os: Blink`.
