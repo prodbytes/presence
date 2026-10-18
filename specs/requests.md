@@ -7279,3 +7279,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        with someone. Locally searched only: a Pi detecting in the cloud
        still keeps only those. Specs: [Blink cameras](blink.md), [GoPro
        cameras](gopro.md), [Reolink cameras](reolink.md).
+
+500. **Events with no one in them are hidden by default.** (2026-10-18)
+     - Asked: in the events view, hide by default every event without an
+       animal (a person or pet), with a clickable filter beside the
+       search, like the system events one.
+     - Changed: a second toggle in the Monitoring tab's top row, right
+       after the system events one (`ShowEventsWithNoOne`, a paw icon,
+       tooltip "Show / Hide events with no one in them"), off at launch:
+       only the grabs with a person or pet on them show
+       (`EventTimeline.hasSomeone`: an object tag `human`, `cat` or
+       `dog`, the unidentified flag's `personLabels` and `petLabels`, or
+       someone tagged; a clip not searched for objects yet still shows).
+       It applies to grabs only: system events follow their own toggle.
+       It composes with the search and the system events toggle (a new
+       `withSomeone` step in `EventFilters.viewOf`), isn't saved across
+       restarts, says "No one seen yet: events with no one are hidden"
+       when that's all there is, and opening a hidden clip with no one
+       turns it on. es, pt translated. Specs: [Events](events.md),
+       [Monitoring](monitoring.md).

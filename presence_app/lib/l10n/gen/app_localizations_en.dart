@@ -1469,6 +1469,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get eventsHideNoOne => 'Hide events with no one in them';
+
+  @override
   String get eventsHideSystem => 'Hide system events';
 
   @override
@@ -1478,6 +1481,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String eventsNoMatch(String query) {
     return 'No events match \"$query\"';
   }
+
+  @override
+  String get eventsNoOneHidden =>
+      'No one seen yet: events with no one are hidden';
 
   @override
   String get eventsNone => 'No events';
@@ -1493,6 +1500,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventsShowEveryDevice => 'Show every device\'s events';
+
+  @override
+  String get eventsShowNoOne => 'Show events with no one in them';
 
   @override
   String get eventsShowSystem => 'Show system events';

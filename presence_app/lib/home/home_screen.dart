@@ -352,10 +352,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// What the Monitoring tab shows, kept while switching tabs: the device
   /// picked by tapping an event's device (none at launch: every device's),
   /// the "Show system events" toggle (on in DEV, off otherwise: only
-  /// grabs), the search (blank at launch) and the event to open. Made on
-  /// first use, once the execution mode is known.
-  EventFilters get _filters =>
-      _filtersOrNull ??= EventFilters(showSystemEvents: _dev);
+  /// grabs), the "Show events with no one" toggle (off: only the grabs
+  /// with a person or pet), the search (blank at launch) and the event to
+  /// open. Made on first use, once the execution mode is known.
+  EventFilters get _filters => _filtersOrNull ??= EventFilters(
+    showSystemEvents: _dev,
+    showEventsWithNoOne: false,
+  );
   EventFilters? _filtersOrNull;
 
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over

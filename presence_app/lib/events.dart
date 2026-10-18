@@ -583,9 +583,9 @@ class EventTimeline extends StatefulWidget {
   final String? profileId;
 
   /// What shows ([EventFilters]: the device picked, system events, the
-  /// search) and the event to open ([EventFilters.focus]). Kept by the
-  /// caller, so they survive the tab being rebuilt; defaults to an own
-  /// one, showing every event.
+  /// events with no one, the search) and the event to open
+  /// ([EventFilters.focus]). Kept by the caller, so they survive the tab
+  /// being rebuilt; defaults to an own one, showing every event.
   final EventFilters? filters;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
@@ -631,6 +631,29 @@ class EventTimeline extends StatefulWidget {
     List<AppEvent> events, {
     required bool showSystemEvents,
   }) => showSystemEvents ? events : events.where(isGrab).toList();
+
+  /// Whether [event] shows even with the events with no one hidden: a grab
+  /// ([isGrab]) with a person or a pet on it, or that may have one, or any
+  /// other event (the system events have their own toggle).
+  ///
+  /// A clip has someone when recognition saw a person or pet on it (an
+  /// object tag [sortOfLabel] knows: `human`, `cat`, `dog`) or someone is
+  /// tagged on it; one not searched for objects yet (no object tags at all,
+  /// not even none) may. A suggestion ("Is this Rex?") is about someone.
+  static bool hasSomeone(AppEvent event) {
+    if (event is! ClipRequested || !isGrab(event)) return true;
+    final objects = event.annotations.objects;
+    return objects == null ||
+        objects.any((o) => sortOfLabel(o.label) != null) ||
+        event.annotations.tags.isNotEmpty;
+  }
+
+  /// [events], only those with someone on them ([hasSomeone]) unless
+  /// [showEventsWithNoOne].
+  static List<AppEvent> withSomeone(
+    List<AppEvent> events, {
+    required bool showEventsWithNoOne,
+  }) => showEventsWithNoOne ? events : events.where(hasSomeone).toList();
 
   /// [events], only those matching [query] ([eventMatches]); blank, all.
   /// Events without a device ID (not saved yet) are [deviceId]'s. With
@@ -786,6 +809,10 @@ class _EventTimelineState extends State<EventTimeline> {
       if (!hasIt(_view.ofDevices)) _filters.search.value = '';
       // A system event, with them hidden: show them.
       if (!hasIt(_view.ofKinds)) _filters.showSystemEvents.value = true;
+      // A clip with no one on it, with them hidden: show them.
+      if (!hasIt(_view.withSomeone)) {
+        _filters.showEventsWithNoOne.value = true;
+      }
       // An event the search hides: clear it.
       if (!hasIt(_view.shown)) _filters.search.value = '';
     }
@@ -873,6 +900,8 @@ class _EventTimelineState extends State<EventTimeline> {
             ? l.eventsNone
             : view.ofKinds.isEmpty
             ? l.eventsNoGrabs
+            : view.withSomeone.isEmpty
+            ? l.eventsNoOneHidden
             : l.eventsNoMatch(_filters.search.value.trim()),
       );
     }
@@ -1451,6 +1480,37 @@ class ShowSystemEvents extends StatelessWidget {
         color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
         selectedIcon: Icon(Icons.settings_suggest, color: scheme.primary),
         icon: const Icon(Icons.settings_suggest_outlined),
+        onPressed: () => value.value = !on,
+      );
+    },
+  );
+}
+
+/// The small "Show events with no one" toggle beside [ShowSystemEvents]:
+/// an icon, no label (its tooltip names it), highlighted while on,
+/// switching [value] ([EventFilters.showEventsWithNoOne]). Off at launch:
+/// only the grabs with a person or pet ([EventTimeline.hasSomeone]).
+class ShowEventsWithNoOne extends StatelessWidget {
+  const ShowEventsWithNoOne({super.key, required this.value});
+
+  final ValueNotifier<bool> value;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: value,
+    builder: (context, on, _) {
+      final scheme = Theme.of(context).colorScheme;
+      return IconButton(
+        key: const Key('show-events-with-no-one'),
+        isSelected: on,
+        tooltip: on
+            ? context.l10n.eventsHideNoOne
+            : context.l10n.eventsShowNoOne,
+        visualDensity: VisualDensity.compact,
+        iconSize: 18,
+        color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+        selectedIcon: Icon(Icons.pets, color: scheme.primary),
+        icon: const Icon(Icons.pets_outlined),
         onPressed: () => value.value = !on,
       );
     },

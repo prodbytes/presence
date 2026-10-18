@@ -137,8 +137,8 @@ class _MonitoringViewState extends State<MonitoringView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // One compact row: the search (an icon until tapped),
-                  // the count and the system events toggle, and at the far
-                  // right Delete all. The open field gives up room on a
+                  // the count, the system events and events with no one
+                  // toggles, and at the far right Delete all. The open field gives up room on a
                   // narrow phone.
                   SizedBox(
                     height: 40,
@@ -160,6 +160,9 @@ class _MonitoringViewState extends State<MonitoringView> {
                               ),
                               ShowSystemEvents(
                                 value: _filters.showSystemEvents,
+                              ),
+                              ShowEventsWithNoOne(
+                                value: _filters.showEventsWithNoOne,
                               ),
                             ],
                           ),
