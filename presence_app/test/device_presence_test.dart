@@ -310,7 +310,7 @@ void main() {
       final p = of(answered: const Duration(seconds: 5));
       expect(p.level, PresenceLevel.live);
       expect(p.reason, 'Live — answered 5 s ago');
-      expect(p.color, Gruvbox.green);
+      expect(p.color, Gruvbox.aqua);
       expect(
         of(answered: const Duration(minutes: 4, seconds: 59)).level,
         PresenceLevel.live,
@@ -430,8 +430,8 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(live.pings, 1);
-      expect(colorOf(tester, 'presence-this-device'), Gruvbox.green);
-      expect(colorOf(tester, 'presence-zesty_owl'), Gruvbox.green);
+      expect(colorOf(tester, 'presence-this-device'), Gruvbox.aqua);
+      expect(colorOf(tester, 'presence-zesty_owl'), Gruvbox.aqua);
       expect(colorOf(tester, 'presence-brave_fox'), Gruvbox.yellow);
       expect(colorOf(tester, 'presence-quiet_cat'), Gruvbox.red);
       expect(find.bySemanticsLabel(RegExp('^Live — answered')), findsOneWidget);
@@ -493,9 +493,9 @@ void main() {
       expect(live.pings, 1);
       expect(
         colorOf(tester, 'presence-calm_sunny_radio_with_a_long_name'),
-        Gruvbox.green,
+        Gruvbox.aqua,
       );
-      expect(colorOf(tester, 'presence-brave_fox'), Gruvbox.green);
+      expect(colorOf(tester, 'presence-brave_fox'), Gruvbox.aqua);
       expect(colorOf(tester, 'presence-old_device'), Gruvbox.red);
       expect(find.byTooltip('Live — answered 20 s ago'), findsOneWidget);
       expect(find.byTooltip('Never seen'), findsOneWidget);

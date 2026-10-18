@@ -10,7 +10,9 @@ small retained heartbeat instead ([below](#free-devices-heartbeat)).
 ## The dot
 
 `DevicePresence.of` ([lib/device_presence.dart](../presence_app/lib/device_presence.dart)),
-drawn by `PresenceDot` (10 dp, Gruvbox colors):
+drawn by `PresenceDot` (10 dp, Gruvbox colors: green is its aqua,
+`#8EC07C`, since its olive green read as yellow beside the yellow
+`#FABD2F`; red `#FB4934`):
 
 - All three go by the **sync timeout** T, how long between hearing from
   a device as often as devices sync (`LiveSync.presenceTimeout`, passed

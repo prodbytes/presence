@@ -91,7 +91,9 @@ class DevicePresence {
   }
 
   Color get color => switch (level) {
-    PresenceLevel.live => Gruvbox.green,
+    // Gruvbox's aqua, not its olive green, which reads as yellow beside
+    // the yellow dot.
+    PresenceLevel.live => Gruvbox.aqua,
     PresenceLevel.recent => Gruvbox.yellow,
     PresenceLevel.old => Gruvbox.red,
   };

@@ -7213,3 +7213,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        24 h). An event now counts toward green, also without live sync.
        Specs: [Device presence](device-presence.md), [Camera
        screen](camera.md), [Sign-in](sign-in.md), [README](README.md).
+
+494. **Presence green and yellow told apart.** (2026-10-18)
+     - Asked: "this device" showed yellow though it should be green; make
+       yellow and green more distinct. (The Pi was red because it was
+       shut down.)
+     - Found: the dot was green (its tooltip "Online · live sync
+       connected"), but Gruvbox's green, `#B8BB26`, is olive and reads as
+       yellow.
+     - Changed: the green dot is Gruvbox's aqua, `#8EC07C`. Specs:
+       [Device presence](device-presence.md).
