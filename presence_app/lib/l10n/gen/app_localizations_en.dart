@@ -2518,7 +2518,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSubjectEvents => 'How many events to load at once';
 
   @override
-  String get settingsSubjectsSection => 'Subjects';
+  String get settingsSubjectsSection => 'Events';
 
   @override
   String storeDays(int count) {

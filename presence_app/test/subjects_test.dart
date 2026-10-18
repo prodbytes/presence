@@ -677,7 +677,9 @@ void main() {
       await tester.tap(find.byKey(const Key('subjects-dot-ana-event-2')));
       expect(opened?.id, 'event-2');
     });
-    testWidgets('the setting is last on the Settings screen', (tester) async {
+    testWidgets('the setting is in the Events section, above Advanced', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -691,12 +693,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('How many events to load at once'), findsOneWidget);
       expect(find.text('100'), findsOneWidget);
-      // Below every other setting, the Advanced section's too.
+      // In the Events section, above the Advanced one.
+      expect(
+        find.ancestor(
+          of: slider,
+          matching: find.widgetWithText(SettingsSection, 'Events'),
+        ),
+        findsOneWidget,
+      );
+      final advanced = find.byKey(
+        const Key('show-log-switch'),
+        skipOffstage: false,
+      );
       expect(
         tester.getTopLeft(slider).dy,
-        greaterThan(
-          tester.getTopLeft(find.byKey(const Key('show-log-switch'))).dy,
-        ),
+        lessThan(tester.getTopLeft(advanced).dy),
       );
       await tester.drag(
         find.descendant(of: slider, matching: find.byType(Slider)),

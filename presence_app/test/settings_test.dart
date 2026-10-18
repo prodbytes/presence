@@ -105,6 +105,27 @@ void main() {
     });
   }
 
+  testWidgets('the sections in order: capturing, events, other cameras, '
+      'syncing, the app', (tester) async {
+    await show(tester, width: 320);
+    final list = tester.widget<ListView>(
+      find.byKey(const Key('settings-page')),
+    );
+    final children =
+        (list.childrenDelegate as SliverChildListDelegate).children;
+    expect(children.whereType<SettingsSection>().map((s) => s.title), [
+      'Camera',
+      'Motion',
+      'Clips',
+      'Scheduled clips',
+      'Recognition',
+      'Events',
+      'History',
+      'Language',
+      'Advanced',
+    ]);
+  });
+
   testWidgets('a slider shows its value while dragged, and changes the '
       'setting (saved and synced) once, when let go', (tester) async {
     await show(tester);
@@ -277,20 +298,18 @@ void main() {
       if (scale == 1) expect(error, isNull);
       expect(error.toString(), isNot(contains('_IdLine')));
 
-      // The very last thing on the page: the list's last child, under
-      // the health line and Add a device.
+      // After the sections, then the version, the health line and Add a
+      // device (the QR code), the very last thing on the page.
       final list = tester.widget<ListView>(
         find.byKey(const Key('settings-page')),
       );
       final children =
           (list.childrenDelegate as SliverChildListDelegate).children;
-      expect(children.last.key, const Key('settings-ids'));
-      for (final above in ['system-health', 'add-device']) {
-        expect(
-          tester.getTopLeft(ids).dy,
-          greaterThan(tester.getBottomLeft(find.byKey(Key(above))).dy),
-        );
-      }
+      expect(children.last.key, const Key('settings-footer'));
+      await scrollSettingsTo(tester, find.byKey(const Key('add-device')));
+      double top(String key) => tester.getTopLeft(find.byKey(Key(key))).dy;
+      expect(top('system-health'), greaterThan(top('settings-ids')));
+      expect(top('add-device'), greaterThan(top('system-health')));
 
       final body = Theme.of(tester.element(find.byType(SettingsView)))
           .textTheme;

@@ -1867,7 +1867,7 @@
   "settingsShowLogSubtitle": "The app's latest messages and health",
   "settingsStartupClip": "Startup clip: once the camera is ready",
   "settingsSubjectEvents": "How many events to load at once",
-  "settingsSubjectsSection": "Subjects",
+  "settingsSubjectsSection": "Events",
   "storeDays": "{count, plural, =1{1 day} other{{count} days}}",
   "@storeDays": {
     "description": "A free trial's length",

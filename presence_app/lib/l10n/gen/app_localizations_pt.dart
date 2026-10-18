@@ -2542,7 +2542,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get settingsSubjectEvents => 'Quantos eventos carregar de uma vez';
 
   @override
-  String get settingsSubjectsSection => 'Sujeitos';
+  String get settingsSubjectsSection => 'Eventos';
 
   @override
   String storeDays(int count) {
