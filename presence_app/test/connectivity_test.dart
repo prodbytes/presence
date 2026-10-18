@@ -164,7 +164,7 @@ void main() {
     expect(dotOf('presence-calm_sunny_radio_with_a_long_name'), Gruvbox.red);
     live.set(LiveSyncState.connected);
     await tester.pump();
-    expect(dotOf('presence-calm_sunny_radio_with_a_long_name'), Gruvbox.green);
+    expect(dotOf('presence-calm_sunny_radio_with_a_long_name'), Gruvbox.aqua);
     await done(tester);
   });
 
