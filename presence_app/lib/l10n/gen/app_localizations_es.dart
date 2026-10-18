@@ -191,6 +191,13 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get authLeader => 'líder';
+
+  @override
+  String get authLeaderTooltip =>
+      'El streamer líder del perfil: el único que transmite a la nube. Los demás esperan, y uno toma su lugar cuando lleva una hora sin conexión.';
+
+  @override
   String get authLinkAnother => 'Vincular otra cuenta';
 
   @override

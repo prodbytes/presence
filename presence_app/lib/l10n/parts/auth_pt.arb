@@ -18,6 +18,8 @@
   "authThisDevice": "este dispositivo",
   "authHiddenTooltip": "Passou do limite de dispositivos do plano: não sincroniza, e os eventos dele ficam ocultos aqui",
   "authHidden": "oculto",
+  "authLeader": "líder",
+  "authLeaderTooltip": "O streamer líder do perfil: o único que transmite para a nuvem. Os outros esperam, e um assume o lugar dele quando fica uma hora offline.",
   "authNoEvents": "Sem eventos",
   "authHideDevice": "Ocultar os eventos de {device}",
   "authShowDevice": "Mostrar os eventos de {device}",

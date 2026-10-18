@@ -404,6 +404,7 @@ class AccountSheet extends StatelessWidget {
                                 d,
                           ],
                           thisDevice: deviceId,
+                          leader: sync?.deviceSlots?.leader,
                           hidden: switch (log) {
                             final log? => hiddenDevices(
                               log,
@@ -690,7 +691,12 @@ class ProfileDevices extends StatelessWidget {
     this.live,
     this.thisPresence,
     this.hidden = const {},
+    this.leader,
   });
+
+  /// The profile's leading streamer, labelled "leader": the one streamer
+  /// that streams to the cloud ([DeviceSlots.leader]).
+  final String? leader;
 
   /// The devices whose events are hidden here (past the plan's limit),
   /// labelled "hidden".
@@ -816,12 +822,25 @@ class ProfileDevices extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (device.id == thisDevice || hidden.contains(device.id))
+                    if (device.id == thisDevice ||
+                        device.id == leader ||
+                        hidden.contains(device.id))
                       Wrap(
                         spacing: 8,
                         children: [
                           if (device.id == thisDevice)
                             Text(l10n.authThisDevice, style: label),
+                          if (device.id == leader)
+                            Tooltip(
+                              message: l10n.authLeaderTooltip,
+                              child: Text(
+                                l10n.authLeader,
+                                key: Key('profile-device-leader-${device.id}'),
+                                style: label.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
                           if (hidden.contains(device.id))
                             Tooltip(
                               message: l10n.authHiddenTooltip,
