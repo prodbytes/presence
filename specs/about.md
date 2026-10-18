@@ -10,8 +10,7 @@ There's no About button or screen any more, and no call to become a member.
   unavailable" note). Neither is shown in DEV or to a signed-out user who
   can sign in, so there it isn't shown either.
 - **Content**, small and quiet (`bodySmall`, muted):
-  - one paragraph: Presence turns a phone, tablet, laptop or Raspberry Pi
-    ([Raspberry Pi](raspberry-pi.md)) into an
+  - one paragraph: Presence turns any device with a camera into an
     always-on camera for a place you look after (live feeds, clips that
     include the moments before, clips on motion), and to only record where
     you're allowed to;

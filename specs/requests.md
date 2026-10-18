@@ -7120,6 +7120,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        person as an event. Specs: [Streamer](streamer.md) (verified on a Pi 4
        with a USB camera and at boot).
 
+486. **A new device shows in the Profile tab at once.** (2026-10-18)
+     - Asked: why the new Pi didn't show on the profile; then to fix it
+       (with live sync for the streamer, a separate change).
+     - Found: the auth API listed the Pi and its event was in the bucket,
+       but the app reads the device list only with new credentials
+       (hourly), and with live sync up lists the bucket only hourly; the
+       streamer isn't on live sync, so nothing asked sooner.
+     - Changed: opening the Profile tab and the Sync button ask for the
+       profile's devices again (`CloudSync.refreshDevices`, at most every
+       30 s). Specs: [Premium](premium.md#devices).
+
 487. **The Pi streamer joins live sync.** (2026-10-18)
      - Asked: can the Pi use live sync? yes (whether the streamer could be on
        live sync like a phone, then yes to building it).
@@ -7137,3 +7148,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        for the RC's site (`PRESENCE_STREAMER_STAGE`). Specs:
        [Streamer](streamer.md), [Live sync](live-sync.md), [Device
        presence](device-presence.md), [Release builds](release.md).
+
+488. **Labels say "streamer", not "Raspberry Pi".** (2026-10-18)
+     - Asked: don't say "Raspberry Pi" on labels, "streamer" is enough;
+       the app's description can say "any device with a camera".
+     - Changed (en, es, pt): the account sheet's box is **Streamer**; its
+       copy note says to paste the command "on the streamer"; its body
+       says a Linux device with a camera (Raspberry Pi OS or Debian, ARM),
+       naming the OS it needs. Blink, GoPro and Reolink say "a streamer of
+       yours" and "Set up a streamer first (Profile › Streamer)". The About
+       paragraph: Presence turns any device with a camera into an
+       always-on camera. The streamer labels a camera module's events
+       "Streamer camera". Specs: [About](about.md), [Install
+       script](install-script.md), [Streamer](streamer.md).

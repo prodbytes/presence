@@ -55,7 +55,7 @@ void main() {
       expect(
         find.descendant(
           of: about,
-          matching: find.textContaining('Raspberry Pi'),
+          matching: find.textContaining('any device with a camera'),
         ),
         findsOneWidget,
       );

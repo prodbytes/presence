@@ -17,7 +17,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutParagraph =>
-      'Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.';
+      'Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.';
 
   @override
   String get authAccessAdmin => 'Admin Access';
@@ -435,11 +435,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authStreamerBody =>
-      'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.';
+      'Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.';
 
   @override
-  String get authStreamerCopied =>
-      'Command copied: paste it on the Raspberry Pi';
+  String get authStreamerCopied => 'Command copied: paste it on the streamer';
 
   @override
   String get authStreamerCopy => 'Copy command';
@@ -457,7 +456,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'It holds this device\'s key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.';
 
   @override
-  String get authStreamerTitle => 'Stream from a Raspberry Pi';
+  String get authStreamerTitle => 'Streamer';
 
   @override
   String get authSubscribe => 'Subscribe';
@@ -545,7 +544,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blinkAbout =>
-      'A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.';
+      'A streamer of yours fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.';
 
   @override
   String get blinkConnect => 'Connect';
@@ -583,7 +582,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blinkNoStreamer =>
-      'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras\' clips.';
+      'Set up a streamer first (Profile › Streamer); it fetches the Blink cameras\' clips.';
 
   @override
   String get blinkNotSent =>
@@ -1533,7 +1532,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get goproAbout =>
-      'A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.';
+      'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.';
 
   @override
   String get goproAddressHelp =>
@@ -1549,7 +1548,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get goproNoStreamer =>
-      'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the GoPro cameras\' videos.';
+      'Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras\' videos.';
 
   @override
   String get goproNone => 'No GoPro cameras yet.';
@@ -2045,7 +2044,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reolinkAbout =>
-      'A Linux streamer of yours (a Raspberry Pi) fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).';
+      'A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).';
 
   @override
   String get reolinkAddressHelp =>
@@ -2061,7 +2060,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reolinkNoStreamer =>
-      'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Reolink cameras\' recordings.';
+      'Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras\' recordings.';
 
   @override
   String get reolinkNone => 'No Reolink cameras yet.';

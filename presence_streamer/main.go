@@ -823,7 +823,7 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}
 	label := o.cameraLabel
 	if label == "" {
-		label = map[string]string{"libcamera": "Raspberry Pi camera", "v4l2": "USB camera", "test": "Test camera"}[rec.Source]
+		label = map[string]string{"libcamera": "Streamer camera", "v4l2": "USB camera", "test": "Test camera"}[rec.Source]
 	}
 	logf("camera: %s (%s, %s encoder), %dx%d at %d fps, %s chunks", label, rec.Source, rec.Encoder, rec.Width, rec.Height, rec.FPS, rec.Chunk)
 
