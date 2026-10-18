@@ -9,6 +9,10 @@ OS **32-bit (armhf)** and **64-bit (arm64)**, Bookworm or newer, on every Pi
 from the Zero to the 5. The [Raspberry Pi camera](raspberry-pi.md) `.deb`
 (the web app in a kiosk) is the other way to make a Pi a camera.
 
+**One streamer streams per profile:** the leader, which the auth API
+grants. The others wait until a leader offline for an hour (or deleted)
+leaves them its place. See [Streamer leadership](streamer-leader.md).
+
 Not yet: [live sync](live-sync.md) (MQTT). The streamer doesn't connect to
 it, publish its events there or answer presence pings, as a phone does.
 Its events reach the profile's devices from the bucket, within their next
@@ -53,7 +57,9 @@ streamer get its profile's credentials with no Google account:
   does for that device (which joins the profile's devices), tiered by the
   profile owner's roles in rbacr, plus `userId`, the `sub` of who made the
   key (the events' `userId`). Anything else is the same 401. Throttled to
-  2 requests/s (burst 10).
+  2 requests/s (burst 10). **Only the profile's leading streamer** gets
+  them: another gets 409 (`"reason": "notLeader"`) and waits, asking `POST
+  /api/auth/stream/lease` ([Streamer leadership](streamer-leader.md)).
 - **Revoked** when the device is deleted in the app
   ([Device deletion](device-deletion.md); `POST
   /api/auth/profile/devices/remove` deletes its key), or replaced by a new
@@ -65,8 +71,11 @@ streamer get its profile's credentials with no Google account:
 
 ## Starting it
 
-`presence-streamer` (or `presence-streamer run`) streams.
-`presence-streamer setup` does everything before the streaming and exits.
+`presence-streamer` (or `presence-streamer run`) streams, once it leads
+the profile's streamers; until then it waits, asking every 5 minutes
+([Streamer leadership](streamer-leader.md)).
+`presence-streamer setup` does everything before the streaming and exits
+(a key whose streamer would wait is still ready).
 
 **With a stream key** (`--profile`, `--device-id` and `--key`, or
 `PRESENCE_STREAMER_PROFILE`, `_DEVICE_ID`, `_KEY`), as the app's command
@@ -81,8 +90,9 @@ makes stream keys only for a premium member (403 otherwise), and answers
 profile's owner isn't premium, or when the streamer is past the plan's
 device limit ([Plans](premium.md#devices)); before, a free owner's
 profile got a `"tier": "free"` token, which the streamer turned down
-itself. presence-streamer reads those 403s, at the start and at every
-renewal (a renewal's ends the run, as a free tier does):
+itself. presence-streamer reads those 403s (from the credentials or the
+lease routes), at the start and at every renewal or lease request (one
+mid-run ends the run, as a free tier does):
 - `{"error": "streamers are Premium only"}` is a **free profile**:
   exit 3 ("this profile is free: …").
 - `"reason": "deviceLimit"` is a **device past the plan's limit**: exit 2
@@ -625,6 +635,8 @@ cameras' clips, each camera a device of its own: see
 
 ## Known limitations
 
+- **One streamer per profile streams** at a time; see [Streamer
+  leadership](streamer-leader.md#known-limitations) for its own.
 - **No live sync** (above): events reach the other devices from the bucket
   within 15 s, not within a second, and the streamer doesn't show as
   present.

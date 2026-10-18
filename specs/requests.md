@@ -6907,7 +6907,35 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
       [Sessions](sessions.md).
 
-472. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
+472. **Streamer management: one leader streams.** (2026-10-18)
+    - At most one of a profile's streamers, the leader, pushes to the
+      cloud; a streamer streams only once the auth API grants it the
+      leadership. The auth API keeps the leader on the profile
+      (`streamLeader`, `streamLeaderSeenAt`), grants it with one
+      conditional write, gives stream credentials only to the leader
+      (409 `notLeader` otherwise), and has two lease routes, `POST
+      /api/auth/stream/lease` (the stream key) and `POST
+      /api/auth/profile/stream-lease` (Google sign-in).
+    - A leader silent for more than an hour is replaced by the next
+      waiting streamer to ask; deleting the leader frees its place.
+    - presence-streamer waits (records nothing) until it leads, asking
+      every 5 minutes; leading, it renews every 5 minutes and goes back to
+      waiting when replaced, refused, or unable to renew for 55 minutes.
+    - The app's profile view labels the leader "leader" in the device
+      list (en, es, pt); Blink's streamer list puts it first.
+    - Specs: [Streamer leadership](streamer-leader.md) (new),
+      [Streamer](streamer.md), [Auth API](auth-api.md),
+      [Sign-in](sign-in.md), [Blink cameras](blink.md).
+
+473. **Stop rotating the Apple refresh-token data key.** (2026-10-18)
+    - `SessionDataKey` now has `EnableKeyRotation: false`: each yearly
+      rotation would add $1/month per stage. CloudFormation changes
+      that property in place (no replacement), and KMS keeps old key
+      material, so sealed tokens still decrypt. Takes effect at the
+      next auth API deploy.
+    - Specs: [Sessions](sessions.md).
+
+474. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
     - The auth API answers a free profile's stream key with HTTP 403
       `"streamers are Premium only"`, and a device past the plan's limit
       with 403 `"reason": "deviceLimit"`; presence-streamer read only a

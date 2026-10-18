@@ -137,11 +137,13 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/stream-key" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/stream-lease" ProfileFunction "$authorizer"
   # Account deletion: the account, or its whole profile for the owner
   # (Floci's tables and bucket; no Feedback table locally).
   route "POST /api/auth/account/delete" ProfileFunction "$authorizer"
   # The streamer's: no session token, its stream key is checked by the function.
   route "POST /api/auth/stream/credentials" ProfileFunction
+  route "POST /api/auth/stream/lease" ProfileFunction
   # Cloud recognition (premium only). Locally the models come from Hugging
   # Face at each function's first use (no bucket here keeps them): DINOv2
   # 1.2 GB, SigLIP2 95 MB.

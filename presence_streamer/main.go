@@ -409,16 +409,16 @@ func run(o *options, setupOnly bool) int {
 	}
 	if s.StreamKey != "" {
 		sess := &session.Session{API: api, StreamKey: s.StreamKey, ProfileID: s.ProfileID, DeviceID: s.DeviceID}
-		creds, err := sess.Credentials(ctx)
-		if err != nil {
+		_, err := sess.Credentials(ctx)
+		if err != nil && !session.Standby(err) {
 			return exitFor(err, s, logf)
 		}
 		logf("profile %s (premium), device %s, with its stream key", s.ProfileID, s.DeviceID)
 		if setupOnly {
-			fmt.Printf("Ready: device %s streams to profile %s.\n", s.DeviceID, s.ProfileID)
+			ready(s.DeviceID, s.ProfileID, err)
 			return 0
 		}
-		return streamCamera(ctx, o, s, sess, creds, logf)
+		return lead(ctx, o, s, sess, logf)
 	}
 
 	if o.clientID == "" || o.clientSecret == "" {
@@ -459,16 +459,132 @@ func run(o *options, setupOnly bool) int {
 	}
 
 	sess := &session.Session{Google: g, API: api, RefreshToken: s.RefreshToken, ProfileID: profile, DeviceID: s.DeviceID}
-	creds, err := sess.Credentials(ctx)
-	if err != nil {
+	if _, err := sess.Credentials(ctx); err != nil {
 		return exitFor(err, s, logf)
 	}
 	logf("profile %s (premium), device %s, signed in as %s", profile, s.DeviceID, s.Email)
 	if setupOnly {
-		fmt.Printf("Ready: device %s streams to profile %s.\n", s.DeviceID, profile)
+		ready(s.DeviceID, profile, nil)
 		return 0
 	}
-	return streamCamera(ctx, o, s, sess, creds, logf)
+	return lead(ctx, o, s, sess, logf)
+}
+
+// ready says setup is done: the device streams to the profile, or waits
+// while another streamer leads it (waiting, a [session.Standby] error).
+func ready(device, profile string, waiting error) {
+	if waiting != nil {
+		fmt.Printf("Ready: device %s of profile %s waits: %v. It streams once it leads (when that one is gone for an hour, or deleted in the app).\n", device, profile, waiting)
+		return
+	}
+	fmt.Printf("Ready: device %s streams to profile %s.\n", device, profile)
+}
+
+// leaseEvery is how often a streamer asks for (waiting) or renews
+// (leading) its leadership of the profile's streamers.
+var leaseEvery = 5 * time.Minute
+
+// standby is streamCamera's answer when the streamer lost the leadership:
+// it waits for it again.
+const standby = -1
+
+// lead streams while the streamer leads the profile's streamers: only one
+// of a profile's streamers streams at a time. It waits for the leadership
+// (asking every [leaseEvery]), streams, and waits again if another takes
+// its place. It answers the exit code.
+func lead(ctx context.Context, o *options, s *state.State, sess *session.Session, logf func(string, ...any)) int {
+	for {
+		if err := waitToLead(ctx, sess, logf); err != nil {
+			return exitFor(err, s, logf)
+		}
+		creds, err := sess.Credentials(ctx)
+		if session.Standby(err) {
+			// Another took the lead meanwhile.
+			continue
+		}
+		if err != nil {
+			return exitFor(err, s, logf)
+		}
+		if code := streamCamera(ctx, o, s, sess, creds, logf); code != standby {
+			return code
+		}
+	}
+}
+
+// waitToLead returns once the streamer leads the profile (nil), or with why
+// it must stop: ctx ended or a fatal error. It says who leads meanwhile.
+func waitToLead(ctx context.Context, sess *session.Session, logf func(string, ...any)) error {
+	said := ""
+	for pause := 5 * time.Second; ; {
+		lease, err := sess.Lease(ctx)
+		wait := leaseEvery
+		switch {
+		case err == nil && lease.Leader:
+			if said != "" {
+				logf("leading the profile's streamers now: streaming")
+			}
+			return nil
+		case err == nil:
+			leader := "another streamer"
+			if l := lease.StreamLeader; l != nil {
+				leader = l.Device
+			}
+			if leader != said {
+				logf("waiting: %s leads this profile's streamers; this one streams once it leads (asking every %s; a leader silent for %s is replaced)",
+					leader, leaseEvery, time.Duration(lease.SilenceMs)*time.Millisecond)
+				said = leader
+			}
+			pause = 5 * time.Second
+		case session.Fatal(err) && !session.Standby(err):
+			return err
+		default:
+			logf("asking for the lead: %v; trying again in %s", err, pause)
+			wait, pause = pause, min(2*pause, leaseEvery)
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-time.After(wait):
+		}
+	}
+}
+
+// keepLease renews the leadership every [leaseEvery] while ctx lasts. It
+// cancels ctx when another streamer leads (it was silent too long), when
+// the lease couldn't be renewed for as long as a leader may be silent
+// (another may lead by then), or on a fatal error.
+func keepLease(ctx context.Context, sess *session.Session, cancel context.CancelCauseFunc, logf func(string, ...any)) {
+	renewed := time.Now()
+	silence := time.Hour
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(leaseEvery):
+		}
+		lease, err := sess.Lease(ctx)
+		switch {
+		case err == nil && lease.Leader:
+			renewed = time.Now()
+			if lease.SilenceMs > 0 {
+				silence = time.Duration(lease.SilenceMs) * time.Millisecond
+			}
+		case err == nil:
+			cancel(presence.NotLeaderError{Leader: lease.StreamLeader})
+			return
+		case session.Fatal(err):
+			cancel(err)
+			return
+		case ctx.Err() == nil:
+			logf("renewing the lead: %v", err)
+			// A leader unheard for this long may have been replaced: stop
+			// rather than stream beside the new one.
+			if time.Since(renewed) >= silence-leaseEvery {
+				cancel(session.ErrLeaseLapsed)
+				return
+			}
+		}
+	}
 }
 
 // streamKeyPattern is a stream key as the auth API makes them.
@@ -496,7 +612,9 @@ func takeKey(ctx context.Context, o *options, s *state.State, profile string, ap
 		log.Printf("%q isn't a device ID (they look like calm_quiet_otter)", device)
 		return exitUsage
 	}
-	if _, err := session.CheckKey(ctx, api, key, profile, device); err != nil {
+	// Another streamer leading the profile doesn't make the key wrong: this
+	// one waits for the lead.
+	if _, err := session.CheckKey(ctx, api, key, profile, device); err != nil && !session.Standby(err) {
 		return exitFor(err, s, log.Printf)
 	}
 	s.ProfileID, s.DeviceID, s.StreamKey, s.RefreshToken, s.Email = profile, device, key, "", ""
@@ -737,6 +855,8 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
+	// Only while it leads the profile's streamers.
+	go keepLease(ctx, sess, cancel, logf)
 	// Blink's cameras, when this streamer is the one the app picked.
 	startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
 	wg.Add(2)
@@ -757,6 +877,10 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	// up the stop.
 	detector.Close()
 	wg.Wait()
+	if cause := context.Cause(ctx); session.Standby(cause) {
+		logf("not leading any more (%v): recording stopped; waiting for the lead", cause)
+		return standby
+	}
 	return exitFor(context.Cause(ctx), s, logf)
 }
 
