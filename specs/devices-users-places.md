@@ -21,6 +21,8 @@ not built yet.
     about 1.2 billion IDs. Two of 5,000 devices share an ID with about 1%
     odds, and two of 50,000 with about 64%. Words that read as insults,
     and weapons, were left out.
+  - `scripts/device-id.sh [count]` prints new IDs from the same generator
+    (one by default), for setting up a device by hand.
   - It's saved in the `settings` store under `device` (`{"id": …,
     "key": …}`), read and created in one transaction, so two tabs opening
     at once agree. On web, clearing the site's data makes a new device.

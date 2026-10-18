@@ -7103,3 +7103,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `NetCameraSettings`, shared by both, its common strings `netcam*`.
       Specs: [Reolink cameras](reolink.md) (new), [GoPro
       cameras](gopro.md), [Streamer](streamer.md), [Settings](settings.md).
+
+425. **A script that makes device IDs.** (2026-10-18)
+     - Asked: generate a new device name with the app's own function, then
+       a script that does it.
+     - Changed: `scripts/device-id.sh [count]` runs the app's
+       `DeviceId.generate()` with `dart` and prints `count` IDs (default 1).
+       Specs: [Devices, users and places](devices-users-places.md).
