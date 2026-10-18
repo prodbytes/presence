@@ -2,13 +2,20 @@ package rclone
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,9 +63,17 @@ func TestCommandsKeepSecretsOffTheCommandLine(t *testing.T) {
 		"RCLONE_S3_SESSION_TOKEN=ST",
 		"RCLONE_S3_STORAGE_CLASS=INTELLIGENT_TIERING",
 		"RCLONE_S3_PROVIDER=AWS",
+		// What's there already counts by size and MD5.
+		"--checksum",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	// Nothing turns rclone's verification off.
+	for _, never := range []string{"--ignore-checksum", "--ignore-size", "--s3-disable-checksum", "--size-only"} {
+		if strings.Contains(out, never) {
+			t.Errorf("%s in:\n%s", never, out)
 		}
 	}
 	for _, line := range strings.Split(out, "\n") {
@@ -68,16 +83,170 @@ func TestCommandsKeepSecretsOffTheCommandLine(t *testing.T) {
 	}
 }
 
+// rcloneBin is the rclone the tests run (RCLONE, else the one on PATH); the
+// test is skipped without one.
+func rcloneBin(t *testing.T) string {
+	t.Helper()
+	if bin := os.Getenv("RCLONE"); bin != "" {
+		return bin
+	}
+	bin, err := exec.LookPath("rclone")
+	if err != nil {
+		t.Skip("no rclone")
+	}
+	return bin
+}
+
+// s3 is a fake S3 for one key at a time: it keeps the objects PUT (and
+// checks their Content-MD5, as S3 does), answers a server-side copy, and
+// can answer a wrong ETag (a copy that doesn't match).
+type s3 struct {
+	mu      sync.Mutex
+	objects map[string][]byte
+	ops     []string
+	// wrongPut: the ETag a PUT answers isn't the object's MD5; wrongHead:
+	// nor the one a HEAD of that key answers.
+	wrongPut  bool
+	wrongHead string
+}
+
+func etag(data []byte, wrong bool) string {
+	if wrong {
+		data = append([]byte("not "), data...)
+	}
+	return fmt.Sprintf(`"%x"`, md5.Sum(data))
+}
+
+func (s *s3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := r.URL.Path
+	s.ops = append(s.ops, r.Method+" "+key)
+	data, ok := s.objects[key]
+	switch r.Method {
+	case http.MethodHead, http.MethodGet:
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Length", fmt.Sprint(len(data)))
+		w.Header().Set("ETag", etag(data, key == s.wrongHead))
+		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		if r.Method == http.MethodGet {
+			w.Write(data)
+		}
+	case http.MethodPut:
+		if from := r.Header.Get("X-Amz-Copy-Source"); from != "" {
+			from, _ = url.PathUnescape(from)
+			src, ok := s.objects["/"+strings.TrimPrefix(from, "/")]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			s.objects[key] = src
+			fmt.Fprintf(w, `<CopyObjectResult><ETag>%s</ETag><LastModified>%s</LastModified></CopyObjectResult>`,
+				etag(src, false), time.Now().UTC().Format(time.RFC3339))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		sum := md5.Sum(body)
+		if r.Header.Get("Content-MD5") != base64.StdEncoding.EncodeToString(sum[:]) {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `<Error><Code>BadDigest</Code></Error>`)
+			return
+		}
+		s.objects[key] = body
+		w.Header().Set("ETag", etag(body, s.wrongPut))
+	case http.MethodDelete:
+		delete(s.objects, key)
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+	}
+}
+
+func (s *s3) count(op string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, o := range s.ops {
+		if strings.HasPrefix(o, op) {
+			n++
+		}
+	}
+	return n
+}
+
+// Uploads and moves are verified by size and MD5 (the PUT's ETag, the
+// copy's HEAD): one that doesn't match fails, ErrNotVerified, and leaves no
+// copy; a PUT isn't followed by a HEAD; an object already there whole isn't
+// uploaded again.
+func TestUploadsAndMovesAreVerified(t *testing.T) {
+	bin := rcloneBin(t)
+	fake := &s3{objects: map[string][]byte{}}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	f := &Folder{Rclone: bin, Config: filepath.Join(t.TempDir(), "rclone.conf"), Bucket: "bucket",
+		Identity: "us-east-1:abc", Region: "us-east-1", Endpoint: srv.URL, Credentials: creds}
+	ctx := context.Background()
+	src := filepath.Join(t.TempDir(), "chunk.sealed")
+	os.WriteFile(src, []byte("sealed bytes"), 0o600)
+	obj := func(key string) ([]byte, bool) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		data, ok := fake.objects["/bucket/us-east-1:abc/"+key]
+		return data, ok
+	}
+
+	fake.wrongPut = true
+	err := f.Put(ctx, src, "ingest/d/c.mp4", "application/octet-stream")
+	if !errors.Is(err, ErrNotVerified) {
+		t.Fatalf("a PUT answering another MD5: %v", err)
+	}
+	if _, ok := obj("ingest/d/c.mp4"); ok {
+		t.Fatal("the copy that doesn't match is still there")
+	}
+
+	fake.wrongPut = false
+	heads := fake.count("HEAD")
+	if err := f.Put(ctx, src, "ingest/d/c.mp4", "application/octet-stream"); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := obj("ingest/d/c.mp4"); string(data) != "sealed bytes" {
+		t.Fatalf("uploaded %q", data)
+	}
+	// One HEAD (is it there?) before the PUT, none after.
+	if n := fake.count("HEAD") - heads; n != 1 {
+		t.Fatalf("%d HEADs for one upload", n)
+	}
+	puts := fake.count("PUT")
+	if err := f.Put(ctx, src, "ingest/d/c.mp4", "application/octet-stream"); err != nil || fake.count("PUT") != puts {
+		t.Fatalf("uploaded again: %v", err)
+	}
+
+	fake.wrongHead = "/bucket/us-east-1:abc/media/c.mp4"
+	if err := f.Move(ctx, "ingest/d/c.mp4", "media/c.mp4"); !errors.Is(err, ErrNotVerified) {
+		t.Fatalf("a move whose copy doesn't match: %v", err)
+	}
+	if _, ok := obj("ingest/d/c.mp4"); !ok {
+		t.Fatal("the source was deleted")
+	}
+	fake.wrongHead = ""
+	if err := f.Move(ctx, "ingest/d/c.mp4", "media/c.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := obj("ingest/d/c.mp4"); ok {
+		t.Fatal("the source is still there")
+	}
+	if data, _ := obj("media/c.mp4"); string(data) != "sealed bytes" {
+		t.Fatalf("moved %q", data)
+	}
+}
+
 // Against rclone's own S3 server, when rclone is installed (RCLONE names
 // another binary).
 func TestAgainstS3(t *testing.T) {
-	bin := os.Getenv("RCLONE")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("rclone"); err != nil {
-			t.Skip("no rclone")
-		}
-	}
+	bin := rcloneBin(t)
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "bucket"), 0o755)
 	l, _ := net.Listen("tcp", "127.0.0.1:0")

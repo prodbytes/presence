@@ -48,9 +48,11 @@ Reolink's kind, the `reolink` package
 ([reolink.go](../presence_streamer/internal/reolink/reolink.go)), started
 by `main_netcams.go`; on unless `--reolink off`. The requests, the
 status, deleting the request from the cloud, the pinned certificate, the
-device IDs and their registration, the pipelines and where fetching got
-to are as for [GoPro](gopro.md#on-the-streamer), in `reolink-state.json`
-(mode 600) and `spool/reolink/<device>/`, its events `cameraId: reolink`,
+device IDs and their registration, the pipelines, where fetching got
+to, deleting each video from the Pi once its upload is verified, and
+handing over a video a stop left downloaded (a cut-off one deleted) are
+as for [GoPro](gopro.md#on-the-streamer), in `reolink-state.json`
+(mode 600), `reolink-incoming/<device>/` and `spool/reolink/<device>/`, its events `cameraId: reolink`,
 `os: Reolink`. What's Reolink's:
 
 - **Login** (`cmd=Login`, the user and password in the body, over

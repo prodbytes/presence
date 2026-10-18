@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -207,6 +209,38 @@ func TestUSBFullVideosAndRemove(t *testing.T) {
 	h.Request(t, add("Dash", address(srv), ""))
 	if len(h.Cameras()) != 0 {
 		t.Fatalf("handled twice: %v", h.Cameras())
+	}
+}
+
+// A stop between a video's download and its hand-over: the camera still
+// lists it, so the next fetch fetches it again over the leftover and hands
+// it over once; one it no longer lists is handed over from the leftover; a
+// download cut off is deleted. Nothing stays in gopro-incoming.
+func TestALeftoverVideoIsHandedOverOnce(t *testing.T) {
+	cam := &camera{}
+	srv := httptest.NewServer(cam)
+	defer srv.Close()
+	h := netcamtest.New(t, Kind{Full: true}, epoch)
+	// Added (its first fetch finds nothing yet: the camera's empty).
+	h.Request(t, add("Dash", address(srv), ""))
+	cam.mu.Lock()
+	cam.files = []file{{"GX010002.MP4", local(14, 14, 0), false}}
+	cam.mu.Unlock()
+	in := filepath.Join(h.M.Dir, "gopro-incoming", "gopro_cam_1")
+	os.MkdirAll(in, 0o700)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T120000.mp4"), []byte("video of"), 0o600)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T115000.mp4"), []byte("gone from the camera"), 0o600)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T121000.mp4.part"), []byte("vid"), 0o600)
+	h.Tick()
+	want := []netcamtest.Clip{
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T120000.mp4", Content: "video of GX010002.MP4"},
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T115000.mp4", Content: "gone from the camera"},
+	}
+	if fmt.Sprint(h.Clips) != fmt.Sprint(want) {
+		t.Fatalf("clips %v, want %v", h.Clips, want)
+	}
+	if left, _ := os.ReadDir(in); len(left) != 0 {
+		t.Fatalf("left %v", left)
 	}
 }
 

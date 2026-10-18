@@ -97,6 +97,17 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   `cameraLabel`), `cameraId: gopro`, `os: GoPro`, every video kept (no
   motion filter). Where it got to is saved after each video, so a restart
   doesn't fetch it again.
+- **Deleted from the device once verified:** a video, its sealed copy
+  and thumbnail leave the Pi only as the Pi's own chunks do, once each
+  upload is verified in the bucket by size and MD5
+  ([Streamer](streamer.md#each-chunk), step 8); one that fails
+  verification stays and is tried again. A video downloaded but not yet
+  handed to its pipeline when the streamer stopped is fetched again over
+  it while the camera lists it (where fetching got to hadn't moved on);
+  one the camera no longer lists is handed over from
+  `gopro-incoming/<device>/` after the camera's next full fetch, so none
+  stays there unsent. A download cut off (`.part`) is deleted then.
+  Nothing is deleted on the camera.
 - **Which video:** by default the **low-resolution copy** the camera
   writes beside each video (`GL010002.LRV` for `GX010002.MP4`), when its
   media list says there's one: small enough for a Pi Zero's Wi-Fi and
@@ -116,8 +127,14 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   their UTC start from the camera's clock, each once, also after a
   restart; a wrong password said and nothing kept; a changed certificate
   refused; over USB the full videos, one too big skipped, and remove
-  forgets the camera; the same request not handled twice; the addresses
-  (`Kind.Base`) and `.LRV` names.
+  forgets the camera; the same request not handled twice; a video left
+  downloaded before a stop handed over once (fetched again over it while
+  the camera lists it, from the leftover when it doesn't), a cut-off
+  download deleted, nothing left in `gopro-incoming/`; the addresses
+  (`Kind.Base`) and `.LRV` names. `main_cameras_test.go`: a video through
+  its camera's pipeline (Blink's, GoPro's, Reolink's), its first upload
+  failing verification, stored once verified, then deleted from the
+  device.
 - The app (`net_camera_settings_test.dart`): no streamer; add sends the camera
   to the streamer, then lists it and removes it; an error and a camera's
   own error show; a send that fails says so and keeps the form.

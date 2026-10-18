@@ -7062,7 +7062,30 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       long as the streamer waits for the PIN. Test only; no behaviour
       changed. Specs: none.
 
-482. **Reolink cameras through a streamer.** (2026-10-18)
+482. **Streamer: delete videos from the device once verified in S3.**
+    (2026-10-18)
+    - Asked: make sure that when streamer videos are verified to be
+      uploaded to S3, they're deleted from the local device.
+    - Changed: rclone (1.60, Debian's, and later; read in its source)
+      already verifies each upload by MD5 (`Content-MD5` on the PUT, and
+      the PUT's ETag against the file's) and each move by size and MD5
+      (a HEAD of the copy) before it succeeds; `--checksum` now makes an
+      object already there count only with the same size and MD5, and a
+      mismatch is `ErrNotVerified`. No request more per chunk. The
+      `stream` package deletes each local file once what it was for is
+      verified: the thumbnail and its sealed copy and each JSON record at
+      once, the sealed copy once the recording is in `media/` (in the
+      cloud's mode, in ingest), the chunk and its progress after the
+      event (or job), now noted in its progress, so a stop before the
+      delete deletes it at the next start without uploading the event or
+      job again. A failed verification keeps the files and is tried again.
+      Blink clips and GoPro videos left in their incoming folders (a stop
+      between download and hand-over, a hand-over that failed) are handed
+      over at the next fetch; cut-off downloads are deleted. Specs:
+      [Streamer](streamer.md), [Blink cameras](blink.md),
+      [GoPro cameras](gopro.md).
+
+483. **Reolink cameras through a streamer.** (2026-10-18)
     - Asked: also support Reolink cameras on the streamer, configured in
       the app, like GoPro's.
     - Changed: Settings' last section, Reolink cameras: pick the Linux
@@ -7074,8 +7097,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       ID, and every 2 minutes searches a day at a time for its new motion
       recordings (the sub stream's by default) and fetches them into the
       camera's own pipeline (`os: Reolink`), logging out after.
-      GoPro's request, status and fetching code became the shared
-      `netcam` package, with GoPro and Reolink as its kinds
+      GoPro's request, status and fetching code (with its hand-over of
+      leftover downloads) became the shared `netcam` package, with GoPro and Reolink as its kinds
       (`main_netcams.go`); the app's GoPro section became
       `NetCameraSettings`, shared by both, its common strings `netcam*`.
       Specs: [Reolink cameras](reolink.md) (new), [GoPro

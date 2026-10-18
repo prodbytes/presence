@@ -2,11 +2,32 @@
 // of the user-data bucket with rclone, using the profile's temporary AWS
 // credentials. Credentials go through the environment, never the command
 // line (which other users see in ps).
+//
+// Every upload and move is verified before it succeeds, by rclone's own
+// checks (rclone 1.60, as Debian and Raspberry Pi OS package it, and
+// later):
+//
+//   - Put (`copyto`, one PUT: the upload cutoff is 5 GB) sends the file's
+//     MD5 as Content-MD5, so S3 refuses a body that doesn't match it
+//     (BadDigest), and compares the ETag S3 answers (the object's MD5, for
+//     a single PUT without KMS) with the file's MD5: a difference fails it
+//     ("corrupted on transfer", ErrNotVerified) and the copy is deleted.
+//     The size is the PUT's Content-Length, which the MD5 covers. With
+//     --s3-no-head that's read from the PUT's answer, without a HEAD after
+//     it. An object already at the key with the same size and MD5
+//     (--checksum, from the HEAD rclone makes before each copy) isn't
+//     uploaded again.
+//   - Move (`moveto`) copies server side, then HEADs the copy and compares
+//     its size and MD5 with the source's before it deletes the source.
+//
+// So a nil error means the object is in the bucket, whole: the caller may
+// delete its local copy.
 package rclone
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,7 +69,10 @@ func (f *Folder) run(ctx context.Context, args ...string) error {
 	all := []string{
 		"--config", f.Config,
 		"--s3-no-check-bucket", // the role may not create or list buckets
-		"--s3-no-head",         // nor needs a HEAD after each upload
+		"--s3-no-head",         // nor needs a HEAD after each upload: the PUT's answer is checked
+		// An object already there counts only with the same size and MD5
+		// (not the same size and time).
+		"--checksum",
 		"--no-traverse",
 		"--retries", "3",
 		"--low-level-retries", "10",
@@ -79,10 +103,18 @@ func (f *Folder) run(ctx context.Context, args ...string) error {
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("rclone %s: %w: %s", args[0], err, strings.TrimSpace(out.String()))
+		msg := strings.TrimSpace(out.String())
+		if strings.Contains(msg, "corrupted on transfer") {
+			err = errors.Join(ErrNotVerified, err)
+		}
+		return fmt.Errorf("rclone %s: %w: %s", args[0], err, msg)
 	}
 	return nil
 }
+
+// ErrNotVerified is an upload or move whose copy in the bucket didn't match
+// the source (its size or MD5): it failed, and rclone deleted the copy.
+var ErrNotVerified = errors.New("the copy in the bucket doesn't match")
 
 // Put uploads the file path to key, with contentType.
 func (f *Folder) Put(ctx context.Context, path, key, contentType string) error {
