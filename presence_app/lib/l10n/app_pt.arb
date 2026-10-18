@@ -605,6 +605,8 @@
   "settingsDevice": "Dispositivo",
   "settingsDeviceLoading": "carregando…",
   "settingsGoProSection": "Câmeras GoPro",
+  "settingsGroupAllDevices": "Todos os dispositivos",
+  "settingsGroupThisDevice": "Este dispositivo",
   "settingsHistoryNote": "Eventos mais antigos e seus clipes são apagados deste dispositivo ao abrir o app e a cada 3 horas.",
   "settingsHistorySection": "Histórico",
   "settingsJoinDismiss": "Dispensar",

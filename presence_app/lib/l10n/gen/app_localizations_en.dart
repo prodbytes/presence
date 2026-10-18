@@ -2273,6 +2273,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGoProSection => 'GoPro cameras';
 
   @override
+  String get settingsGroupAllDevices => 'All devices';
+
+  @override
+  String get settingsGroupThisDevice => 'This device';
+
+  @override
   String get settingsHistoryNote =>
       'Older events and their clips are deleted from this device when the app starts and every 3 hours.';
 

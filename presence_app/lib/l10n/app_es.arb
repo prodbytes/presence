@@ -605,6 +605,8 @@
   "settingsDevice": "Dispositivo",
   "settingsDeviceLoading": "cargando…",
   "settingsGoProSection": "Cámaras GoPro",
+  "settingsGroupAllDevices": "Todos los dispositivos",
+  "settingsGroupThisDevice": "Este dispositivo",
   "settingsHistoryNote": "Los eventos más antiguos y sus clips se borran de este dispositivo al iniciar la app y cada 3 horas.",
   "settingsHistorySection": "Historial",
   "settingsJoinDismiss": "Descartar",

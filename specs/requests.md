@@ -7409,3 +7409,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        points HERO5–8 owners to it. es, pt translated. Specs: [USB
        cameras](usb-cameras.md), [Streamer](streamer.md),
        [Settings](settings.md), [GoPro cameras](gopro.md).
+
+506. **Setup: "This device" and "All devices".** (2026-10-18)
+     - Asked: in the Setup view, group the settings in "this device" and
+       "all devices", with separators.
+     - Changed: two headings (`SettingsGroupHeader`): **This device**
+       first, over the Location, capturing, events, syncing and app
+       sections; **All devices**, after a divider, over the camera
+       integrations (Blink, GoPro, Reolink, USB cameras), which the
+       profile's streamers fetch for every device, shown when one of them
+       is. Then the IDs, the version, the health line and the QR code. In
+       en, es ("Este dispositivo", "Todos los dispositivos") and pt
+       ("Este dispositivo", "Todos os dispositivos"). Specs:
+       [Settings screen](settings.md).

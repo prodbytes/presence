@@ -3730,6 +3730,18 @@ abstract class AppLocalizations {
   /// **'GoPro cameras'**
   String get settingsGoProSection;
 
+  /// Setup heading over the settings that affect all the profile's devices (its streamers' cameras)
+  ///
+  /// In en, this message translates to:
+  /// **'All devices'**
+  String get settingsGroupAllDevices;
+
+  /// Setup heading over the settings of this device only
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsGroupThisDevice;
+
   /// No description provided for @settingsHistoryNote.
   ///
   /// In en, this message translates to:

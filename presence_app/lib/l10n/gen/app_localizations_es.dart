@@ -2299,6 +2299,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsGoProSection => 'Cámaras GoPro';
 
   @override
+  String get settingsGroupAllDevices => 'Todos los dispositivos';
+
+  @override
+  String get settingsGroupThisDevice => 'Este dispositivo';
+
+  @override
   String get settingsHistoryNote =>
       'Los eventos más antiguos y sus clips se borran de este dispositivo al iniciar la app y cada 3 horas.';
 

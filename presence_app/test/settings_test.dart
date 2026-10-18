@@ -126,6 +126,52 @@ void main() {
     ]);
   });
 
+  testWidgets('the sections under two headings: This device first, All '
+      'devices before the camera integrations', (tester) async {
+    await show(tester, width: 320);
+    expect(find.byKey(const Key('settings-group-this-device')), findsOneWidget);
+    expect(find.text('This device'), findsOneWidget);
+    // No camera integration here (free, or no cloud sync): no All devices.
+    expect(
+      find.byKey(const Key('settings-group-all-devices'), skipOffstage: false),
+      findsNothing,
+    );
+    final list = tester.widget<ListView>(
+      find.byKey(const Key('settings-page')),
+    );
+    final children =
+        (list.childrenDelegate as SliverChildListDelegate).children;
+    expect(children.first.key, const Key('settings-group-this-device'));
+  });
+
+  testWidgets('with a camera integration, All devices heads it, after this '
+      "device's sections", (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SettingsView(
+            config: ConfigController(),
+            blink: const Text('Blink here', key: Key('blink-body')),
+          ),
+        ),
+      ),
+    );
+    final list = tester.widget<ListView>(
+      find.byKey(const Key('settings-page')),
+    );
+    final keys = [
+      for (final c
+          in (list.childrenDelegate as SliverChildListDelegate).children)
+        c.key,
+    ];
+    final all = keys.indexOf(const Key('settings-group-all-devices'));
+    final blink = keys.indexOf(const Key('blink-section'));
+    final ids = keys.indexOf(const Key('settings-ids'));
+    expect(all, greaterThan(0));
+    expect(blink, all + 1);
+    expect(ids, greaterThan(blink));
+  });
+
   testWidgets('a slider shows its value while dragged, and changes the '
       'setting (saved and synced) once, when let go', (tester) async {
     await show(tester);

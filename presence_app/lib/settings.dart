@@ -183,6 +183,14 @@ class _SettingsViewState extends State<SettingsView> {
           // in.
           padding: const EdgeInsets.only(top: 8, bottom: 24),
           children: [
+            // Two groups, under headings: what's set for this device, then
+            // what's set for all the profile's devices (its streamers'
+            // cameras).
+            SettingsGroupHeader(
+              key: const Key('settings-group-this-device'),
+              title: l.settingsGroupThisDevice,
+              first: true,
+            ),
             // First: where this device is, its position and the map.
             if (location != null)
               SettingsSection(
@@ -459,33 +467,6 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ],
             ),
-            // Other cameras, through a streamer: Blink's,
-            if (widget.blink case final blink?)
-              SettingsSection(
-                key: const Key('blink-section'),
-                title: l.settingsBlinkSection,
-                children: [blink],
-              ),
-            // GoPro's and Reolink's.
-            if (widget.gopro case final gopro?)
-              SettingsSection(
-                key: const Key('gopro-section'),
-                title: l.settingsGoProSection,
-                children: [gopro],
-              ),
-            if (widget.reolink case final reolink?)
-              SettingsSection(
-                key: const Key('reolink-section'),
-                title: l.settingsReolinkSection,
-                children: [reolink],
-              ),
-            // Cameras plugged into a streamer by USB.
-            if (widget.usbcam case final usbcam?)
-              SettingsSection(
-                key: const Key('usbcam-section'),
-                title: l.settingsUsbCamSection,
-                children: [usbcam],
-              ),
             // Syncing: how this device hears of the others' events.
             if (widget.liveSync)
               SettingsSection(
@@ -591,6 +572,43 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ],
               ),
+            // All devices: the profile's streamers fetch these cameras for
+            // every device.
+            if (widget.blink != null ||
+                widget.gopro != null ||
+                widget.reolink != null ||
+                widget.usbcam != null)
+              SettingsGroupHeader(
+                key: const Key('settings-group-all-devices'),
+                title: l.settingsGroupAllDevices,
+              ),
+            // Other cameras, through a streamer: Blink's,
+            if (widget.blink case final blink?)
+              SettingsSection(
+                key: const Key('blink-section'),
+                title: l.settingsBlinkSection,
+                children: [blink],
+              ),
+            // GoPro's and Reolink's.
+            if (widget.gopro case final gopro?)
+              SettingsSection(
+                key: const Key('gopro-section'),
+                title: l.settingsGoProSection,
+                children: [gopro],
+              ),
+            if (widget.reolink case final reolink?)
+              SettingsSection(
+                key: const Key('reolink-section'),
+                title: l.settingsReolinkSection,
+                children: [reolink],
+              ),
+            // Cameras plugged into a streamer by USB.
+            if (widget.usbcam case final usbcam?)
+              SettingsSection(
+                key: const Key('usbcam-section'),
+                title: l.settingsUsbCamSection,
+                children: [usbcam],
+              ),
             // Which device and profile this is, as the events and the auth
             // API say (selectable, to copy), one line each. Always shown.
             Padding(
@@ -665,6 +683,40 @@ class _SettingsViewState extends State<SettingsView> {
           ],
         );
       },
+    );
+  }
+}
+
+/// A heading over a group of sections (**This device**, **All devices**):
+/// larger than a section's, with a divider above it unless it's [first].
+class SettingsGroupHeader extends StatelessWidget {
+  const SettingsGroupHeader({
+    super.key,
+    required this.title,
+    this.first = false,
+  });
+
+  final String title;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, first ? 0 : 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!first) const Divider(height: 24),
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
