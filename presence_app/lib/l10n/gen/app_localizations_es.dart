@@ -1545,6 +1545,73 @@ class AppLocalizationsEs extends AppLocalizations {
   String get feedbackYou => 'Tú';
 
   @override
+  String get goproAbout =>
+      'Un streamer Linux tuyo (una Raspberry Pi) trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi.';
+
+  @override
+  String get goproAdd => 'Agregar cámara';
+
+  @override
+  String get goproAddress => 'Dirección de la cámara';
+
+  @override
+  String get goproAddressHelp =>
+      'Su dirección IP: en la red de casa, la que muestra la app GoPro Quik; por USB 172.2x.1yz.51; en el Wi-Fi de la cámara 10.5.5.9.';
+
+  @override
+  String goproCameraError(String error) {
+    return 'No se pueden traer: $error';
+  }
+
+  @override
+  String get goproCameras => 'Sus cámaras GoPro:';
+
+  @override
+  String get goproChecking => 'Conectando con la cámara…';
+
+  @override
+  String goproError(String error) {
+    return 'GoPro: $error';
+  }
+
+  @override
+  String goproLastFetch(String time) {
+    return 'Videos traídos por última vez a las $time.';
+  }
+
+  @override
+  String get goproName => 'Nombre de la cámara';
+
+  @override
+  String get goproNoStreamer =>
+      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae los videos de las cámaras GoPro.';
+
+  @override
+  String get goproNone => 'Aún no hay cámaras GoPro.';
+
+  @override
+  String get goproNotSent =>
+      'No se pudo enviar: la clave del streamer aún no está aquí, o la sincronización está apagada. Inténtalo en un minuto.';
+
+  @override
+  String get goproPassword => 'Contraseña de la cámara (solo red de casa)';
+
+  @override
+  String get goproPasswordNote =>
+      'Sellada con la clave del streamer (solo tus dispositivos la abren) y borrada de la nube cuando el streamer la tiene.';
+
+  @override
+  String get goproRemove => 'Quitar';
+
+  @override
+  String get goproStreamer => 'El streamer que los trae';
+
+  @override
+  String goproWaiting(String device) {
+    return 'Enviado a $device; revisa cada 30 s…';
+  }
+
+  @override
   String healthApiAnswered(String mode) {
     return 'API de autenticación: respondió (modo $mode)';
   }
@@ -2158,6 +2225,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsDeviceLoading => 'cargando…';
+
+  @override
+  String get settingsGoProSection => 'Cámaras GoPro';
 
   @override
   String get settingsHistoryNote =>

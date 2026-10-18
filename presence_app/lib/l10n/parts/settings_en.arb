@@ -333,5 +333,52 @@
       }
     }
   },
-  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute."
+  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "settingsGoProSection": "GoPro cameras",
+  "goproAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
+  "goproNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the GoPro cameras' videos.",
+  "goproStreamer": "The streamer that fetches them",
+  "goproName": "Camera name",
+  "goproAddress": "Camera address",
+  "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",
+  "goproPassword": "Camera password (home network only)",
+  "goproPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted from the cloud once the streamer has it.",
+  "goproAdd": "Add camera",
+  "goproRemove": "Remove",
+  "goproNone": "No GoPro cameras yet.",
+  "goproCameras": "Its GoPro cameras:",
+  "goproWaiting": "Sent to {device}; it looks every 30 s…",
+  "@goproWaiting": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "goproChecking": "Reaching the camera…",
+  "goproError": "GoPro: {error}",
+  "@goproError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "goproCameraError": "Can't fetch: {error}",
+  "@goproCameraError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "goproLastFetch": "Videos last fetched at {time}.",
+  "@goproLastFetch": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "goproNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute."
 }

@@ -36,7 +36,7 @@ type Session struct {
 	RefreshToken string
 	ProfileID    string
 	DeviceID     string
-	// Cameras are the devices it streams for (its Blink cameras): with a
+	// Cameras are the devices it streams for (its Blink and GoPro cameras): with a
 	// stream key, they join the profile's devices at each renewal.
 	Cameras func() []string
 	Now     func() time.Time
