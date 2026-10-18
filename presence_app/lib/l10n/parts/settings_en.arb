@@ -444,5 +444,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "settingsGroupThisDevice": "This device",
+  "settingsGroupAllDevices": "All devices",
+  "@settingsGroupThisDevice": {"description": "Setup heading over the settings of this device only"},
+  "@settingsGroupAllDevices": {"description": "Setup heading over the settings that affect all the profile's devices (its streamers' cameras)"}
 }

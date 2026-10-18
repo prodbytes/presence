@@ -186,5 +186,7 @@
   "usbcamNoneDetected": "No hay otra cámara conectada a él. Conecta una y enciéndela: aparece aquí en menos de un minuto.",
   "usbcamAdd": "Agregar",
   "usbcamUnplugged": "No está conectada: sus videos nuevos se traen cuando vuelva.",
-  "usbcamError": "Cámaras USB: {error}"
+  "usbcamError": "Cámaras USB: {error}",
+  "settingsGroupThisDevice": "Este dispositivo",
+  "settingsGroupAllDevices": "Todos los dispositivos"
 }

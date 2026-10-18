@@ -1,15 +1,20 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- The sections, in order, the map first and the rest grouped:
-  - **Location** (the map);
-  - capturing: **Camera**, **Motion**, **Clips**, **Scheduled clips**;
-  - events: **Recognition**, **Events** (how many load), **History**;
-  - other cameras, through a streamer: **Blink cameras**, **GoPro
-    cameras**, **Reolink cameras**, **USB cameras** (premium, cloud
-    sync);
-  - syncing: **Live sync** (with live sync in the build);
-  - the app: **Language**, **Advanced** (admins only);
+- The sections, in order, under two **group headings**
+  (`SettingsGroupHeader`: `titleLarge`, bold, in the accent color, the
+  second with a divider above it):
+  - **This device** (`settings-group-this-device`, always, first): what's
+    set for this device alone (every setting is stored per device):
+    - **Location** (the map);
+    - capturing: **Camera**, **Motion**, **Clips**, **Scheduled clips**;
+    - events: **Recognition**, **Events** (how many load), **History**;
+    - syncing: **Live sync** (with live sync in the build);
+    - the app: **Language**, **Advanced** (admins only);
+  - **All devices** (`settings-group-all-devices`, shown when one of its
+    sections is): what the profile's streamers do for every device, the
+    cameras they fetch: **Blink cameras**, **GoPro cameras**, **Reolink
+    cameras**, **USB cameras** (premium, cloud sync);
   - then the device and profile IDs, and last the version, the health
     line and Add a device (its QR code).
 - **Each section is a group** (`SettingsSection` in

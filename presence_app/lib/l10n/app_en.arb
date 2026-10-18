@@ -1716,6 +1716,14 @@
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",
   "settingsGoProSection": "GoPro cameras",
+  "settingsGroupAllDevices": "All devices",
+  "@settingsGroupAllDevices": {
+    "description": "Setup heading over the settings that affect all the profile's devices (its streamers' cameras)"
+  },
+  "settingsGroupThisDevice": "This device",
+  "@settingsGroupThisDevice": {
+    "description": "Setup heading over the settings of this device only"
+  },
   "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",
   "settingsHistorySection": "History",
   "settingsJoinDismiss": "Dismiss",
