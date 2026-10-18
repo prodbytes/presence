@@ -7002,3 +7002,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       gets them; credentials without an expiry (the local stack) stay per
       token.
     - Specs: [Cloud sync](cloud-sync.md).
+
+478. **GoPro cameras through a streamer.** (2026-10-18)
+    - Asked: add GoPro support to the streamer, like Blink cameras: the
+      configuration in the app, read by the streamer. (GoPro has no
+      cloud API; chosen: the Open GoPro HTTP API on the streamer's
+      network: home network with the camera's password, USB, or the
+      camera's Wi-Fi.)
+    - Changed: Settings' last section, GoPro cameras: pick the Linux
+      streamer, add a camera (name, address, password), list and remove
+      them; sealed to that streamer through the profile's folder
+      (`gopro.json`, answered in `gopro-status.json`). The streamer (the
+      new `gopro` package) reaches the camera, pins its certificate,
+      keeps it, deletes the request, gives it a device ID, registers it
+      with its stream key, and every 2 minutes fetches its new videos
+      (the low-resolution `.LRV` copy by default) into the camera's own
+      pipeline (`os: GoPro`). Blink's per-camera pipelines are shared
+      with GoPro's (`main_cameras.go`). Specs: [GoPro cameras](gopro.md)
+      (new), [Streamer](streamer.md), [Settings](settings.md).

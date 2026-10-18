@@ -81,7 +81,7 @@ type Settings struct {
 
 // Camera is what an event says of the camera that recorded it. OS is the
 // device's operating system on the event: "Linux" when empty (the Pi's
-// own camera), "Blink" for a Blink camera.
+// own camera), "Blink" for a Blink camera, "GoPro" for a GoPro.
 type Camera struct {
 	ID    string
 	Label string

@@ -22,6 +22,7 @@ import '../clips.dart';
 import '../cloud/cloud_sync.dart';
 import '../config.dart';
 import '../delete_device.dart';
+import '../gopro_settings.dart';
 import '../show_device.dart';
 import '../device_events.dart';
 import '../events.dart';
@@ -673,6 +674,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         when !_dev &&
                             (widget.roles.isPremium || widget.roles.isAdmin) =>
                       BlinkSettings.of(
+                        sync: sync,
+                        log: widget.log,
+                        profileId: profile,
+                        thisDevice: widget.deviceId,
+                      ),
+                    _ => null,
+                  },
+                  gopro: switch ((widget.sync, widget.roles.profile)) {
+                    (final sync?, final profile?)
+                        when !_dev &&
+                            (widget.roles.isPremium || widget.roles.isAdmin) =>
+                      GoProSettings.of(
                         sync: sync,
                         log: widget.log,
                         profileId: profile,
