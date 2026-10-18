@@ -59,6 +59,11 @@ their data.
   GoPro cameras on its network (the Open GoPro HTTP API; the address and
   password sealed to it) and fetches their new videos, each camera a
   device of its own through the streamer's pipeline.
+- [Reolink cameras](reolink.md): a Linux streamer the Settings pick logs
+  in to Reolink cameras or an NVR's channels on its network (their HTTP
+  API over HTTPS; the login sealed to it) and fetches their motion
+  recordings, each camera a device of its own; shares GoPro's `netcam`
+  code.
 - [Hiding a device](device-hiding.md): the Profile tab's device list's
   eye button hides or shows a device's events, on this device only,
   remembered across restarts.

@@ -92,7 +92,7 @@ func (person) Search(_ []detect.Frame, thumbnail string) (detect.Result, error) 
 // device, its spool and incoming folder left empty. An upload that fails
 // verification keeps the clip, which goes up at the next try.
 func TestFetchedClipsAreDeletedOnceVerified(t *testing.T) {
-	for _, kind := range []string{"blink", "gopro"} {
+	for _, kind := range []string{"blink", "gopro", "reolink"} {
 		t.Run(kind, func(t *testing.T) {
 			state := t.TempDir()
 			bucket := &verifyingBucket{objects: map[string][]byte{}, puts: map[string]int{}, corrupt: "ingest/"}

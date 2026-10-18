@@ -1,8 +1,6 @@
 package gopro
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,77 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prodbytes/presence/presence_streamer/internal/seal"
+	"github.com/prodbytes/presence/presence_streamer/internal/netcam"
+	"github.com/prodbytes/presence/presence_streamer/internal/netcam/netcamtest"
 )
-
-// memStore is the profile's folder, in memory.
-type memStore struct {
-	mu      sync.Mutex
-	objects map[string][]byte
-}
-
-func (m *memStore) Put(_ context.Context, path, key, _ string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.objects[key] = data
-	return nil
-}
-
-func (m *memStore) Get(_ context.Context, key, path string) error {
-	m.mu.Lock()
-	data, ok := m.objects[key]
-	m.mu.Unlock()
-	if !ok {
-		return fmt.Errorf("%s: %w", key, os.ErrNotExist)
-	}
-	return os.WriteFile(path, data, 0o600)
-}
-
-func (m *memStore) Delete(_ context.Context, key string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.objects, key)
-	return nil
-}
-
-var key = bytes.Repeat([]byte{7}, 32)
-
-// put writes the app's request, sealed with the streamer's key.
-func (m *memStore) put(t *testing.T, req Request) {
-	var sealed bytes.Buffer
-	data, _ := json.Marshal(req)
-	if err := seal.Seal(&sealed, bytes.NewReader(data), key, "calm_quiet_otter", nil); err != nil {
-		t.Fatal(err)
-	}
-	m.mu.Lock()
-	m.objects["devices/calm_quiet_otter/gopro.json"] = sealed.Bytes()
-	m.mu.Unlock()
-}
-
-func (m *memStore) has(k string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	_, ok := m.objects[k]
-	return ok
-}
-
-// status opens the streamer's status.
-func (m *memStore) status(t *testing.T) Status {
-	m.mu.Lock()
-	sealed := m.objects["devices/calm_quiet_otter/gopro-status.json"]
-	m.mu.Unlock()
-	var plain bytes.Buffer
-	if err := seal.Open(&plain, bytes.NewReader(sealed), key); err != nil {
-		t.Fatal(err)
-	}
-	var s Status
-	json.Unmarshal(plain.Bytes(), &s)
-	return s
-}
 
 // The streamer's clock: 2026-10-14 13:00 UTC. The camera's is two hours
 // ahead (its time zone), and its files' times are in it.
@@ -147,36 +77,12 @@ func (c *camera) fetched() []string {
 	return append([]string(nil), c.gets...)
 }
 
-type clip struct{ device, name, content string }
-
-func newGoPro(t *testing.T) (*GoPro, *memStore, *[]clip, *[][]Camera) {
-	dir := t.TempDir()
-	store := &memStore{objects: map[string][]byte{}}
-	var clips []clip
-	var registered [][]Camera
-	n := 0
-	g := &GoPro{
-		Dir: dir, DeviceID: "calm_quiet_otter", Key: key, Store: store,
-		NewDevice: func() string { n++; return fmt.Sprintf("gopro_cam_%d", n) },
-		Cameras: func(_ context.Context, cameras []Camera) error {
-			registered = append(registered, cameras)
-			return nil
-		},
-		Clip: func(_ context.Context, c Camera, f string) error {
-			data, _ := os.ReadFile(f)
-			clips = append(clips, clip{c.DeviceID, filepath.Base(f), string(data)})
-			return os.Remove(f)
-		},
-		Poll: time.Millisecond, Every: 2 * time.Minute, Backfill: 24 * time.Hour,
-		Now:  func() time.Time { return epoch },
-		Logf: t.Logf,
-	}
-	g.load()
-	return g, store, &clips, &registered
-}
-
 func address(s *httptest.Server) string {
 	return strings.TrimPrefix(strings.TrimPrefix(s.URL, "https://"), "http://")
+}
+
+func add(name, address, password string) netcam.Request {
+	return netcam.Request{Add: &netcam.Add{Name: name, Address: address, Password: password}, RequestedAt: 1}
 }
 
 // Added over the home network (HTTPS, a password): its certificate pinned,
@@ -191,36 +97,32 @@ func TestAddFetchesNewVideosOnce(t *testing.T) {
 	}}
 	srv := httptest.NewTLSServer(cam)
 	defer srv.Close()
-	g, store, clips, registered := newGoPro(t)
-	ctx := context.Background()
+	h := netcamtest.New(t, Kind{}, epoch)
 
-	store.put(t, Request{Add: &Add{Name: "Helmet", Address: address(srv), Password: "pw"}, RequestedAt: 1})
-	g.step(ctx)
+	h.Request(t, add("Helmet", address(srv), "pw"))
 
-	if store.has("devices/calm_quiet_otter/gopro.json") {
+	if h.Store.Has(h.RequestKey()) {
 		t.Fatal("the request (with the password) is still in the cloud")
 	}
-	for k, v := range store.objects {
-		if bytes.Contains(v, []byte("pw\"")) {
-			t.Fatalf("%s holds the password in the clear", k)
-		}
+	if k := h.Store.Holds(`"pw"`); k != "" {
+		t.Fatalf("%s holds the password in the clear", k)
 	}
-	c := g.state.Cameras["gopro_cam_1"]
+	c, _ := h.Camera("gopro_cam_1")
 	if c.Pin == "" || c.Base != srv.URL || c.Password != "pw" {
 		t.Fatalf("camera %+v", c)
 	}
-	if len(*registered) != 1 || (*registered)[0][0].DeviceID != "gopro_cam_1" {
-		t.Fatalf("registered %+v", *registered)
+	if len(h.Registered) != 1 || h.Registered[0][0].DeviceID != "gopro_cam_1" {
+		t.Fatalf("registered %+v", h.Registered)
 	}
-	want := []clip{
-		{"gopro_cam_1", "rec-gopro-20261014T120000.mp4", "video of GL010002.LRV"},
-		{"gopro_cam_1", "rec-gopro-20261014T123000.mp4", "video of GOPR0003.MP4"},
+	want := []netcamtest.Clip{
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T120000.mp4", Content: "video of GL010002.LRV"},
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T123000.mp4", Content: "video of GOPR0003.MP4"},
 	}
-	if fmt.Sprint(*clips) != fmt.Sprint(want) {
-		t.Fatalf("clips %v, want %v", *clips, want)
+	if fmt.Sprint(h.Clips) != fmt.Sprint(want) {
+		t.Fatalf("clips %v, want %v", h.Clips, want)
 	}
-	s := store.status(t)
-	if s.State != StateOK || s.RequestedAt != 1 || len(s.Cameras) != 1 || s.Cameras[0].Name != "Helmet" ||
+	s := h.Status(t)
+	if s.State != netcam.StateOK || s.RequestedAt != 1 || len(s.Cameras) != 1 || s.Cameras[0].Name != "Helmet" ||
 		s.Cameras[0].LastFetch == 0 || s.Cameras[0].Error != "" {
 		t.Fatalf("status %+v", s)
 	}
@@ -229,19 +131,16 @@ func TestAddFetchesNewVideosOnce(t *testing.T) {
 	cam.mu.Lock()
 	cam.files = append(cam.files, file{"GX010004.MP4", local(14, 14, 45), false})
 	cam.mu.Unlock()
-	g.lastFetch = time.Time{}
-	g.step(ctx)
-	if len(*clips) != 3 || (*clips)[2].content != "video of GX010004.MP4" || len(cam.fetched()) != 3 {
-		t.Fatalf("clips %v, fetched %v", *clips, cam.fetched())
+	h.Tick()
+	if len(h.Clips) != 3 || h.Clips[2].Content != "video of GX010004.MP4" || len(cam.fetched()) != 3 {
+		t.Fatalf("clips %v, fetched %v", h.Clips, cam.fetched())
 	}
 
 	// After a restart too (where it got to is saved).
-	g2, _, clips2, _ := newGoPro(t)
-	g2.Dir, g2.Store = g.Dir, store
-	g2.load()
-	g2.step(ctx)
-	if len(*clips2) != 0 {
-		t.Fatalf("fetched again: %v", *clips2)
+	h.Restart(t)
+	h.Tick()
+	if len(h.Clips) != 3 {
+		t.Fatalf("fetched again: %v", h.Clips)
 	}
 }
 
@@ -249,76 +148,67 @@ func TestAddFetchesNewVideosOnce(t *testing.T) {
 func TestAWrongPasswordIsSaidAndNothingKept(t *testing.T) {
 	srv := httptest.NewTLSServer(&camera{password: "pw"})
 	defer srv.Close()
-	g, store, _, registered := newGoPro(t)
-	store.put(t, Request{Add: &Add{Name: "Helmet", Address: address(srv), Password: "nope"}, RequestedAt: 1})
-	g.step(context.Background())
-	s := store.status(t)
-	if s.State != StateError || !strings.Contains(s.Error, "refused the password") || len(g.state.Cameras) != 0 || len(*registered) != 0 {
-		t.Fatalf("status %+v, cameras %v", s, g.state.Cameras)
+	h := netcamtest.New(t, Kind{}, epoch)
+	h.Request(t, add("Helmet", address(srv), "nope"))
+	s := h.Status(t)
+	if s.State != netcam.StateError || s.Error != netcam.ErrRefused.Error() || len(h.Cameras()) != 0 || len(h.Registered) != 0 {
+		t.Fatalf("status %+v, cameras %v", s, h.Cameras())
 	}
-	if store.has("devices/calm_quiet_otter/gopro.json") {
+	if h.Store.Has(h.RequestKey()) {
 		t.Fatal("the request is still in the cloud")
 	}
 }
 
 // A camera whose certificate isn't the one pinned isn't fetched from.
 func TestAChangedCertificateIsRefused(t *testing.T) {
-	cam := &camera{password: "pw", files: []file{{"GX010002.MP4", local(14, 14, 0), false}}}
+	cam := &camera{password: "pw"}
 	srv := httptest.NewTLSServer(cam)
 	defer srv.Close()
-	g, store, clips, _ := newGoPro(t)
-	store.put(t, Request{Add: &Add{Name: "Helmet", Address: address(srv), Password: "pw"}, RequestedAt: 1})
-	g.handle(context.Background(), &Request{Add: &Add{Name: "Helmet", Address: address(srv), Password: "pw"}, RequestedAt: 1})
-	c := g.state.Cameras["gopro_cam_1"]
-	c.Pin = strings.Repeat("0", 64)
-	g.state.Cameras["gopro_cam_1"] = c
-	g.fetch(context.Background())
-	s := store.status(t)
-	if len(*clips) != 0 || !strings.Contains(s.Cameras[0].Error, "certificate changed") {
-		t.Fatalf("clips %v, status %+v", *clips, s)
+	h := netcamtest.New(t, Kind{}, epoch)
+	h.Request(t, add("Helmet", address(srv), "pw"))
+	h.Edit(t, "gopro_cam_1", func(c *netcam.Camera) { c.Pin = strings.Repeat("0", 64) })
+	cam.mu.Lock()
+	cam.files = []file{{"GX010002.MP4", local(14, 14, 0), false}}
+	cam.mu.Unlock()
+	h.Tick()
+	s := h.Status(t)
+	if len(h.Clips) != 0 || !strings.Contains(s.Cameras[0].Error, "certificate changed") {
+		t.Fatalf("clips %v, status %+v", h.Clips, s)
 	}
 }
 
 // Over USB (plain HTTP, no password): the full videos when asked, the ones
-// too big skipped; removed, it's forgotten (and its pipeline stops), and
-// the same request isn't handled twice.
+// too big skipped; removed, it's forgotten, and the same request isn't
+// handled twice.
 func TestUSBFullVideosAndRemove(t *testing.T) {
-	cam := &camera{files: []file{
-		{"GX010002.MP4", local(14, 14, 0), true},
-	}}
+	cam := &camera{files: []file{{"GX010002.MP4", local(14, 14, 0), true}}}
 	srv := httptest.NewServer(cam)
 	defer srv.Close()
-	g, store, clips, registered := newGoPro(t)
-	g.Full = true
-	ctx := context.Background()
-	store.put(t, Request{Add: &Add{Name: "Dash", Address: address(srv)}, RequestedAt: 1})
-	g.step(ctx)
-	c := g.state.Cameras["gopro_cam_1"]
-	if c.Pin != "" || c.Base != srv.URL || len(*clips) != 1 || (*clips)[0].content != "video of GX010002.MP4" {
-		t.Fatalf("camera %+v, clips %v", c, *clips)
+	h := netcamtest.New(t, Kind{Full: true}, epoch)
+	h.Request(t, add("Dash", address(srv), ""))
+	c, _ := h.Camera("gopro_cam_1")
+	if c.Pin != "" || c.Base != srv.URL || len(h.Clips) != 1 || h.Clips[0].Content != "video of GX010002.MP4" {
+		t.Fatalf("camera %+v, clips %v", c, h.Clips)
 	}
 
 	// Too big: skipped (and not tried again).
-	g.MaxBytes = 5
+	h.M.MaxBytes = 5
 	cam.mu.Lock()
 	cam.files = append(cam.files, file{"GX010003.MP4", local(14, 14, 30), false})
 	cam.mu.Unlock()
-	g.lastFetch = time.Time{}
-	g.step(ctx)
-	if len(*clips) != 1 || g.state.Cameras["gopro_cam_1"].Since != local(14, 14, 30) {
-		t.Fatalf("clips %v, camera %+v", *clips, g.state.Cameras["gopro_cam_1"])
+	h.Tick()
+	if c, _ := h.Camera("gopro_cam_1"); len(h.Clips) != 1 || c.Since != local(14, 14, 30) {
+		t.Fatalf("clips %v, camera %+v", h.Clips, c)
 	}
 
-	store.put(t, Request{Remove: "gopro_cam_1", RequestedAt: 2})
-	g.step(ctx)
-	if len(g.state.Cameras) != 0 || len((*registered)[len(*registered)-1]) != 0 || store.status(t).State != StateOff {
-		t.Fatalf("cameras %v, registered %v", g.state.Cameras, *registered)
+	h.Request(t, netcam.Request{Remove: "gopro_cam_1", RequestedAt: 2})
+	if len(h.Cameras()) != 0 || len(h.Registered[len(h.Registered)-1]) != 0 || h.Status(t).State != netcam.StateOff {
+		t.Fatalf("cameras %v, registered %v", h.Cameras(), h.Registered)
 	}
 	// The same request again (not deleted, say): not handled twice.
-	store.put(t, Request{Add: &Add{Name: "Dash", Address: address(srv)}, RequestedAt: 1})
-	g.step(ctx)
-	if len(g.state.Cameras) != 0 {
-		t.Fatalf("handled twice: %v", g.state.Cameras)
+	h.Request(t, add("Dash", address(srv), ""))
+	if len(h.Cameras()) != 0 {
+		t.Fatalf("handled twice: %v", h.Cameras())
 	}
 }
 
@@ -327,58 +217,50 @@ func TestUSBFullVideosAndRemove(t *testing.T) {
 // it over once; one it no longer lists is handed over from the leftover; a
 // download cut off is deleted. Nothing stays in gopro-incoming.
 func TestALeftoverVideoIsHandedOverOnce(t *testing.T) {
-	cam := &camera{files: []file{{"GX010002.MP4", local(14, 14, 0), false}}}
+	cam := &camera{}
 	srv := httptest.NewServer(cam)
 	defer srv.Close()
-	g, store, clips, _ := newGoPro(t)
-	g.Full = true
-	ctx := context.Background()
+	h := netcamtest.New(t, Kind{Full: true}, epoch)
 	// Added (its first fetch finds nothing yet: the camera's empty).
-	files := cam.files
-	cam.files = nil
-	store.put(t, Request{Add: &Add{Name: "Dash", Address: address(srv)}, RequestedAt: 1})
-	g.step(ctx)
+	h.Request(t, add("Dash", address(srv), ""))
 	cam.mu.Lock()
-	cam.files = files
+	cam.files = []file{{"GX010002.MP4", local(14, 14, 0), false}}
 	cam.mu.Unlock()
-	in := filepath.Join(g.Dir, "gopro-incoming", "gopro_cam_1")
+	in := filepath.Join(h.M.Dir, "gopro-incoming", "gopro_cam_1")
 	os.MkdirAll(in, 0o700)
 	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T120000.mp4"), []byte("video of"), 0o600)
 	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T115000.mp4"), []byte("gone from the camera"), 0o600)
 	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T121000.mp4.part"), []byte("vid"), 0o600)
-	g.lastFetch = time.Time{}
-	g.step(ctx)
-	want := []clip{
-		{"gopro_cam_1", "rec-gopro-20261014T120000.mp4", "video of GX010002.MP4"},
-		{"gopro_cam_1", "rec-gopro-20261014T115000.mp4", "gone from the camera"},
+	h.Tick()
+	want := []netcamtest.Clip{
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T120000.mp4", Content: "video of GX010002.MP4"},
+		{Device: "gopro_cam_1", Name: "rec-gopro-20261014T115000.mp4", Content: "gone from the camera"},
 	}
-	if fmt.Sprint(*clips) != fmt.Sprint(want) {
-		t.Fatalf("clips %v, want %v", *clips, want)
+	if fmt.Sprint(h.Clips) != fmt.Sprint(want) {
+		t.Fatalf("clips %v, want %v", h.Clips, want)
 	}
 	if left, _ := os.ReadDir(in); len(left) != 0 {
 		t.Fatalf("left %v", left)
 	}
 }
 
-func TestBaseOf(t *testing.T) {
+func TestBase(t *testing.T) {
 	for _, tc := range []struct {
-		address  string
-		password bool
-		want     string
+		address, password, want string
 	}{
-		{"192.168.1.50", true, "https://192.168.1.50"},
-		{"172.24.106.51", false, "http://172.24.106.51:8080"},
-		{"10.5.5.9:8080", false, "http://10.5.5.9:8080"},
-		{" https://gopro.lan:8443/ ", true, "https://gopro.lan:8443"},
-		{"http://10.5.5.9:8080", false, "http://10.5.5.9:8080"},
-		{"", false, ""},
-		{"ftp://x", false, ""},
-		{"http://x/videos", false, ""},
-		{"http://192.168.1.50", true, ""},
+		{"192.168.1.50", "pw", "https://192.168.1.50"},
+		{"172.24.106.51", "", "http://172.24.106.51:8080"},
+		{"10.5.5.9:8080", "", "http://10.5.5.9:8080"},
+		{" https://gopro.lan:8443/ ", "pw", "https://gopro.lan:8443"},
+		{"http://10.5.5.9:8080", "", "http://10.5.5.9:8080"},
+		{"", "", ""},
+		{"ftp://x", "", ""},
+		{"http://x/videos", "", ""},
+		{"http://192.168.1.50", "pw", ""},
 	} {
-		got, err := BaseOf(tc.address, tc.password)
+		got, err := Kind{}.Base(netcam.Add{Address: tc.address, Password: tc.password})
 		if got != tc.want || (err != nil) != (tc.want == "") {
-			t.Errorf("BaseOf(%q, %v) = %q, %v; want %q", tc.address, tc.password, got, err, tc.want)
+			t.Errorf("Base(%q, %q) = %q, %v; want %q", tc.address, tc.password, got, err, tc.want)
 		}
 	}
 }

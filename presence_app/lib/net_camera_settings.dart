@@ -7,17 +7,79 @@ import 'cloud/cloud_sync.dart';
 import 'events.dart';
 import 'l10n/l10n.dart';
 
-/// Settings' **GoPro cameras** section (specs/gopro.md): a Linux streamer
-/// of the profile (a Raspberry Pi, picked here) reaches GoPro cameras on
-/// its network (the Open GoPro HTTP API) and fetches their new videos, each
-/// camera a device of its own. The app adds and removes cameras through the
-/// profile's folder, sealed with the streamer's key
-/// ([CloudSync.putDeviceFile]: `gopro.json`, with the camera's address and
-/// password), and reads its answer (`gopro-status.json`) every [poll]
-/// while this shows.
-class GoProSettings extends StatefulWidget {
-  const GoProSettings({
+/// A make of camera on a streamer's network (specs/gopro.md,
+/// specs/reolink.md): its files' name, its strings, and what adding one
+/// asks for.
+class NetCameraKind {
+  const NetCameraKind._({
+    required this.id,
+    required this.about,
+    required this.noStreamer,
+    required this.addressHelp,
+    required this.password,
+    required this.none,
+    required this.cameras,
+    required this.error,
+    this.username = false,
+    this.channel = false,
+    this.passwordRequired = false,
+  });
+
+  /// GoPro's: an address, and a password on the home network only.
+  static final gopro = NetCameraKind._(
+    id: 'gopro',
+    about: (l) => l.goproAbout,
+    noStreamer: (l) => l.goproNoStreamer,
+    addressHelp: (l) => l.goproAddressHelp,
+    password: (l) => l.goproPassword,
+    none: (l) => l.goproNone,
+    cameras: (l) => l.goproCameras,
+    error: (l, e) => l.goproError(e),
+  );
+
+  /// Reolink's: an address, a user and its password, and an NVR's channel.
+  static final reolink = NetCameraKind._(
+    id: 'reolink',
+    about: (l) => l.reolinkAbout,
+    noStreamer: (l) => l.reolinkNoStreamer,
+    addressHelp: (l) => l.reolinkAddressHelp,
+    password: (l) => l.reolinkPassword,
+    none: (l) => l.reolinkNone,
+    cameras: (l) => l.reolinkCameras,
+    error: (l, e) => l.reolinkError(e),
+    username: true,
+    channel: true,
+    passwordRequired: true,
+  );
+
+  /// Names the request (`<id>.json`), the status (`<id>-status.json`) and
+  /// the widgets' keys.
+  final String id;
+  final String Function(AppLocalizations l) about,
+      noStreamer,
+      addressHelp,
+      password,
+      none,
+      cameras;
+  final String Function(AppLocalizations l, String error) error;
+
+  /// Adding one asks for a user (default `admin`), an NVR's channel; a
+  /// password always.
+  final bool username, channel, passwordRequired;
+}
+
+/// Settings' **GoPro cameras** and **Reolink cameras** sections
+/// (specs/gopro.md, specs/reolink.md): a Linux streamer of the profile (a
+/// Raspberry Pi, picked here) reaches the [kind]'s cameras on its network
+/// and fetches their videos, each camera a device of its own. The app adds
+/// and removes cameras through the profile's folder, sealed with the
+/// streamer's key ([CloudSync.putDeviceFile]: `<kind>.json`, with the
+/// camera's address and login), and reads its answer
+/// (`<kind>-status.json`) every [poll] while this shows.
+class NetCameraSettings extends StatefulWidget {
+  const NetCameraSettings({
     super.key,
+    required this.kind,
     required this.streamers,
     required this.putFile,
     required this.getFile,
@@ -26,21 +88,25 @@ class GoProSettings extends StatefulWidget {
   });
 
   /// From [CloudSync] and the event log (the profile's Linux devices).
-  factory GoProSettings.of({
+  factory NetCameraSettings.of({
     Key? key,
+    required NetCameraKind kind,
     required CloudSync sync,
     required EventLog log,
     required String profileId,
     String? thisDevice,
-  }) => GoProSettings(
+  }) => NetCameraSettings(
     key: key,
+    kind: kind,
     streamers: () =>
         BlinkSettings.streamersOf(log, sync, profileId, thisDevice),
     putFile: sync.putDeviceFile,
     getFile: sync.getDeviceFile,
   );
 
-  /// The profile's streamers that can fetch GoPro videos.
+  final NetCameraKind kind;
+
+  /// The profile's streamers that can fetch the cameras' videos.
   final List<String> Function() streamers;
   final PutDeviceFile putFile;
   final GetDeviceFile getFile;
@@ -48,13 +114,15 @@ class GoProSettings extends StatefulWidget {
   final DateTime Function()? now;
 
   @override
-  State<GoProSettings> createState() => _GoProSettingsState();
+  State<NetCameraSettings> createState() => _NetCameraSettingsState();
 }
 
-class _GoProSettingsState extends State<GoProSettings> {
+class _NetCameraSettingsState extends State<NetCameraSettings> {
   final _name = TextEditingController();
   final _address = TextEditingController();
+  final _username = TextEditingController(text: 'admin');
   final _password = TextEditingController();
+  final _channel = TextEditingController(text: '0');
   String? _streamer;
   Map<String, Object?>? _status;
   Timer? _timer;
@@ -78,28 +146,34 @@ class _GoProSettingsState extends State<GoProSettings> {
     _timer?.cancel();
     _name.dispose();
     _address.dispose();
+    _username.dispose();
     _password.dispose();
+    _channel.dispose();
     super.dispose();
   }
+
+  NetCameraKind get _kind => widget.kind;
+  String get _statusFile => '${_kind.id}-status.json';
+  Key _key(String name) => Key('${_kind.id}-$name');
 
   List<String> get _streamers => widget.streamers();
 
   Future<void> _refresh() async {
     final streamers = _streamers;
     if (streamers.isEmpty) return;
-    // The one with GoPro cameras already, else the first.
+    // The one with this kind's cameras already, else the first.
     if (_streamer == null || !streamers.contains(_streamer)) {
-      String? withGoPro;
+      String? withCameras;
       for (final s in streamers) {
-        if (await widget.getFile(s, 'gopro-status.json') != null) {
-          withGoPro = s;
+        if (await widget.getFile(s, _statusFile) != null) {
+          withCameras = s;
           break;
         }
       }
       if (!mounted) return;
-      setState(() => _streamer = withGoPro ?? streamers.first);
+      setState(() => _streamer = withCameras ?? streamers.first);
     }
-    final status = await widget.getFile(_streamer!, 'gopro-status.json');
+    final status = await widget.getFile(_streamer!, _statusFile);
     if (!mounted) return;
     setState(() => _status = status);
   }
@@ -117,14 +191,14 @@ class _GoProSettingsState extends State<GoProSettings> {
       _sending = true;
       _problem = null;
     });
-    final ok = await widget.putFile(_streamer!, 'gopro.json', request);
+    final ok = await widget.putFile(_streamer!, '${_kind.id}.json', request);
     if (!mounted) return ok;
     setState(() {
       _sending = false;
       if (ok) {
         _sent = request['requestedAt'] as int;
       } else {
-        _problem = context.l10n.goproNotSent;
+        _problem = context.l10n.netcamNotSent;
       }
     });
     if (ok) _refresh();
@@ -134,11 +208,16 @@ class _GoProSettingsState extends State<GoProSettings> {
   Future<void> _add() async {
     final address = _address.text.trim();
     if (address.isEmpty) return;
+    if (_kind.passwordRequired && _password.text.isEmpty) return;
+    final channel = int.tryParse(_channel.text.trim()) ?? 0;
     final sent = await _send({
       'add': {
         'name': _name.text.trim(),
         'address': address,
+        if (_kind.username && _username.text.trim().isNotEmpty)
+          'username': _username.text.trim(),
         if (_password.text.isNotEmpty) 'password': _password.text,
+        if (_kind.channel && channel > 0) 'channel': channel,
       },
       'requestedAt': _now().millisecondsSinceEpoch,
     });
@@ -146,6 +225,7 @@ class _GoProSettingsState extends State<GoProSettings> {
       _name.clear();
       _address.clear();
       _password.clear();
+      _channel.text = '0';
     }
   }
 
@@ -159,7 +239,7 @@ class _GoProSettingsState extends State<GoProSettings> {
     final quiet = TextStyle(color: theme.colorScheme.onSurfaceVariant);
     final streamers = _streamers;
     if (streamers.isEmpty) {
-      return Text(l.goproNoStreamer, key: const Key('gopro-no-streamer'));
+      return Text(_kind.noStreamer(l), key: _key('no-streamer'));
     }
     final state = _state;
     final status = _status;
@@ -169,15 +249,15 @@ class _GoProSettingsState extends State<GoProSettings> {
     ];
     final busy = _sending || state == 'waiting' || state == 'checking';
     return Column(
-      key: const Key('gopro-settings'),
+      key: _key('settings'),
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: [
-        Text(l.goproAbout, style: quiet),
+        Text(_kind.about(l), style: quiet),
         DropdownButtonFormField<String>(
-          key: const Key('gopro-streamer'),
+          key: _key('streamer'),
           initialValue: _streamer ?? streamers.first,
-          decoration: InputDecoration(labelText: l.goproStreamer),
+          decoration: InputDecoration(labelText: l.netcamStreamer),
           items: [
             for (final s in streamers)
               DropdownMenuItem(value: s, child: Text(s)),
@@ -193,46 +273,63 @@ class _GoProSettingsState extends State<GoProSettings> {
         ),
         Text(
           switch (state) {
-            'waiting' => l.goproWaiting(_streamer ?? ''),
-            'checking' => l.goproChecking,
-            'error' => l.goproError(status?['error'] as String? ?? ''),
-            _ when cameras.isNotEmpty => l.goproCameras,
-            _ => l.goproNone,
+            'waiting' => l.netcamWaiting(_streamer ?? ''),
+            'checking' => l.netcamChecking,
+            'error' => _kind.error(l, status?['error'] as String? ?? ''),
+            _ when cameras.isNotEmpty => _kind.cameras(l),
+            _ => _kind.none(l),
           },
-          key: const Key('gopro-state'),
+          key: _key('state'),
           style: state == 'error'
               ? TextStyle(color: theme.colorScheme.error)
               : null,
         ),
         for (final c in cameras) _camera(c, quiet, theme, busy),
         TextField(
-          key: const Key('gopro-name'),
+          key: _key('name'),
           controller: _name,
           textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(labelText: l.goproName),
+          decoration: InputDecoration(labelText: l.netcamName),
         ),
         TextField(
-          key: const Key('gopro-address'),
+          key: _key('address'),
           controller: _address,
           keyboardType: TextInputType.url,
           decoration: InputDecoration(
-            labelText: l.goproAddress,
-            helperText: l.goproAddressHelp,
+            labelText: l.netcamAddress,
+            helperText: _kind.addressHelp(l),
             helperMaxLines: 3,
           ),
         ),
+        if (_kind.username)
+          TextField(
+            key: _key('username'),
+            controller: _username,
+            autocorrect: false,
+            decoration: InputDecoration(labelText: l.netcamUsername),
+          ),
         TextField(
-          key: const Key('gopro-password'),
+          key: _key('password'),
           controller: _password,
           obscureText: true,
-          decoration: InputDecoration(labelText: l.goproPassword),
+          decoration: InputDecoration(labelText: _kind.password(l)),
           onSubmitted: (_) => _add(),
         ),
-        Text(l.goproPasswordNote, style: quiet),
+        if (_kind.channel)
+          TextField(
+            key: _key('channel'),
+            controller: _channel,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: l.netcamChannel,
+              helperText: l.netcamChannelHelp,
+            ),
+          ),
+        Text(l.netcamPasswordNote, style: quiet),
         FilledButton(
-          key: const Key('gopro-add'),
+          key: _key('add'),
           onPressed: busy ? null : _add,
-          child: Text(l.goproAdd),
+          child: Text(l.netcamAdd),
         ),
         if (_problem case final problem?)
           Text(problem, style: TextStyle(color: theme.colorScheme.error)),
@@ -251,7 +348,7 @@ class _GoProSettingsState extends State<GoProSettings> {
     final error = c['error'] as String?;
     final lastFetch = (c['lastFetch'] as num?)?.toInt();
     return Row(
-      key: Key('gopro-camera-$device'),
+      key: _key('camera-$device'),
       spacing: 8,
       children: [
         const Icon(Icons.videocam_outlined, size: 18),
@@ -267,15 +364,22 @@ class _GoProSettingsState extends State<GoProSettings> {
                   ],
                 ),
               ),
-              Text(c['address'] as String? ?? '', style: quiet),
+              Text(
+                [
+                  c['address'] as String? ?? '',
+                  if ((c['channel'] as num?) case final ch? when ch > 0)
+                    l.netcamChannelOf(ch.toInt()),
+                ].join(' · '),
+                style: quiet,
+              ),
               if (error != null && error.isNotEmpty)
                 Text(
-                  l.goproCameraError(error),
+                  l.netcamCameraError(error),
                   style: TextStyle(color: theme.colorScheme.error),
                 )
               else if (lastFetch != null)
                 Text(
-                  l.goproLastFetch(
+                  l.netcamLastFetch(
                     formatEventTime(
                       DateTime.fromMillisecondsSinceEpoch(lastFetch),
                     ),
@@ -286,8 +390,8 @@ class _GoProSettingsState extends State<GoProSettings> {
           ),
         ),
         IconButton(
-          key: Key('gopro-remove-$device'),
-          tooltip: l.goproRemove,
+          key: _key('remove-$device'),
+          tooltip: l.netcamRemove,
           icon: const Icon(Icons.delete_outline),
           onPressed: busy ? null : () => _remove(device),
         ),

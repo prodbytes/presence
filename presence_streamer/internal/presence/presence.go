@@ -269,7 +269,7 @@ func (a *API) Credentials(ctx context.Context, idToken, deviceID string) (Creden
 // StreamCredentials are the profile's credentials for its device deviceID,
 // with the device's stream key (from the app's profile view) instead of a
 // Google sign-in (POST /api/auth/stream/credentials). cameras are the
-// devices it streams for (its Blink and GoPro cameras), which join the profile's
+// devices it streams for (its Blink, GoPro and Reolink cameras), which join the profile's
 // devices too.
 func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID string, cameras ...string) (Credentials, error) {
 	var c Credentials

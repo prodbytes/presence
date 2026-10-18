@@ -25,8 +25,9 @@ Without a password, a bare address means `http://<address>:8080`; a full
 ## In the app
 
 Settings' last section, after [Blink cameras](blink.md): **GoPro cameras**
-(`GoProSettings`,
-[gopro_settings.dart](../presence_app/lib/gopro_settings.dart)), for a
+(`NetCameraSettings` with `NetCameraKind.gopro`,
+[net_camera_settings.dart](../presence_app/lib/net_camera_settings.dart),
+shared with [Reolink](reolink.md)), for a
 premium profile with cloud sync, not in DEV:
 
 - **Without a Linux streamer** in the profile (a device whose events say
@@ -48,7 +49,8 @@ premium profile with cloud sync, not in DEV:
   (sealed with its key; read every 10 s while the section shows,
   `CloudSync.getDeviceFile`): `{state: off | checking | ok | error, error,
   cameras: [{name, deviceId, address, lastFetch, error}], requestedAt}`. An
-  error ("GoPro: the camera refused the password", "couldn't reach …")
+  error ("GoPro: the camera refused the user or password", "couldn't
+  reach …")
   shows in red.
 - A send that can't go (the streamer's key not here yet, cloud sync off)
   says so, and the form keeps what was typed.
@@ -57,8 +59,12 @@ premium profile with cloud sync, not in DEV:
 
 ## On the streamer
 
-`gopro` package ([gopro.go](../presence_streamer/internal/gopro/gopro.go))
-and `main_gopro.go`; on unless `--gopro off`:
+The `netcam` package
+([netcam.go](../presence_streamer/internal/netcam/netcam.go), shared with
+[Reolink](reolink.md#on-the-streamer): the requests, the status, the
+pinned certificate, the fetching) with GoPro's kind, the `gopro` package
+([gopro.go](../presence_streamer/internal/gopro/gopro.go)), started by
+`main_netcams.go`; on unless `--gopro off`:
 
 - **Every 30 s** it looks for the request in its folder, opens it with
   its key, and handles a newer one than the last it handled
@@ -113,7 +119,8 @@ and `main_gopro.go`; on unless `--gopro off`:
 
 ## Tests
 
-- `presence_streamer/internal/gopro` (a fake camera, `httptest`): a camera
+- `presence_streamer/internal/gopro` (a fake camera, `httptest`, and the
+  `netcamtest` harness: the profile's folder in memory): a camera
   added over HTTPS with its password, its certificate pinned, the request
   deleted (the password nowhere in the cloud), its device registered, the
   videos since the backfill fetched (the `.LRV` when there is one) with
@@ -124,10 +131,11 @@ and `main_gopro.go`; on unless `--gopro off`:
   downloaded before a stop handed over once (fetched again over it while
   the camera lists it, from the leftover when it doesn't), a cut-off
   download deleted, nothing left in `gopro-incoming/`; the addresses
-  (`BaseOf`) and `.LRV` names. `main_cameras_test.go`: a video through
-  its camera's pipeline, its first upload failing verification, stored
-  once verified, then deleted from the device.
-- The app (`gopro_settings_test.dart`): no streamer; add sends the camera
+  (`Kind.Base`) and `.LRV` names. `main_cameras_test.go`: a video through
+  its camera's pipeline (Blink's, GoPro's, Reolink's), its first upload
+  failing verification, stored once verified, then deleted from the
+  device.
+- The app (`net_camera_settings_test.dart`): no streamer; add sends the camera
   to the streamer, then lists it and removes it; an error and a camera's
   own error show; a send that fails says so and keeps the form.
 
@@ -140,5 +148,5 @@ and `main_gopro.go`; on unless `--gopro off`:
   its password) is done with GoPro's tools, not Presence.
 - A video still being recorded isn't in the media list till it's done; a
   long recording's chapters come as separate videos.
-- Up to 16 cameras per streamer, Blink's and GoPro's together (the auth
-  API's limit).
+- Up to 16 cameras per streamer, Blink's, GoPro's and Reolink's together
+  (the auth API's limit).
