@@ -82,13 +82,14 @@ for arch in armhf arm64; do
     pkg=$stage/deb
     install -d "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/lib/presence-streamer" \
       "$pkg/usr/share/presence-streamer/models" "$pkg/lib/systemd/system" "$pkg/etc/default" \
-      "$pkg/usr/share/doc/presence-streamer"
+      "$pkg/usr/share/doc/presence-streamer" "$pkg/lib/udev/rules.d"
     install -m 755 "$dir/presence-streamer" "$pkg/usr/bin/presence-streamer"
     install -m 755 "$dir/presence-detect.py" "$pkg/usr/lib/presence-streamer/presence-detect.py"
     install -m 755 "$dir/presence-blink.py" "$pkg/usr/lib/presence-streamer/presence-blink.py"
     install -m 644 "$dir"/models/* "$pkg/usr/share/presence-streamer/models/"
     install -m 644 packaging/streamer/presence-streamer.service "$pkg/lib/systemd/system/"
     install -m 644 packaging/streamer/default "$pkg/etc/default/presence-streamer"
+    install -m 644 packaging/streamer/85-presence-streamer-usbcam.rules "$pkg/lib/udev/rules.d/"
     install -m 644 "$src/README.md" "$pkg/usr/share/doc/presence-streamer/README.md"
     for script in postinst prerm postrm; do
       install -m 755 "packaging/streamer/$script" "$pkg/DEBIAN/$script"

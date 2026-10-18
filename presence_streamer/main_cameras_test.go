@@ -88,12 +88,12 @@ func (person) Search(_ []detect.Frame, thumbnail string) (detect.Result, error) 
 	return detect.Result{Objects: []detect.Object{someone}, Subject: &someone}, nil
 }
 
-// Each fetched camera's clip (Blink's, GoPro's) goes through its camera's
-// pipeline: stored once verified in the bucket, then deleted from the
-// device, its spool and incoming folder left empty. An upload that fails
+// Each fetched camera's clip (Blink's, GoPro's, Reolink's, a USB
+// camera's) goes through its camera's pipeline: stored once verified in
+// the bucket, then deleted from the device, its spool and incoming folder left empty. An upload that fails
 // verification keeps the clip, which goes up at the next try.
 func TestFetchedClipsAreDeletedOnceVerified(t *testing.T) {
-	for _, kind := range []string{"blink", "gopro", "reolink"} {
+	for _, kind := range []string{"blink", "gopro", "reolink", "usbcam"} {
 		t.Run(kind, func(t *testing.T) {
 			state := t.TempDir()
 			bucket := &verifyingBucket{objects: map[string][]byte{}, puts: map[string]int{}, corrupt: "ingest/"}
