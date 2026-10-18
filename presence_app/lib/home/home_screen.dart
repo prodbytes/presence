@@ -388,14 +388,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool get _hasAccess => _dev || (_signedIn && widget.roles.hasAccess);
 
   void _onTabChanged() {
-    // The Profile tab opened: its device list asks for the profile's
-    // devices again, so one added since (a Pi streamer) shows.
+    _noteTab();
+    setState(() {});
+  }
+
+  /// The Profile tab opened: its device list asks for the profile's
+  /// devices again, so one added since (a streamer) shows.
+  void _noteTab() {
     final tab = _tabs.current;
     if (tab == HomeTab.profile && _lastTab != HomeTab.profile) {
-      widget.sync?.refreshDevices();
+      widget.sync?.refreshDevices().ignore();
     }
     _lastTab = tab;
-    setState(() {});
+  }
+
+  /// Opens the tab remembered across refreshes, once there's access: the
+  /// Profile tab too, whose controller may start on it (no change seen).
+  void _restoreTab() {
+    _tabs.restore(hasAccess: _hasAccess);
+    _noteTab();
   }
 
   @override
@@ -412,21 +423,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
     widget.config.addListener(_onConfigChanged);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
   }
 
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
     _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     if (mounted) setState(() {});
   }
 
   /// Settings' Log switch adds or removes the Log tab.
   void _onConfigChanged() {
     if (!_tabs.sync(_shownTabs)) return;
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     if (mounted) setState(() {});
   }
 
@@ -438,7 +449,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Signing in or out adds or removes the Profile tab.
     _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     final error = widget.auth.error;
     final problem = widget.auth.problem;
     // The problem too: the same text may come with another meaning.

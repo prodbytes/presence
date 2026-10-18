@@ -282,7 +282,10 @@ are **hidden**, and the user is asked to upgrade: a free one to
   button, at most every 30 s (shared with `noticeDevices`): a Raspberry Pi
   [streamer](streamer.md) has no live sync, so its first event can take
   up to an hour to reach a device, and it shows in the list at once
-  instead. Otherwise the list is read again with each new set of
+  instead. While the camera is **Stopped** (sync halted) opening the
+  Profile tab still asks: only the credentials, for the list, with no
+  pass, live sync or downloads; before the sign-in is restored, once the
+  profile is known. The tab the app reopens on counts as opened. Otherwise the list is read again with each new set of
   credentials (hourly) or a change of tier.
 - **Deleting a device** ([Device deletion](device-deletion.md), either
   choice) takes it off the list (`POST /api/auth/profile/devices/remove`, the device ID

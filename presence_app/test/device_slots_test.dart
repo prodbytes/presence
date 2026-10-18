@@ -333,6 +333,35 @@ void main() {
       expect(backend.resets, resets + 2);
     });
 
+    test('refreshDevices while Stopped: the slots, and no pass', () async {
+      await auth.signIn();
+      await sync.idle();
+      sync.setHalted(true);
+      final listings = backend.listings.length;
+
+      backend.deviceSlots = const DeviceSlots(
+        limit: 50,
+        devices: [first, second],
+      );
+      await sync.refreshDevices();
+      await sync.idle();
+      expect(sync.deviceSlots!.devices, [first, second]);
+      expect(sync.halted, isTrue);
+      expect(backend.listings.length, listings, reason: 'no pass');
+    });
+
+    test('refreshDevices before the sign-in, Stopped: asked once the '
+        'profile is known', () async {
+      sync.setHalted(true);
+      await sync.refreshDevices();
+      expect(sync.deviceSlots, isNull);
+      await auth.signIn();
+      await sync.idle();
+      await pumpEventQueue();
+      expect(sync.deviceSlots, backend.deviceSlots);
+      expect(backend.listings, isEmpty, reason: 'no pass');
+    });
+
     test('refreshDevices: nothing signed out', () async {
       sync.refreshDevices();
       await sync.idle();
