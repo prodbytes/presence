@@ -6906,3 +6906,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `APPLE_SIGNIN_KEY_PARAMETER_RC`.
     - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
       [Sessions](sessions.md).
+
+472. **Ingest: delete processed chunks for good.** (2026-10-18)
+    - Asked: the cloud detector deletes the streamer's `<id>/ingest/*`
+      jobs and chunks without a version ID, so on the versioned user-data
+      bucket each lingers 30 days as an old version (one profile had about
+      2,490, 11.7 GB, 80 % of the bucket). Delete them for good, with no
+      user-visible change.
+    - Changed: presence_ingest deletes the version it read (or, for a chunk
+      it didn't read, the current one's, from a HEAD); its role may
+      `s3:DeleteObjectVersion` on `*/ingest/*` only. If that's refused
+      (AccessDenied) it deletes as before and logs `version kept`.
+    - Not done: the stage's permissions boundary (`<prefix>-app-boundary`
+      in `github-deploy.yaml`, applied by hand) doesn't allow
+      `s3:DeleteObjectVersion` yet, so the versions are still kept until
+      it's added (scoped to `*/ingest/*`). No lifecycle backstop: its
+      filters are key prefixes, and ingest's keys are `<identity>/ingest/…`.
+    - Specs: [Streamer](streamer.md), [Cloud sync](cloud-sync.md).

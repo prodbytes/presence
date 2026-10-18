@@ -344,6 +344,12 @@ take too much of it. There the chunks are searched in the cloud instead:
      `media/<clipId>.mp4`. Then the clip record and, last, the event with
      its object tags (0.6 or more, plus the subject). Then it deletes
      ingest's copies and the job, last.
+
+  Its deletes in ingest are **for good**: it deletes the version it read
+  (or, for a chunk it didn't read, the current one), so ingest's passing
+  copies aren't kept 30 days as old versions, the bucket's undo window for
+  users' data. A newer upload of the same key, made since, is left to its
+  own notification.
 - **It trusts only the job's key.** The identity, device and clip come
   from the key (`<identity>/ingest/<device>/<clip>.ingest.json`, each
   checked by pattern). The job must agree with it: same clip and device, a
@@ -375,7 +381,8 @@ take too much of it. There the chunks are searched in the cloud instead:
   raised. Its role
   may get jobs, chunks and devices' settings, list the bucket (so a
   missing object answers 404), put `media/`, `clips/` and `events/`, and
-  delete in `ingest/`, under the stage's permissions boundary. The package
+  delete in `ingest/`, versions included (`s3:DeleteObjectVersion`, on
+  `*/ingest/*` only), under the stage's permissions boundary. The package
   is 179 MB of Linux arm64 wheels (OpenCV, NumPy, cryptography) and the
   model, built by its Makefile whatever the machine.
 - **Deploy:** `scripts/deploy.sh` downloads the model (`scripts/models.sh`,
@@ -642,10 +649,15 @@ cameras' clips, each camera a device of its own: see
   local files only narrow that. Credentials scoped to the job's folder (an
   assumed role with a session policy) would close it, but need a new role,
   which the deploy roles can't make yet.
-- **Ingest's deleted chunks stay 30 days as old versions** (the bucket is
-  versioned), paying their storage. Deleting the version too needs
-  `s3:DeleteObjectVersion`, which the permissions boundary (applied by
-  hand) doesn't allow yet.
+- **Until the permissions boundary allows `s3:DeleteObjectVersion`,
+  ingest's deleted chunks still stay 30 days as old versions** (the bucket
+  is versioned), paying their storage. The function's role has it, but the
+  stage's boundary (`<prefix>-app-boundary`, from `github-deploy.yaml`,
+  applied by hand) doesn't yet; while it's refused, the function deletes as
+  before (a delete marker) and logs `version kept`. The streamer's own
+  deletes and moves in ingest (detecting on the Pi) leave old versions too.
+  A lifecycle rule can't be the backstop: its filters are key prefixes, and
+  ingest's keys are `<identity>/ingest/…`.
 - **The SD card is written continuously** (the spool). `--state-dir` (or
   `PRESENCE_STREAMER_STATE_DIR`) on another disk or a tmpfs spares it.
 - **No subject recognition** (who it is): only object detection. The app's
