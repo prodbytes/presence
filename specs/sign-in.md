@@ -286,7 +286,9 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     credentials), so a device shows before its first event (a Raspberry Pi
     streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
-    are sorted. The list updates while the sheet is open, and scrolls when
+    go **most recently active first** (`recentFirst`): the newer of the
+    device's latest event and its latest answer over live sync, then
+    those never active, by ID. The list updates while the sheet is open, and scrolls when
     long. A row is small: each ID is selectable, 11 sp
     (`ProfileDevices.deviceIdSize`) on one line beside its presence dot,
     scaled down to fit when it's still too long (at a large system font)
