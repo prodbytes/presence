@@ -99,7 +99,9 @@
     50 % reads as 50 %.
 - **Blink cameras** section, then **GoPro cameras** and **Reolink
   cameras**, after History (premium, cloud sync): see [Blink cameras](blink.md),
-  [GoPro cameras](gopro.md) and [Reolink cameras](reolink.md).
+  [GoPro cameras](gopro.md) and [Reolink cameras](reolink.md). Each has a
+  streamer dropdown, **Leader** (the leading streamer) by default, or a
+  streamer picked for that section alone.
 - **Language** section, after Live sync (see [Languages](i18n.md)): an
   **App language** picker: Same as the device (default), English,
   Español, Português; the app switches at once. Stored as `language:

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show Locale;
 
+import 'identity/device_id.dart';
+
 /// The app's whole user configuration, as one immutable value.
 ///
 /// Grouped by area; each group owns its defaults and limits, and clamps
@@ -24,6 +26,7 @@ class PresenceConfig {
     this.log = const LogConfig(),
     this.live = const LiveConfig(),
     this.language = const LanguageConfig(),
+    this.integrations = const IntegrationsConfig(),
   });
 
   /// 2: the recognition default went from 90 % to 85 % (a version 1 record
@@ -40,6 +43,7 @@ class PresenceConfig {
   final LogConfig log;
   final LiveConfig live;
   final LanguageConfig language;
+  final IntegrationsConfig integrations;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -52,6 +56,7 @@ class PresenceConfig {
     LogConfig? log,
     LiveConfig? live,
     LanguageConfig? language,
+    IntegrationsConfig? integrations,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
@@ -63,6 +68,7 @@ class PresenceConfig {
     log: log ?? this.log,
     live: live ?? this.live,
     language: language ?? this.language,
+    integrations: integrations ?? this.integrations,
   );
 
   Map<String, Object?> toJson() => {
@@ -77,6 +83,7 @@ class PresenceConfig {
     'log': log.toJson(),
     'live': live.toJson(),
     'language': language.toJson(),
+    'integrations': integrations.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -96,6 +103,7 @@ class PresenceConfig {
     log: LogConfig.fromJson(_map(json['log'])),
     live: LiveConfig.fromJson(_map(json['live'])),
     language: LanguageConfig.fromJson(_map(json['language'])),
+    integrations: IntegrationsConfig.fromJson(_map(json['integrations'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -123,7 +131,8 @@ class PresenceConfig {
       other.history == history &&
       other.log == log &&
       other.live == live &&
-      other.language == language;
+      other.language == language &&
+      other.integrations == integrations;
 
   @override
   int get hashCode => Object.hash(
@@ -137,6 +146,7 @@ class PresenceConfig {
     log,
     live,
     language,
+    integrations,
   );
 }
 
@@ -497,6 +507,61 @@ class LogConfig {
   int get hashCode => show.hashCode;
 }
 
+/// The streamer each camera integration (Blink, GoPro, Reolink) goes
+/// through, when the user picked one in Settings; an integration left out
+/// follows the profile's leading streamer (specs/blink.md). Kept per
+/// device.
+@immutable
+class IntegrationsConfig {
+  const IntegrationsConfig({this.streamers = const {}});
+
+  /// The integrations that pick a streamer, by ID.
+  static const List<String> known = ['blink', 'gopro', 'reolink'];
+
+  /// The streamer's device ID, by integration.
+  final Map<String, String> streamers;
+
+  /// The streamer picked for [integration], or null to follow the leader.
+  String? streamerFor(String integration) => streamers[integration];
+
+  /// Picks [device] for [integration]; null follows the leader again. An
+  /// unknown integration or a device ID that isn't one is ignored.
+  IntegrationsConfig withStreamer(String integration, String? device) {
+    if (!known.contains(integration)) return this;
+    if (device != null && !DeviceId.pattern.hasMatch(device)) return this;
+    return IntegrationsConfig(
+      streamers: Map.unmodifiable({
+        for (final e in streamers.entries)
+          if (e.key != integration) e.key: e.value,
+        integration: ?device,
+      }),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    if (streamers.isNotEmpty) 'streamers': {...streamers},
+  };
+
+  factory IntegrationsConfig.fromJson(Map<String, Object?> json) {
+    var config = const IntegrationsConfig();
+    for (final e in _map(json['streamers']).entries) {
+      if (e.value case final String device) {
+        config = config.withStreamer(e.key, device);
+      }
+    }
+    return config;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is IntegrationsConfig && mapEquals(other.streamers, streamers);
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    streamers.entries.map((e) => Object.hash(e.key, e.value)),
+  );
+}
+
 /// How live sync (MQTT, see `cloud/live_sync.dart`) connects.
 enum LiveMode {
   /// Never: events arrive with each sync of the bucket only.
@@ -846,6 +911,7 @@ class ConfigController extends ChangeNotifier {
   LogConfig get log => _config.log;
   LiveConfig get live => _config.live;
   LanguageConfig get language => _config.language;
+  IntegrationsConfig get integrations => _config.integrations;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

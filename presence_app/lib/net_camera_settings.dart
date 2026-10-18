@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'blink_settings.dart' show BlinkSettings, GetDeviceFile, PutDeviceFile;
 import 'cloud/cloud_sync.dart';
+import 'config.dart';
 import 'events.dart';
 import 'l10n/l10n.dart';
+import 'streamer_picker.dart';
 
 /// A make of camera on a streamer's network (specs/gopro.md,
 /// specs/reolink.md): its files' name, its strings, and what adding one
@@ -75,7 +77,9 @@ class NetCameraKind {
 /// and removes cameras through the profile's folder, sealed with the
 /// streamer's key ([CloudSync.putDeviceFile]: `<kind>.json`, with the
 /// camera's address and login), and reads its answer
-/// (`<kind>-status.json`) every [poll] while this shows.
+/// (`<kind>-status.json`) every [poll] while this shows. The streamer is the
+/// one picked in [config] for the [kind], else whichever leads
+/// ([StreamerPicker]).
 class NetCameraSettings extends StatefulWidget {
   const NetCameraSettings({
     super.key,
@@ -83,6 +87,8 @@ class NetCameraSettings extends StatefulWidget {
     required this.streamers,
     required this.putFile,
     required this.getFile,
+    this.leader,
+    this.config,
     this.poll = const Duration(seconds: 10),
     this.now,
   });
@@ -94,12 +100,15 @@ class NetCameraSettings extends StatefulWidget {
     required CloudSync sync,
     required EventLog log,
     required String profileId,
+    required ConfigController config,
     String? thisDevice,
   }) => NetCameraSettings(
     key: key,
     kind: kind,
     streamers: () =>
         BlinkSettings.streamersOf(log, sync, profileId, thisDevice),
+    leader: () => sync.deviceSlots?.leader,
+    config: config,
     putFile: sync.putDeviceFile,
     getFile: sync.getDeviceFile,
   );
@@ -110,6 +119,13 @@ class NetCameraSettings extends StatefulWidget {
   final List<String> Function() streamers;
   final PutDeviceFile putFile;
   final GetDeviceFile getFile;
+
+  /// The profile's leading streamer ([DeviceSlots.leader]), when known.
+  final String? Function()? leader;
+
+  /// Where the streamer picked is kept ([IntegrationsConfig]); this
+  /// section's own, unkept, when null.
+  final ConfigController? config;
   final Duration poll;
   final DateTime Function()? now;
 
@@ -149,6 +165,7 @@ class _NetCameraSettingsState extends State<NetCameraSettings> {
     _username.dispose();
     _password.dispose();
     _channel.dispose();
+    if (widget.config == null) _config.dispose();
     super.dispose();
   }
 
@@ -158,23 +175,27 @@ class _NetCameraSettingsState extends State<NetCameraSettings> {
 
   List<String> get _streamers => widget.streamers();
 
+  late final ConfigController _config = widget.config ?? ConfigController();
+
+  String? get _target => streamerTarget(
+    _streamers,
+    chosen: _config.integrations.streamerFor(_kind.id),
+    leader: widget.leader?.call(),
+  );
+
   Future<void> _refresh() async {
-    final streamers = _streamers;
-    if (streamers.isEmpty) return;
-    // The one with this kind's cameras already, else the first.
-    if (_streamer == null || !streamers.contains(_streamer)) {
-      String? withCameras;
-      for (final s in streamers) {
-        if (await widget.getFile(s, _statusFile) != null) {
-          withCameras = s;
-          break;
-        }
-      }
-      if (!mounted) return;
-      setState(() => _streamer = withCameras ?? streamers.first);
+    // The one picked, else the leader: a new one starts afresh.
+    final target = _target;
+    if (target == null) return;
+    if (target != _streamer) {
+      setState(() {
+        _streamer = target;
+        _status = null;
+        _sent = null;
+      });
     }
-    final status = await widget.getFile(_streamer!, _statusFile);
-    if (!mounted) return;
+    final status = await widget.getFile(target, _statusFile);
+    if (!mounted || _streamer != target) return;
     setState(() => _status = status);
   }
 
@@ -254,22 +275,14 @@ class _NetCameraSettingsState extends State<NetCameraSettings> {
       spacing: 8,
       children: [
         Text(_kind.about(l), style: quiet),
-        DropdownButtonFormField<String>(
+        StreamerPicker(
           key: _key('streamer'),
-          initialValue: _streamer ?? streamers.first,
-          decoration: InputDecoration(labelText: l.netcamStreamer),
-          items: [
-            for (final s in streamers)
-              DropdownMenuItem(value: s, child: Text(s)),
-          ],
-          onChanged: (s) {
-            setState(() {
-              _streamer = s;
-              _status = null;
-              _sent = null;
-            });
-            _refresh();
-          },
+          integration: _kind.id,
+          streamers: streamers,
+          leader: widget.leader?.call(),
+          config: _config,
+          label: l.netcamStreamer,
+          onChanged: _refresh,
         ),
         Text(
           switch (state) {

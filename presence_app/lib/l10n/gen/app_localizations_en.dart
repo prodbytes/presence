@@ -2683,6 +2683,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String streamerLeader(String device) {
+    return 'Leader ($device)';
+  }
+
+  @override
+  String streamerLeaderUnknown(String device) {
+    return 'Leader (none yet; $device for now)';
+  }
+
+  @override
+  String get streamerPickerHelp =>
+      'Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.';
+
+  @override
   String subjectsEvents(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

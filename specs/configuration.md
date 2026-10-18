@@ -12,6 +12,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `subjects` (`SubjectsConfig`) | `mapEvents` (100, 10–500 in steps of 10): "How many events to load at once", events per subject on the [subjects](subjects.md) screens |
 | `language` (`LanguageConfig`) | `code`: `en`, `es` or `pt`; left out to follow the device ([Languages](i18n.md)) |
 | `recognition` (`RecognitionConfig`) | `enabled` (on), `objects` (on), `autoTag` (90 %, 50–95 % in 5 % steps; a stored 85 %, the old default, reads as 90 %): below it, from `askFloor` (50 %), it asks ([recognition](recognition.md)); the old `ask` field is ignored; `cloudTrainedAt` and `cloudCheckedAt` (ms; left out until set) are when the profile's cloud model was last trained and when this device last checked ([Cloud recognition](cloud-recognition.md)) |
+| `integrations` (`IntegrationsConfig`) | `streamers`: the streamer picked for each camera integration, `{blink, gopro, reolink}` → device ID; one left out (the default) follows the profile's leading streamer ([Blink cameras](blink.md#in-the-app), [GoPro](gopro.md), [Reolink](reolink.md)). Unknown integrations and values that aren't device IDs (`DeviceId.pattern`) are ignored |
 | `log` (`LogConfig`) | `show` (unset: follows the execution mode): the [Log](log.md) tab |
 | `history` (`HistoryConfig`) | `keep` (14 days, 1–90 days in 1-day steps): events older than this are deleted from the device ([event retention](event-retention.md)) |
 | `live` (`LiveConfig`) | `mode` (`never`, `scheduled` or `always`; scheduled) and `every` (1 min; 30 s, 1, 2, 5, 10, 15, 30 or 60 min, a stored value snapping to the nearest): **Connect to live sync** ([live sync](live-sync.md)); the slider's steps are Never, the intervals, Always (`LiveConfig.ofStep`, `step`). What's stored is the user's choice; how live sync connects also depends on the roles (`LiveConfig.effective`: admins always, others at most every 30 s), and that is never written back. Missing in older records: the default |
@@ -28,7 +29,8 @@ All user configuration is one immutable object, **`PresenceConfig`**
   drags) both stick.
 - **Stored** as one versioned JSON record (`settings` store, key
   `config`: `{version, clip, camera, motion, schedule, subjects,
-  recognition, history, log, live, updatedAt, profileId}`), where `updatedAt` is when
+  recognition, history, log, live, language, integrations, updatedAt,
+  profileId}`), where `updatedAt` is when
   the user last changed a setting (ms since the epoch; 0, or absent in
   older records, for the defaults), setting this device's location on the
   map (or going back to **My location** from there) included, and

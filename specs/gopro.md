@@ -32,8 +32,14 @@ premium profile with cloud sync, not in DEV:
 
 - **Without a Linux streamer** in the profile (a device whose events say
   `os: Linux`), it says to set one up first.
-- **The streamer** that fetches (a dropdown of the profile's Linux
-  devices): the one with GoPro cameras already, else the first.
+- **The streamer** that fetches: as [Blink's](blink.md#in-the-app), a
+  dropdown whose default is **Leader (<device>)**, the profile's
+  [leading streamer](streamer-leader.md) at each refresh (a new leader
+  followed), then the profile's Linux devices, the leader first. Picking
+  one keeps it **for GoPro only** (`IntegrationsConfig`), used even when
+  another leads; Leader again clears it; one no longer among the
+  streamers gives way to the leader. Only the leading streamer fetches, so
+  one picked by hand fetches only while it leads.
 - **Its cameras**, from its status: each camera's name, device ID and
   address, when its videos were last fetched or why they can't be ("Can't
   fetch: …"), and a **Remove** button (`{remove: <device ID>,
@@ -137,7 +143,9 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   device.
 - The app (`net_camera_settings_test.dart`): no streamer; add sends the camera
   to the streamer, then lists it and removes it; an error and a camera's
-  own error show; a send that fails says so and keeps the form.
+  own error show; a send that fails says so and keeps the form; the
+  streamer is the leader by default and follows a new one, and one picked
+  sticks, for its kind only.
 
 ## Known limitations
 
@@ -150,3 +158,6 @@ pinned certificate, the fetching) with GoPro's kind, the `gopro` package
   long recording's chapters come as separate videos.
 - Up to 16 cameras per streamer, Blink's, GoPro's and Reolink's together
   (the auth API's limit).
+- **Only the leading streamer fetches.** A camera is added to one
+  streamer: when another takes the lead, the section (on Leader) shows the
+  new leader, without it, and the camera is added again there.

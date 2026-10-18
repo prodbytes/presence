@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/config.dart';
 import 'package:presence_app/net_camera_settings.dart';
 import 'package:presence_app/l10n/gen/app_localizations.dart';
 
@@ -8,11 +9,15 @@ void main() {
   late List<(String, String, Map<String, Object?>)> sent;
   late Map<String, Object?>? status;
   late bool sendWorks;
+  late List<String> reads;
+  String? leader;
 
   Future<void> show(
     WidgetTester tester, {
     List<String> streamers = const ['calm_quiet_otter'],
     NetCameraKind? kind,
+    ConfigController? config,
+    Duration poll = const Duration(hours: 1),
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -28,8 +33,13 @@ void main() {
                 sent.add((device, name, json));
                 return true;
               },
-              getFile: (device, name) async => status,
-              poll: const Duration(hours: 1),
+              getFile: (device, name) async {
+                reads.add(device);
+                return status;
+              },
+              leader: () => leader,
+              config: config,
+              poll: poll,
               now: () => DateTime.fromMillisecondsSinceEpoch(1000),
             ),
           ),
@@ -43,6 +53,8 @@ void main() {
     sent = [];
     status = null;
     sendWorks = true;
+    reads = [];
+    leader = null;
   });
 
   testWidgets('without a Linux streamer, it says to set one up', (
@@ -199,5 +211,47 @@ void main() {
     await show(tester, kind: NetCameraKind.reolink);
     expect(find.text('Its Reolink cameras:'), findsOneWidget);
     expect(find.text('https://192.168.1.60 · channel 2'), findsOneWidget);
+  });
+
+  testWidgets('the streamer: the leader by default, following a new one; '
+      'one picked sticks, for its kind only', (tester) async {
+    const streamers = ['calm_quiet_otter', 'brave_little_lamp', 'odd_shy_fox'];
+    leader = 'brave_little_lamp';
+    final config = ConfigController();
+    await show(
+      tester,
+      streamers: streamers,
+      kind: NetCameraKind.reolink,
+      config: config,
+      poll: const Duration(seconds: 10),
+    );
+    expect(find.text('Leader (brave_little_lamp)'), findsOneWidget);
+    expect(reads.toSet(), {'brave_little_lamp'});
+
+    leader = 'odd_shy_fox';
+    reads.clear();
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(reads.toSet(), {'odd_shy_fox'});
+
+    await tester.tap(find.byKey(const Key('reolink-streamer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('calm_quiet_otter').last);
+    await tester.pumpAndSettle();
+    expect(config.integrations.streamerFor('reolink'), 'calm_quiet_otter');
+    expect(config.integrations.streamerFor('gopro'), isNull);
+    expect(config.integrations.streamerFor('blink'), isNull);
+
+    leader = 'brave_little_lamp';
+    reads.clear();
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(reads.toSet(), {'calm_quiet_otter'});
+
+    // GoPro still follows the leader.
+    await tester.pumpWidget(Container());
+    reads.clear();
+    await show(tester, streamers: streamers, config: config);
+    expect(reads.toSet(), {'brave_little_lamp'});
   });
 }
