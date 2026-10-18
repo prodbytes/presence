@@ -2,7 +2,7 @@
   "@@locale": "en",
   "aboutLinkCopied": "Link copied",
   "aboutOpenSource": "Presence is open source:",
-  "aboutParagraph": "Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
+  "aboutParagraph": "Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
   "authAccessAdmin": "Admin Access",
   "authAccessFree": "Free Access",
   "authAccessPremium": "Premium Access",
@@ -353,8 +353,8 @@
       }
     }
   },
-  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.",
-  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi",
+  "authStreamerBody": "Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.",
+  "authStreamerCopied": "Command copied: paste it on the streamer",
   "authStreamerCopy": "Copy command",
   "authStreamerCreate": "Create command",
   "authStreamerFailed": "Couldn't create the command ({error})",
@@ -366,7 +366,7 @@
     }
   },
   "authStreamerKeyOnce": "It holds this device's key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.",
-  "authStreamerTitle": "Stream from a Raspberry Pi",
+  "authStreamerTitle": "Streamer",
   "authSubscribe": "Subscribe",
   "authSubscribeButton": "Subscribe at nu01.com",
   "authSubscribeText": "{email} doesn't have access to Presence yet. Subscribe at nu01.com: Free, or Premium for cloud backup and more devices. Then check again here.",
@@ -419,7 +419,7 @@
   "authVoucherTooMany": "Too many tries. Wait a while and try again.",
   "authVouchersTitle": "Vouchers and maintenance",
   "authYourAccount": "Your account",
-  "blinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
+  "blinkAbout": "A streamer of yours fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
   "blinkConnect": "Connect",
   "blinkConnected": "Connected to Blink as {account}. Its cameras:",
   "@blinkConnected": {
@@ -450,7 +450,7 @@
   },
   "blinkLoggingIn": "Logging in to Blink…",
   "blinkNoCameras": "No cameras yet.",
-  "blinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras' clips.",
+  "blinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Blink cameras' clips.",
   "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
   "blinkOff": "Not connected to Blink.",
   "blinkPassword": "Blink password",
@@ -1127,7 +1127,7 @@
   "feedbackTeam": "Presence team",
   "feedbackTooManyTries": "Too many tries. Wait a minute.",
   "feedbackYou": "You",
-  "goproAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
+  "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
   "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",
   "goproCameras": "Its GoPro cameras:",
   "goproError": "GoPro: {error}",
@@ -1138,7 +1138,7 @@
       }
     }
   },
-  "goproNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the GoPro cameras' videos.",
+  "goproNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras' videos.",
   "goproNone": "No GoPro cameras yet.",
   "goproPassword": "Camera password (home network only)",
   "healthApiAnswered": "Auth API: answered ({mode} mode)",
@@ -1573,7 +1573,7 @@
       }
     }
   },
-  "reolinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR's disk, with HTTPS on (its network settings).",
+  "reolinkAbout": "A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR's disk, with HTTPS on (its network settings).",
   "reolinkAddressHelp": "Its IP address on your network, as the Reolink app shows it (Settings › Network information).",
   "reolinkCameras": "Its Reolink cameras:",
   "reolinkError": "Reolink: {error}",
@@ -1584,7 +1584,7 @@
       }
     }
   },
-  "reolinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Reolink cameras' recordings.",
+  "reolinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras' recordings.",
   "reolinkNone": "No Reolink cameras yet.",
   "reolinkPassword": "Camera password",
   "settingsAddDeviceCopy": "Copy link",
