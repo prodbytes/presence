@@ -33,17 +33,17 @@
     touch"); every touch keeps it on 15 s more, then it's dark again.
     Woken, the mode menu picks another mode. It isn't saved: a restart
     is Normal.
-  - **Stopped**: nothing at all. The camera closes
+  - **Stopped**: the camera off. The camera closes
     (`CameraRig.setPaused`): nothing is recorded, no motion, scheduled or
     Capture all clips are taken, Flip is hidden and Clip is disabled
     (grey, tooltip "Camera off"). The camera shows "Camera off / Nothing
-    is recorded until you turn it on." with **Turn on**. And
-    [cloud sync](cloud-sync.md) halts (`CloudSync.setHalted`): no passes,
-    no [live sync](live-sync.md) (so no presence pings or Capture all
-    requests either) and no recording downloads, until it's left.
+    is recorded until you turn it on." with **Turn on**.
+    [Cloud sync](cloud-sync.md) and [live sync](live-sync.md) go on, as in
+    the other modes: other devices' events, the profile's devices and
+    presence keep coming, so a device can watch without recording.
   - Nothing reopens the camera (Retry, the app returning to the
     foreground, a lost camera's retries) but the mode menu (any other
-    mode) or Turn on, which resume syncing too.
+    mode) or Turn on.
   - Pausing and resuming run one after the other: a resume waits for the
     pause before it to close the camera (phones allow one open camera). A
     pause doesn't wait for a camera still opening: that open is stale
@@ -53,10 +53,10 @@
     error never shows.
   - Stopped is a camera setting (`camera.paused`), saved with the
     device's settings, so it lasts across restarts, including the Android
-    watchdog's, and syncing stays halted then too; Normal, All and
+    watchdog's; Normal, All and
     Unattended aren't kept (Normal at launch).
   - Tests: `camera_pause_test.dart` (the menu), `screen_off_test.dart`
-    (Unattended: dark, woken, dark again), `cloud_sync_test.dart` (halted).
+    (Unattended: dark, woken, dark again).
 - One camera shows at a time, full screen (see [Navigation](navigation.md)).
   The mode menu's **All devices** puts it in the top-left cell of a grid with every other device's
   latest image ([All devices](#all-devices) below).

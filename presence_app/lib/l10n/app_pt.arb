@@ -200,7 +200,7 @@
   "cameraModeNormal": "Esta câmera",
   "cameraModeNormalHint": "Tela cheia",
   "cameraModeStopped": "Parado",
-  "cameraModeStoppedHint": "Sem capturar nem sincronizar",
+  "cameraModeStoppedHint": "Câmera desligada, ainda sincronizando",
   "cameraModeUnattended": "Desatendido",
   "cameraModeUnattendedHint": "Tela apagada, ainda capturando",
   "cameraNight": "Noite",

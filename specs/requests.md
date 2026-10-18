@@ -7179,3 +7179,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        for the list even while Stopped: only the credentials, no pass,
        live sync or downloads (`CloudSync.refreshDevices`). Specs:
        [Premium](premium.md#devices), [Cloud sync](cloud-sync.md).
+
+491. **Stopped stops only the camera; events keep syncing.** (2026-10-18)
+     - Asked: in Stopped mode, stop only the camera and keep events
+       rolling.
+     - Changed: Stopped no longer halts cloud sync or live sync
+       (`CloudSync.setHalted` and its halted state are gone): other
+       devices' events, the profile's devices and presence keep coming,
+       so a device can watch without recording. The mode's hint is
+       "Camera off, still syncing" (es, pt too). The Profile tab's
+       Stopped-only device read (#490) went with it: it now asks with a
+       pass, as in the other modes. Specs: [Camera screen](camera.md),
+       [Navigation](navigation.md), [Cloud sync](cloud-sync.md),
+       [Configuration](configuration.md), [Premium](premium.md#devices).

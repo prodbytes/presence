@@ -152,7 +152,7 @@
   "cameraModeNormalHint": "Full screen",
   "cameraModeAllHint": "Every device in a grid",
   "cameraModeUnattendedHint": "Screen off, still capturing",
-  "cameraModeStoppedHint": "No capturing or syncing",
+  "cameraModeStoppedHint": "Camera off, still syncing",
   "cameraFlip": "Flip camera",
   "cameraClip": "Clip",
   "@cameraClip": {

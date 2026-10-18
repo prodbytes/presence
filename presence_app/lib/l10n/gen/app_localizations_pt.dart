@@ -756,7 +756,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get cameraModeStopped => 'Parado';
 
   @override
-  String get cameraModeStoppedHint => 'Sem capturar nem sincronizar';
+  String get cameraModeStoppedHint => 'Câmera desligada, ainda sincronizando';
 
   @override
   String get cameraModeUnattended => 'Desatendido';

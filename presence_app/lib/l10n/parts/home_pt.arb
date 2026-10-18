@@ -37,7 +37,7 @@
   "cameraModeNormalHint": "Tela cheia",
   "cameraModeAllHint": "Todos os dispositivos em grade",
   "cameraModeUnattendedHint": "Tela apagada, ainda capturando",
-  "cameraModeStoppedHint": "Sem capturar nem sincronizar",
+  "cameraModeStoppedHint": "Câmera desligada, ainda sincronizando",
   "cameraFlip": "Trocar câmera",
   "cameraClip": "Clipe",
   "cameraClipCountdown": "Clipe · {time}",
