@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,10 @@ type API struct {
 	// CognitoURL overrides Cognito's endpoint (tests); empty is AWS's for
 	// the identity's region.
 	CognitoURL string
+	// Memory is the streamer's total memory in bytes (0 unknown), sent as
+	// X-Presence-Memory: the auth API prefers the streamer with more as
+	// the profile's leader.
+	Memory int64
 
 	// mu guards session: the session token last exchanged.
 	mu      sync.Mutex
@@ -192,6 +197,9 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
+	if a.Memory > 0 {
+		req.Header.Set("X-Presence-Memory", strconv.FormatInt(a.Memory, 10))
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "text/plain")
 	}

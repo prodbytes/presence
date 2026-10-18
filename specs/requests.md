@@ -7020,3 +7020,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       pipeline (`os: GoPro`). Blink's per-camera pipelines are shared
       with GoPro's (`main_cameras.go`). Specs: [GoPro cameras](gopro.md)
       (new), [Streamer](streamer.md), [Settings](settings.md).
+
+479. **The leading streamer: the one with the most memory.** (2026-10-18)
+    - Asked: when electing the leader streamer, prefer the one with more
+      memory.
+    - Changed: `presence-streamer` sends its total memory (`MemTotal`,
+      bytes) as `X-Presence-Memory` with its stream credentials and
+      leases. The auth API keeps the leader's (`streamLeaderMemory`) and
+      grants the leadership to a streamer with more memory than the
+      leader, at once; the old leader hears "another leads" at its next
+      lease and waits. Equal memory keeps the leader (no taking turns);
+      a streamer that says no memory (older ones) takes no leader's place
+      by it, and a leader with none gives way to any that says its own.
+      Specs: [Streamer leadership](streamer-leader.md),
+      [Streamer](streamer.md), [Auth API](auth-api.md).
