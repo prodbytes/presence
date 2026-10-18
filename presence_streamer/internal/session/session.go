@@ -20,6 +20,18 @@ import (
 // ErrFree is a free profile: the streamer streams only to premium ones.
 var ErrFree = errors.New("this profile is free: the streamer needs a Premium profile (cloud backup)")
 
+// ErrLeaseLapsed is a leading streamer that couldn't renew its lease for as
+// long as a leader may be silent: another may lead by now, so it stops
+// streaming until it's granted the leadership again.
+var ErrLeaseLapsed = errors.New("the lease couldn't be renewed for nearly an hour: another streamer may lead now")
+
+// Standby says whether err means the streamer must wait for the leadership
+// (another streamer leads the profile), rather than stop.
+func Standby(err error) bool {
+	var notLeader presence.NotLeaderError
+	return errors.As(err, &notLeader) || errors.Is(err, ErrLeaseLapsed)
+}
+
 // WrongProfileError is an account whose profile isn't the one asked for.
 type WrongProfileError struct{ Want, Got string }
 
@@ -45,6 +57,10 @@ type Session struct {
 	creds  presence.Credentials
 	aws    presence.AWS
 	claims google.Claims
+	// idToken is Google's latest ID token, for the lease (signed in with
+	// Google), and when it expires.
+	idToken        string
+	idTokenExpires time.Time
 }
 
 func (s *Session) now() time.Time {
@@ -105,13 +121,9 @@ func (s *Session) renew(ctx context.Context) error {
 		s.creds, s.aws, s.claims = creds, aws, google.Claims{Subject: creds.UserID}
 		return nil
 	}
-	idToken, err := s.Google.Refresh(ctx, s.RefreshToken)
+	idToken, claims, err := s.refreshID(ctx)
 	if err != nil {
 		return err
-	}
-	claims, err := google.ClaimsOf(idToken)
-	if err != nil {
-		return fmt.Errorf("Google's ID token: %w", err)
 	}
 	creds, err := Check(ctx, s.API, idToken, s.ProfileID, s.DeviceID)
 	if err != nil {
@@ -123,6 +135,39 @@ func (s *Session) renew(ctx context.Context) error {
 	}
 	s.creds, s.aws, s.claims = creds, aws, claims
 	return nil
+}
+
+// refreshID is a new Google ID token and its claims. Callers hold mu.
+func (s *Session) refreshID(ctx context.Context) (string, google.Claims, error) {
+	idToken, err := s.Google.Refresh(ctx, s.RefreshToken)
+	if err != nil {
+		return "", google.Claims{}, err
+	}
+	claims, err := google.ClaimsOf(idToken)
+	if err != nil {
+		return "", google.Claims{}, fmt.Errorf("Google's ID token: %w", err)
+	}
+	s.idToken, s.idTokenExpires = idToken, time.Unix(claims.Expiry, 0)
+	return idToken, claims, nil
+}
+
+// Lease renews or asks for the device's leadership of the profile's
+// streamers: only the leader streams.
+func (s *Session) Lease(ctx context.Context) (presence.Lease, error) {
+	if s.StreamKey != "" {
+		return s.API.StreamLease(ctx, s.StreamKey, s.ProfileID, s.DeviceID)
+	}
+	s.mu.Lock()
+	idToken := s.idToken
+	if idToken == "" || s.now().Add(5*time.Minute).After(s.idTokenExpires) {
+		var err error
+		if idToken, _, err = s.refreshID(ctx); err != nil {
+			s.mu.Unlock()
+			return presence.Lease{}, err
+		}
+	}
+	s.mu.Unlock()
+	return s.API.ProfileLease(ctx, idToken, s.DeviceID)
 }
 
 // Register renews now, so new cameras (Cameras) join the profile's
@@ -164,12 +209,13 @@ func (s *Session) UserID() string {
 	return s.claims.Subject
 }
 
-// Fatal says whether err means the streamer must stop: a free profile,
-// another profile, or a sign-in that no longer works. Other errors (the
-// network) pass.
+// Fatal says whether err means the streamer must stop streaming: a free
+// profile, another profile, or a sign-in that no longer works; or another
+// streamer leading the profile ([Standby]: it waits for the leadership).
+// Other errors (the network) pass.
 func Fatal(err error) bool {
 	var wrong WrongProfileError
-	return errors.Is(err, ErrFree) || errors.As(err, &wrong) ||
+	return Standby(err) || errors.Is(err, ErrFree) || errors.As(err, &wrong) ||
 		errors.Is(err, google.ErrRevoked) || errors.Is(err, presence.ErrUnauthorized) ||
 		errors.Is(err, presence.ErrKeyRefused)
 }

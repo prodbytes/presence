@@ -193,6 +193,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authLeader => 'leader';
+
+  @override
+  String get authLeaderTooltip =>
+      'The profile\'s leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it\'s been offline for an hour.';
+
+  @override
   String get authLinkAnother => 'Link another account';
 
   @override

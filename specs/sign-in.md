@@ -290,7 +290,9 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     long. A row is small: each ID is selectable, 11 sp
     (`ProfileDevices.deviceIdSize`) on one line beside its presence dot,
     scaled down to fit when it's still too long (at a large system font)
-    rather than broken mid-word; "this device" and "hidden" go under it in
+    rather than broken mid-word; "this device", "leader" (the profile's
+    leading streamer, `DeviceSlots.leader`, in the accent color, with a
+    tooltip: [Streamer leadership](streamer-leader.md)) and "hidden" go under it in
     `bodySmall` (12 sp), its details in `labelSmall` (11 sp), its OS icon 16
     px; with access the ID is
     in the accent color and a tap **shows the device's events**: the

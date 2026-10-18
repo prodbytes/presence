@@ -49,6 +49,33 @@ var ErrUnauthorized = errors.New("the auth API refused the Google sign-in")
 // (a newer one replaced it, or the device was deleted in the app).
 var ErrKeyRefused = errors.New("the auth API refused the stream key: copy a new command from the app's profile view")
 
+// Leader is a profile's leading streamer: the one of its streamers that
+// streams, and when the auth API last heard from it.
+type Leader struct {
+	Device string `json:"device"`
+	SeenAt int64  `json:"seenAt"`
+}
+
+// NotLeaderError is the auth API refusing a streamer credentials (409,
+// "notLeader") because another streamer leads the profile.
+type NotLeaderError struct{ Leader *Leader }
+
+func (e NotLeaderError) Error() string {
+	if e.Leader == nil {
+		return "another streamer leads this profile"
+	}
+	return fmt.Sprintf("another streamer, %s, leads this profile", e.Leader.Device)
+}
+
+// Lease is the auth API's answer to a streamer's lease (POST
+// /api/auth/stream/lease): whether it leads the profile, the leader, and
+// how long a leader may be silent before another takes its place.
+type Lease struct {
+	Leader       bool    `json:"leader"`
+	StreamLeader *Leader `json:"streamLeader"`
+	SilenceMs    int64   `json:"silenceMs"`
+}
+
 var (
 	identityPattern = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	bucketPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
@@ -175,9 +202,14 @@ func (a *API) do(req *http.Request, refused error, out any) error {
 		return refused
 	case res.StatusCode != http.StatusOK:
 		var e struct {
-			Error string `json:"error"`
+			Error        string  `json:"error"`
+			Reason       string  `json:"reason"`
+			StreamLeader *Leader `json:"streamLeader"`
 		}
 		_ = json.Unmarshal(data, &e)
+		if res.StatusCode == http.StatusConflict && e.Reason == "notLeader" {
+			return NotLeaderError{Leader: e.StreamLeader}
+		}
 		return fmt.Errorf("%s %s: HTTP %d %s", req.Method, req.URL.Path, res.StatusCode, e.Error)
 	}
 	return json.Unmarshal(data, out)
@@ -217,6 +249,23 @@ func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID st
 	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/credentials", key, ErrKeyRefused,
 		strings.NewReader(body), &c)
 	return c, checked(c, err)
+}
+
+// StreamLease renews or asks for the leadership of the device deviceID,
+// with its stream key (POST /api/auth/stream/lease).
+func (a *API) StreamLease(ctx context.Context, key, profileID, deviceID string) (Lease, error) {
+	var l Lease
+	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/lease", key, ErrKeyRefused,
+		strings.NewReader(profileID+" "+deviceID), &l)
+	return l, err
+}
+
+// ProfileLease is StreamLease for a streamer signed in with Google (POST
+// /api/auth/profile/stream-lease, with its session token).
+func (a *API) ProfileLease(ctx context.Context, idToken, deviceID string) (Lease, error) {
+	var l Lease
+	err := a.call(ctx, http.MethodPost, "/api/auth/profile/stream-lease", idToken, strings.NewReader(deviceID), &l)
+	return l, err
 }
 
 // checked is err, or what's wrong with the answer c.
