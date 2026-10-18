@@ -4504,6 +4504,18 @@ abstract class AppLocalizations {
   /// **'The streamer they\'re plugged into'**
   String get usbcamStreamer;
 
+  /// No description provided for @usbcamUnattended.
+  ///
+  /// In en, this message translates to:
+  /// **'Unattended: keep only the parts with movement and delete videos from the camera once fetched'**
+  String get usbcamUnattended;
+
+  /// No description provided for @usbcamUnattendedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For a camera left recording, so its card doesn\'t fill up. Off: every video is kept and nothing on the camera is deleted.'**
+  String get usbcamUnattendedHint;
+
   /// No description provided for @usbcamUnplugged.
   ///
   /// In en, this message translates to:

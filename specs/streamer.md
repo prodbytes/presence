@@ -653,7 +653,8 @@ videos over its network, each camera a device of its own: see
 [GoPro cameras](gopro.md) and [Reolink cameras](reolink.md). Both are
 kinds of the `netcam` package (`main_netcams.go`), and Blink's, GoPro's,
 Reolink's and USB cameras share the per-camera pipelines
-(`main_cameras.go`).
+(`main_cameras.go`): every clip kept (`KeepAll`), with no motion filter,
+except an unattended USB camera's, below.
 
 ## USB cameras
 
@@ -662,8 +663,14 @@ still-image cameras plugged into it by USB (PTP/MTP: a GoPro HERO5 to
 HERO8, most digital cameras), with no network or address: it detects
 them (the kernel's USB list, then `gphoto2 --auto-detect`), the app adds
 one by name, known by its USB serial, and each becomes a device of its
-own. See [USB cameras](usb-cameras.md) (the `usbcam` package,
-`main_usbcams.go`).
+own. Each video is cut into chunks (`--chunk`, ffmpeg's segment muxer,
+copied) for its camera's pipeline. A camera left recording is
+**unattended** (the default): its chunks go through this streamer's
+**motion filter** (`--motion-min`, step 1 of **Each chunk**: the
+pipeline's `MotionFilter`, which the app turns on and off), those with
+movement kept as events with or without anyone in them, and each video
+is deleted from the camera once downloaded whole. See [USB
+cameras](usb-cameras.md) (the `usbcam` package, `main_usbcams.go`).
 
 ## Infrastructure it needs
 

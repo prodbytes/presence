@@ -5,23 +5,30 @@
 // streamer of the profile, the one the app's Settings pick, detects the
 // cameras plugged into it, and fetches the videos each one added recorded.
 // Every camera added becomes a device of its own, with an ID made here,
-// whose videos go through the same chunk pipeline as the Pi's own
-// recordings. A camera is known by its USB serial number, the same on any
-// port and after a replug.
+// whose videos are cut into chunks (ffmpeg, copied) that go through the
+// same chunk pipeline as the Pi's own recordings. A camera is known by its
+// USB serial number, the same on any port and after a replug.
+//
+// A camera is unattended by default (it's left recording): its chunks
+// without movement are deleted, not uploaded, and each video is deleted
+// from the camera once it's downloaded whole, so its card doesn't fill up.
 //
 // The app and this streamer talk through the profile's folder, sealed with
 // this streamer's media key (only the profile's devices hold it):
 //
 //   - devices/<streamer>/usbcam.json, the app's request: {"add": {"name",
-//     "serial"}} or {"remove": "<device ID>"}, and "requestedAt". Deleted
-//     once handled.
+//     "serial", "unattended"}}, {"set": {"deviceId", "unattended"}} or
+//     {"remove": "<device ID>"}, and "requestedAt". Deleted once handled.
 //   - devices/<streamer>/usbcam-status.json, this streamer's answer:
 //     {"state", "error", "detected": [{"model", "serial", "port"}],
-//     "cameras": [{"name", "model", "serial", "deviceId", "plugged",
-//     "lastFetch", "error"}], "requestedAt", "updatedAt"}.
+//     "cameras": [{"name", "model", "serial", "deviceId", "unattended",
+//     "plugged", "lastFetch", "error"}], "requestedAt", "updatedAt"}.
 //
 // Here, in the state folder: usbcam-state.json (mode 600: the cameras,
-// and the videos fetched from each).
+// and the videos fetched from each), and usbcam-incoming/<device>/, the
+// videos downloaded (video-<UTC start>.mp4) and their chunks
+// (chunks-<UTC start>/rec-usbcam-<UTC start>.mp4) till the camera's
+// pipeline takes them.
 package usbcam
 
 import (
@@ -40,6 +47,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/prodbytes/presence/presence_streamer/internal/seal"
@@ -73,11 +81,21 @@ type Store interface {
 type Add struct {
 	Name   string `json:"name"`
 	Serial string `json:"serial"`
+	// Unattended is the camera's mode (Camera.Unattended); nil: on, or as
+	// it was for a camera added again.
+	Unattended *bool `json:"unattended,omitempty"`
+}
+
+// Set changes an added camera's mode.
+type Set struct {
+	DeviceID   string `json:"deviceId"`
+	Unattended bool   `json:"unattended"`
 }
 
 // Request is the app's (devices/<streamer>/usbcam.json).
 type Request struct {
 	Add         *Add   `json:"add,omitempty"`
+	Set         *Set   `json:"set,omitempty"`
 	Remove      string `json:"remove,omitempty"`
 	RequestedAt int64  `json:"requestedAt"`
 }
@@ -107,7 +125,19 @@ type Camera struct {
 	// camera: their size in KB and time, "<KB>:<time>", so a file written
 	// over under the same name is fetched again.
 	Fetched map[string]string `json:"fetched,omitempty"`
+	// Unattended (nil: on, the default) keeps only the chunks with
+	// movement (the streamer's motion filter), and deletes each video from
+	// the camera once it's downloaded whole. Off, every chunk is kept and
+	// nothing on the camera is deleted.
+	Unattended *bool `json:"unattended,omitempty"`
+	// Got are the videos downloaded whole, their size checked, still on
+	// the camera ("<KB>:<time>" as Fetched): the only ones ever deleted
+	// from it, while unattended (a failure is tried again at each fetch).
+	Got map[string]string `json:"got,omitempty"`
 }
+
+// IsUnattended says whether c is unattended (the default).
+func (c Camera) IsUnattended() bool { return c.Unattended == nil || *c.Unattended }
 
 // Status is this streamer's answer (devices/<streamer>/usbcam-status.json).
 type Status struct {
@@ -121,13 +151,15 @@ type Status struct {
 
 // StatusCamera is a camera added, as the app lists it.
 type StatusCamera struct {
-	Name      string `json:"name"`
-	Model     string `json:"model,omitempty"`
-	Serial    string `json:"serial"`
-	DeviceID  string `json:"deviceId"`
-	Plugged   bool   `json:"plugged"`
-	LastFetch int64  `json:"lastFetch,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Name     string `json:"name"`
+	Model    string `json:"model,omitempty"`
+	Serial   string `json:"serial"`
+	DeviceID string `json:"deviceId"`
+	// Unattended is Camera.IsUnattended.
+	Unattended bool   `json:"unattended"`
+	Plugged    bool   `json:"plugged"`
+	LastFetch  int64  `json:"lastFetch,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 // saved is usbcam-state.json.
@@ -157,23 +189,39 @@ type Manager struct {
 	// Cameras is told the cameras whenever they change, so they join the
 	// profile's devices and get their pipelines (removed ones stop).
 	Cameras func(ctx context.Context, cameras []Camera) error
-	// Clip hands a camera's fetched video to its pipeline (it's moved).
+	// Clip hands a camera's chunk to its pipeline (it's moved).
 	Clip func(ctx context.Context, camera Camera, file string) error
+	// Split cuts a downloaded video into chunks in dir, named by their UTC
+	// start (start is the video's): SplitVideo. nil: a video is one chunk.
+	Split func(ctx context.Context, video, dir string, start time.Time) error
+	// Spooled is how much a camera's spool holds (bytes). Chunks are
+	// handed over while it holds less than half of MaxSpool (its pipeline
+	// seals copies beside them), so the pipeline never drops one unsent
+	// (stream.Streamer.Trim): the rest wait in incoming.
+	Spooled  func(camera Camera) int64
+	MaxSpool int64
+	// Free is the room left on the state folder's disk. A video is
+	// downloaded only when twice its size (it, then its chunks while it's
+	// split) leaves MinFree; meanwhile the camera says it's waiting.
+	Free    func() (int64, error)
+	MinFree int64
+	// Settle is how long a new video is watched before it's fetched: one
+	// whose size changes (still being written) waits.
+	Settle time.Duration
 	// Poll is how often the request and the cameras plugged in are looked
 	// for; Every how often videos are fetched; Backfill how far back a new
 	// camera's first fetch goes.
 	Poll, Every, Backfill time.Duration
-	// MaxBytes is the biggest video fetched (0: any); bigger ones are
-	// skipped.
-	MaxBytes int64
-	Now      func() time.Time
-	Logf     func(string, ...any)
+	Now                   func() time.Time
+	Logf                  func(string, ...any)
 
 	state     saved
 	loaded    bool
 	lastFetch time.Time
 	fetched   map[string]int64
 	errs      map[string]string
+	// listed is each camera's last listing: its videos' "<KB>:<time>".
+	listed map[string]map[string]string
 	// detected are the cameras plugged in; usb what the kernel listed when
 	// they were detected (detection runs again when it changes); detectErr
 	// why they couldn't be.
@@ -209,7 +257,7 @@ func (m *Manager) load() {
 		m.state.Cameras = map[string]Camera{}
 	}
 	if m.fetched == nil {
-		m.fetched, m.errs = map[string]int64{}, map[string]string{}
+		m.fetched, m.errs, m.listed = map[string]int64{}, map[string]string{}, map[string]map[string]string{}
 	}
 	m.loaded = true
 }
@@ -282,6 +330,13 @@ func (m *Manager) Step(ctx context.Context) {
 	if len(m.state.Cameras) > 0 && m.now().Sub(m.lastFetch) >= m.Every {
 		m.fetch(ctx)
 	}
+	// The chunks waiting for room in their pipelines, and what a stop
+	// left, carry on.
+	for _, c := range m.cameraList() {
+		if err := m.drain(ctx, c); err != nil {
+			m.logf("%q: %v", c.Name, err)
+		}
+	}
 	if m.dirty || !m.published {
 		m.setStatus(ctx, Status{})
 	}
@@ -340,6 +395,15 @@ func (m *Manager) handle(ctx context.Context, req *Request) {
 		}
 	case req.Add != nil:
 		m.add(ctx, req)
+	case req.Set != nil:
+		if c, ok := m.state.Cameras[req.Set.DeviceID]; ok {
+			on := req.Set.Unattended
+			c.Unattended = &on
+			m.state.Cameras[c.DeviceID] = c
+			m.logf("%q: unattended %v", c.Name, on)
+			m.save()
+			m.announce(ctx)
+		}
 	}
 }
 
@@ -372,6 +436,10 @@ func (m *Manager) add(ctx context.Context, req *Request) {
 				c.Model = model
 			}
 		}
+	}
+	if req.Add.Unattended != nil {
+		on := *req.Add.Unattended
+		c.Unattended = &on
 	}
 	if c.DeviceID == "" {
 		c.DeviceID = m.NewDevice()
@@ -658,7 +726,6 @@ func (m *Manager) fetch(ctx context.Context) {
 	m.lastFetch = m.now()
 	m.dirty = true
 	for _, c := range m.cameraList() {
-		m.leftovers(ctx, c)
 		port := m.port(c.Serial)
 		if port == "" {
 			// Unplugged: not an error, it's fetched once it's back.
@@ -691,20 +758,41 @@ func (m *Manager) update(c Camera) {
 	}
 }
 
-func (m *Manager) fetchCamera(ctx context.Context, c Camera, port string) error {
+func (m *Manager) listFiles(ctx context.Context, port string) ([]File, error) {
 	out, err := m.run(ctx, 5*time.Minute, "--port", port, "--list-files")
+	if err != nil {
+		return nil, err
+	}
+	return ParseFiles(out), nil
+}
+
+func videoSigs(files []File) map[string]string {
+	out := map[string]string{}
+	for _, f := range files {
+		if f.IsVideo() {
+			out[f.Path()] = f.sig()
+		}
+	}
+	return out
+}
+
+func (m *Manager) fetchCamera(ctx context.Context, c Camera, port string) error {
+	files, err := m.listFiles(ctx, port)
 	if err != nil {
 		return err
 	}
-	files := ParseFiles(out)
 	first := !c.Listed
 	seen := map[string]string{}
+	got := map[string]string{}
 	var videos []File
 	for _, f := range files {
 		if !f.IsVideo() {
 			continue
 		}
 		seen[f.Path()] = c.Fetched[f.Path()]
+		if sig := c.Got[f.Path()]; sig != "" && sig == f.sig() {
+			got[f.Path()] = sig
+		}
 		switch {
 		case c.Fetched[f.Path()] == f.sig():
 		case f.Time == 0 && first:
@@ -717,28 +805,153 @@ func (m *Manager) fetchCamera(ctx context.Context, c Camera, port string) error 
 		}
 	}
 	// Those no longer on the camera are forgotten.
-	c.Fetched, c.Listed = map[string]string{}, true
+	c.Fetched, c.Got, c.Listed = map[string]string{}, got, true
 	for p, sig := range seen {
 		if sig != "" {
 			c.Fetched[p] = sig
 		}
 	}
 	m.update(c)
-	sort.SliceStable(videos, func(i, j int) bool { return videos[i].Time < videos[j].Time })
+
+	// A video still being written grows: it's fetched once its size held
+	// since the last listing (one Settle ago, or the last fetch's).
+	last := m.listed[c.DeviceID]
+	m.listed[c.DeviceID] = videoSigs(files)
+	settled := true
 	for _, f := range videos {
-		out, err := m.fetchVideo(ctx, c, port, f)
-		if err != nil {
-			return fmt.Errorf("%s: %w", f.Path(), err)
-		}
-		c.Fetched[f.Path()] = f.sig()
-		m.update(c)
-		if out == "" {
-			continue
-		}
-		if err := m.Clip(ctx, c, out); err != nil {
-			m.logf("%q: %s: %v", c.Name, f.Name, err)
+		if last == nil || last[f.Path()] != f.sig() {
+			settled = false
 		}
 	}
+	if !settled {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(m.Settle):
+		}
+		again, err := m.listFiles(ctx, port)
+		if err != nil {
+			return err
+		}
+		now := videoSigs(again)
+		m.listed[c.DeviceID] = now
+		kept := videos[:0]
+		for _, f := range videos {
+			if now[f.Path()] == f.sig() {
+				kept = append(kept, f)
+			} else {
+				m.logf("%q: %s is still being written: fetched once it's done", c.Name, f.Path())
+			}
+		}
+		videos = kept
+	}
+
+	// Unattended: the videos downloaded whole are deleted from the camera
+	// (those a failure left, again).
+	var deleteErr error
+	deleteGot := func(f File) {
+		if !c.IsUnattended() || c.Got[f.Path()] != f.sig() {
+			return
+		}
+		if err := m.deleteVideo(ctx, port, f, files); err != nil {
+			m.logf("%q: %v", c.Name, err)
+			if deleteErr == nil {
+				deleteErr = err
+			}
+			return
+		}
+		delete(c.Got, f.Path())
+		m.update(c)
+	}
+	for _, f := range files {
+		if f.IsVideo() {
+			deleteGot(f)
+		}
+	}
+
+	sort.SliceStable(videos, func(i, j int) bool { return videos[i].Time < videos[j].Time })
+	for _, f := range videos {
+		if err := m.room(f); err != nil {
+			return err
+		}
+		if err := m.fetchVideo(ctx, c, port, f); err != nil {
+			return fmt.Errorf("%s: %w", f.Path(), err)
+		}
+		// Downloaded whole: on the streamer's disk from here.
+		c.Fetched[f.Path()] = f.sig()
+		if f.KB > 0 {
+			// Only a size checked lets it be deleted from the camera.
+			c.Got[f.Path()] = f.sig()
+		}
+		m.update(c)
+		deleteGot(f)
+		// Split at once, so its room frees up.
+		if err := m.drain(ctx, c); err != nil {
+			m.logf("%q: %v", c.Name, err)
+		}
+	}
+	return deleteErr
+}
+
+// room says whether f can be downloaded: twice its size (it, then its
+// chunks while it's split) must leave MinFree on the disk.
+func (m *Manager) room(f File) error {
+	if m.Free == nil || f.KB == 0 {
+		return nil
+	}
+	free, err := m.Free()
+	if err != nil {
+		return nil
+	}
+	need := 2*(f.KB<<10) + m.MinFree
+	if free < need {
+		return fmt.Errorf("waiting for room on the streamer: %s needs %d MB, %d MB free", f.Name, need>>20, free>>20)
+	}
+	return nil
+}
+
+// FreeSpace is the room left on dir's disk, for an unprivileged user.
+func FreeSpace(dir string) (int64, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(dir, &st); err != nil {
+		return 0, err
+	}
+	return int64(st.Bavail) * int64(st.Bsize), nil
+}
+
+// Sidecars are a video's own files beside it among files: a GoPro's
+// low-resolution copy and thumbnail (GOPR0002.LRV and GOPR0002.THM beside
+// GOPR0002.MP4; GL010002.LRV beside GH010002.MP4 or GX010002.MP4).
+func Sidecars(video File, files []File) []File {
+	stem := func(name string) string { return strings.ToUpper(strings.TrimSuffix(name, path.Ext(name))) }
+	base := stem(video.Name)
+	names := map[string]bool{base: true}
+	if len(base) > 2 && (strings.HasPrefix(base, "GH") || strings.HasPrefix(base, "GX")) {
+		names["GL"+base[2:]] = true
+	}
+	var out []File
+	for _, f := range files {
+		switch strings.ToLower(path.Ext(f.Name)) {
+		case ".lrv", ".thm":
+			if f.Folder == video.Folder && names[stem(f.Name)] {
+				out = append(out, f)
+			}
+		}
+	}
+	return out
+}
+
+// deleteVideo deletes a video from the camera, with its sidecars first: a
+// failure leaves the video, to be tried again.
+func (m *Manager) deleteVideo(ctx context.Context, port string, f File, files []File) error {
+	for _, s := range append(Sidecars(f, files), f) {
+		// A path (with a dot: gphoto2 takes it as a file, not a range of
+		// numbers, which deleting would shift).
+		if _, err := m.run(ctx, time.Minute, "--port", port, "--delete-file", s.Path()); err != nil {
+			return fmt.Errorf("couldn't delete %s from the camera: %w", s.Path(), err)
+		}
+	}
+	m.logf("%s deleted from the camera", f.Path())
 	return nil
 }
 
@@ -746,66 +959,201 @@ func (m *Manager) incoming(c Camera) string {
 	return filepath.Join(m.Dir, Name+"-incoming", c.DeviceID)
 }
 
-// out is where a video is downloaded: named like the Pi's chunks, with
-// its start in UTC (its file time; now when it has none).
-func (m *Manager) out(c Camera, f File) string {
+// In a camera's incoming folder: a video downloaded (video-<start>.mp4,
+// <start> its UTC start), being split (split-<start>/), and split
+// (chunks-<start>/, its chunks).
+const (
+	videoPrefix  = "video-"
+	splitPrefix  = "split-"
+	chunksPrefix = "chunks-"
+)
+
+// timeLayout is a file name's time, as the Pi's chunks'.
+const timeLayout = "20060102T150405"
+
+// ChunkName names a chunk starting at start: rec-usbcam-<UTC start>.mp4,
+// as the Pi's own.
+func ChunkName(start time.Time) string {
+	return "rec-" + Name + "-" + start.UTC().Format(timeLayout) + ".mp4"
+}
+
+// stamp is a video's start for its names in incoming (its file time; now
+// when it has none): a second later while another video has it.
+func (m *Manager) stamp(c Camera, f File) string {
 	start := m.now().UTC()
 	if f.Time != 0 {
 		start = time.Unix(f.Time, 0).UTC()
 	}
-	return filepath.Join(m.incoming(c), "rec-"+Name+"-"+start.Format("20060102T150405")+".mp4")
+	for {
+		s := start.Format(timeLayout)
+		_, err1 := os.Stat(filepath.Join(m.incoming(c), videoPrefix+s+".mp4"))
+		_, err2 := os.Stat(filepath.Join(m.incoming(c), chunksPrefix+s))
+		if os.IsNotExist(err1) && os.IsNotExist(err2) {
+			return s
+		}
+		start = start.Add(time.Second)
+	}
 }
 
-// fetchVideo downloads f, streamed to disk by gphoto2, and says where to
-// ("" for a video bigger than MaxBytes: skipped). A download cut off is
-// deleted and fails (it's tried again at the next fetch).
-func (m *Manager) fetchVideo(ctx context.Context, c Camera, port string, f File) (string, error) {
-	if m.MaxBytes > 0 && f.KB<<10 > m.MaxBytes {
-		m.logf("%q: %s skipped, %d MB is too big", c.Name, f.Path(), f.KB>>10)
-		return "", nil
-	}
+// fetchVideo downloads f, streamed to disk by gphoto2, into the camera's
+// incoming folder. A download cut off is deleted and fails (it's tried
+// again at the next fetch).
+func (m *Manager) fetchVideo(ctx context.Context, c Camera, port string, f File) error {
 	if err := os.MkdirAll(m.incoming(c), 0o700); err != nil {
-		return "", err
+		return err
 	}
-	out := m.out(c, f)
+	out := filepath.Join(m.incoming(c), videoPrefix+m.stamp(c, f)+".mp4")
 	part := out + ".part"
 	if _, err := m.run(ctx, time.Hour, "--port", port, "--get-file", f.Path(),
 		"--filename", part, "--force-overwrite"); err != nil {
 		os.Remove(part)
-		return "", err
+		return err
 	}
 	info, err := os.Stat(part)
 	if err != nil {
-		return "", fmt.Errorf("not downloaded: %w", err)
+		return fmt.Errorf("not downloaded: %w", err)
 	}
 	if n := info.Size(); f.KB > 0 && (n > f.KB<<10 || n <= (f.KB-1)<<10) {
 		os.Remove(part)
-		return "", fmt.Errorf("cut off: %d of %d KB downloaded", (n+1023)>>10, f.KB)
+		return fmt.Errorf("cut off: %d of %d KB downloaded", (n+1023)>>10, f.KB)
 	}
 	if err := os.Rename(part, out); err != nil {
-		return "", err
+		return err
 	}
 	m.logf("%q: %s fetched (%d MB)", c.Name, f.Path(), info.Size()>>20)
-	return out, nil
+	return nil
 }
 
-// leftovers hands over the videos a stop left in the camera's incoming
-// folder between their download and their hand-over, and deletes a
-// download cut off (`.part`): it's fetched again.
-func (m *Manager) leftovers(ctx context.Context, c Camera) {
+// drain takes a camera's downloads on to its pipeline: each video is split
+// into chunks (deleted once they're all made), and the chunks handed over,
+// oldest first, while its spool has room. A stop anywhere carries on at
+// the next: a download or a split cut off is done again.
+func (m *Manager) drain(ctx context.Context, c Camera) error {
 	dir := m.incoming(c)
-	files, _ := os.ReadDir(dir)
-	for _, f := range files {
-		file := filepath.Join(dir, f.Name())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	split := map[string]bool{}
+	for _, e := range entries {
+		name := e.Name()
 		switch {
-		case strings.HasSuffix(f.Name(), ".part"):
-			os.Remove(file)
-		case strings.HasPrefix(f.Name(), "rec-") && strings.HasSuffix(f.Name(), ".mp4"):
-			if err := m.Clip(ctx, c, file); err != nil {
-				m.logf("%q: %s: %v", c.Name, f.Name(), err)
-			}
+		case strings.HasSuffix(name, ".part"), strings.HasPrefix(name, splitPrefix):
+			os.RemoveAll(filepath.Join(dir, name))
+		case strings.HasPrefix(name, chunksPrefix):
+			split[strings.TrimPrefix(name, chunksPrefix)] = true
 		}
 	}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, videoPrefix) || !strings.HasSuffix(name, ".mp4") {
+			continue
+		}
+		stamp := strings.TrimSuffix(strings.TrimPrefix(name, videoPrefix), ".mp4")
+		video := filepath.Join(dir, name)
+		if split[stamp] {
+			// Split already, before a stop kept it from being deleted.
+			os.Remove(video)
+			continue
+		}
+		if err := m.split(ctx, c, video, stamp); err != nil {
+			return err
+		}
+	}
+	return m.handOver(ctx, c)
+}
+
+// split cuts a video into chunks, made in split-<start>/, which becomes
+// chunks-<start>/ once they're all there; then the video is deleted.
+func (m *Manager) split(ctx context.Context, c Camera, video, stamp string) error {
+	start, err := time.Parse(timeLayout, stamp)
+	if err != nil {
+		return fmt.Errorf("%s: %w", filepath.Base(video), err)
+	}
+	dir := m.incoming(c)
+	tmp := filepath.Join(dir, splitPrefix+stamp)
+	whole := func() error {
+		os.RemoveAll(tmp)
+		if err := os.MkdirAll(tmp, 0o700); err != nil {
+			return err
+		}
+		return os.Rename(video, filepath.Join(tmp, ChunkName(start)))
+	}
+	if m.Split == nil {
+		err = whole()
+	} else {
+		os.RemoveAll(tmp)
+		if err := os.MkdirAll(tmp, 0o700); err != nil {
+			return err
+		}
+		err = m.Split(ctx, video, tmp, start)
+		if err != nil && ctx.Err() == nil {
+			// Not one ffmpeg can cut: handed over whole (the pipeline
+			// deletes one it can't read).
+			m.logf("%q: %s can't be split (%v): handed over whole", c.Name, filepath.Base(video), err)
+			err = whole()
+		}
+	}
+	if err != nil {
+		os.RemoveAll(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, filepath.Join(dir, chunksPrefix+stamp)); err != nil {
+		return err
+	}
+	os.Remove(video)
+	n, _ := filepath.Glob(filepath.Join(dir, chunksPrefix+stamp, "rec-*.mp4"))
+	m.logf("%q: %s split into %d chunks", c.Name, filepath.Base(video), len(n))
+	return nil
+}
+
+// handOver moves the chunks, oldest first, into the camera's pipeline while
+// its spool holds less than half of MaxSpool (one at least when it's
+// empty); the rest wait.
+func (m *Manager) handOver(ctx context.Context, c Camera) error {
+	dir := m.incoming(c)
+	var spooled int64
+	if m.Spooled != nil {
+		spooled = m.Spooled(c)
+	}
+	give := func(chunk string) (bool, error) {
+		info, err := os.Stat(chunk)
+		if err != nil {
+			return true, nil
+		}
+		if m.MaxSpool > 0 && spooled > 0 && spooled+info.Size() > m.MaxSpool/2 {
+			return false, nil
+		}
+		if err := m.Clip(ctx, c, chunk); err != nil {
+			return false, err
+		}
+		spooled += info.Size()
+		return true, nil
+	}
+	// Videos an older version left whole, then each video's chunks.
+	loose, _ := filepath.Glob(filepath.Join(dir, "rec-*.mp4"))
+	dirs, _ := filepath.Glob(filepath.Join(dir, chunksPrefix+"*"))
+	sort.Strings(loose)
+	sort.Strings(dirs)
+	for _, chunk := range loose {
+		if ok, err := give(chunk); !ok {
+			return err
+		}
+	}
+	for _, d := range dirs {
+		chunks, _ := filepath.Glob(filepath.Join(d, "rec-*.mp4"))
+		sort.Strings(chunks)
+		for _, chunk := range chunks {
+			if ok, err := give(chunk); !ok {
+				return err
+			}
+		}
+		os.Remove(d)
+	}
+	return nil
 }
 
 // setStatus publishes the status, sealed, with the cameras detected and
@@ -817,7 +1165,7 @@ func (m *Manager) setStatus(ctx context.Context, s Status) {
 	plugged := m.plugged()
 	for _, c := range m.cameraList() {
 		s.Cameras = append(s.Cameras, StatusCamera{
-			Name: c.Name, Model: c.Model, Serial: c.Serial, DeviceID: c.DeviceID,
+			Name: c.Name, Model: c.Model, Serial: c.Serial, DeviceID: c.DeviceID, Unattended: c.IsUnattended(),
 			Plugged: plugged[c.DeviceID], LastFetch: m.fetched[c.DeviceID], Error: m.errs[c.DeviceID],
 		})
 	}

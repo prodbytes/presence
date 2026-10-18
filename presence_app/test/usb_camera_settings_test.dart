@@ -94,7 +94,7 @@ void main() {
     expect(sent.single.$1, 'calm_quiet_otter');
     expect(sent.single.$2, 'usbcam.json');
     expect(sent.single.$3, {
-      'add': {'name': 'Helmet', 'serial': 'C3221324700631'},
+      'add': {'name': 'Helmet', 'serial': 'C3221324700631', 'unattended': true},
       'requestedAt': 1000,
     });
     expect(find.textContaining('Sent to calm_quiet_otter'), findsOneWidget);
@@ -170,6 +170,82 @@ void main() {
     );
   });
 
+  testWidgets('unattended is on by default on the add form, and can be '
+      'turned off before adding', (tester) async {
+    status = {
+      'state': 'ok',
+      'detected': [gopro],
+    };
+    await show(tester);
+    final unattended = find.byKey(
+      const Key('usbcam-unattended-C3221324700631'),
+    );
+    expect(tester.widget<SwitchListTile>(unattended).value, isTrue);
+    expect(
+      find.text(
+        'Unattended: keep only the parts with movement and delete videos '
+        'from the camera once fetched',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(unattended);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(unattended).value, isFalse);
+    await tester.tap(find.byKey(const Key('usbcam-add-C3221324700631')));
+    await tester.pumpAndSettle();
+    expect(sent.single.$3, {
+      'add': {
+        'name': 'GoPro HERO6 Black',
+        'serial': 'C3221324700631',
+        'unattended': false,
+      },
+      'requestedAt': 1000,
+    });
+  });
+
+  testWidgets("each camera's switch shows its mode and sends a set request", (
+    tester,
+  ) async {
+    status = {
+      'state': 'ok',
+      'cameras': [
+        {
+          'name': 'Porch',
+          'serial': 'C3221324700631',
+          'deviceId': 'bold_red_fox',
+          'unattended': true,
+          'plugged': true,
+        },
+        {
+          'name': 'Older streamer',
+          'serial': '0123abc',
+          'deviceId': 'calm_blue_owl',
+          'plugged': true,
+        },
+      ],
+    };
+    await show(tester);
+    final porch = find.byKey(const Key('usbcam-unattended-bold_red_fox'));
+    expect(tester.widget<SwitchListTile>(porch).value, isTrue);
+    // A streamer that doesn't say has no such mode.
+    expect(
+      find.byKey(const Key('usbcam-unattended-calm_blue_owl')),
+      findsNothing,
+    );
+    await tester.tap(porch);
+    await tester.pumpAndSettle();
+    expect(sent.single.$1, 'calm_quiet_otter');
+    expect(sent.single.$2, 'usbcam.json');
+    expect(sent.single.$3, {
+      'set': {'deviceId': 'bold_red_fox', 'unattended': false},
+      'requestedAt': 1000,
+    });
+    // Shown as sent till the streamer answers, the switch waiting.
+    expect(tester.widget<SwitchListTile>(porch).value, isFalse);
+    expect(tester.widget<SwitchListTile>(porch).onChanged, isNull);
+    expect(find.textContaining('Sent to calm_quiet_otter'), findsOneWidget);
+  });
+
   testWidgets('a send that fails says so', (tester) async {
     status = {
       'state': 'ok',
@@ -222,6 +298,7 @@ void main() {
           'model': 'GoPro HERO7 Black',
           'serial': 'C3221324700632',
           'deviceId': 'automatic_paranoid_gadget',
+          'unattended': true,
           'plugged': true,
           'lastFetch': 1000,
         },

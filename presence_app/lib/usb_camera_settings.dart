@@ -15,7 +15,11 @@ import 'streamer_picker.dart';
 /// lists those it detects in its status (`usbcam-status.json`, read every
 /// [poll] while this shows); each is added with a name, known by its USB
 /// serial number (`usbcam.json`, sealed with the streamer's key:
-/// [CloudSync.putDeviceFile]), and becomes a device of its own. The
+/// [CloudSync.putDeviceFile]), and becomes a device of its own. Each is
+/// **unattended** unless turned off (on the add form, on by default, and
+/// per camera: `{set: {deviceId, unattended}}`): only the parts of its
+/// videos with movement are kept, and each video is deleted from the
+/// camera once fetched. The
 /// streamer is the one picked in [config] for `usbcam`, else whichever
 /// leads ([StreamerPicker]).
 class UsbCameraSettings extends StatefulWidget {
@@ -72,6 +76,14 @@ class UsbCameraSettings extends StatefulWidget {
 class _UsbCameraSettingsState extends State<UsbCameraSettings> {
   /// The name typed for each detected camera, by serial number.
   final Map<String, TextEditingController> _names = {};
+
+  /// Unattended, as picked on the add form, by serial number (on unless
+  /// turned off).
+  final Map<String, bool> _unattended = {};
+
+  /// Unattended as last sent for each camera, by device: shown till the
+  /// streamer answers.
+  final Map<String, bool> _setTo = {};
   String? _streamer;
   Map<String, Object?>? _status;
   Timer? _timer;
@@ -159,9 +171,21 @@ class _UsbCameraSettingsState extends State<UsbCameraSettings> {
   void _add(String serial, String model) {
     final name = _names[serial]?.text.trim() ?? '';
     _send({
-      'add': {'name': name.isEmpty ? model : name, 'serial': serial},
+      'add': {
+        'name': name.isEmpty ? model : name,
+        'serial': serial,
+        'unattended': _unattended[serial] ?? true,
+      },
       'requestedAt': _now().millisecondsSinceEpoch,
     });
+  }
+
+  Future<void> _setUnattended(String device, bool on) async {
+    final ok = await _send({
+      'set': {'deviceId': device, 'unattended': on},
+      'requestedAt': _now().millisecondsSinceEpoch,
+    });
+    if (ok && mounted) setState(() => _setTo[device] = on);
   }
 
   void _remove(String device) =>
@@ -283,7 +307,33 @@ class _UsbCameraSettingsState extends State<UsbCameraSettings> {
             ),
           ],
         ),
+        _unattendedSwitch(
+          _key('unattended-$serial'),
+          _unattended[serial] ?? true,
+          busy ? null : (on) => setState(() => _unattended[serial] = on),
+          quiet,
+        ),
       ],
+    );
+  }
+
+  /// Unattended: keep only the parts with movement, and delete videos from
+  /// the camera once fetched.
+  Widget _unattendedSwitch(
+    Key key,
+    bool value,
+    ValueChanged<bool>? onChanged,
+    TextStyle quiet,
+  ) {
+    final l = context.l10n;
+    return SwitchListTile(
+      key: key,
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      value: value,
+      onChanged: onChanged,
+      title: Text(l.usbcamUnattended),
+      subtitle: Text(l.usbcamUnattendedHint, style: quiet),
     );
   }
 
@@ -301,6 +351,11 @@ class _UsbCameraSettingsState extends State<UsbCameraSettings> {
     final error = c['error'] as String?;
     final lastFetch = (c['lastFetch'] as num?)?.toInt();
     final plugged = c['plugged'] == true;
+    // An older streamer doesn't say (nor has the mode); sent and not
+    // answered yet, the value sent.
+    final unattended = _state == 'waiting' && _setTo.containsKey(device)
+        ? _setTo[device]
+        : c['unattended'] as bool?;
     return Row(
       key: _key('camera-$device'),
       spacing: 8,
@@ -341,6 +396,13 @@ class _UsbCameraSettingsState extends State<UsbCameraSettings> {
                     ),
                   ),
                   style: quiet,
+                ),
+              if (unattended != null)
+                _unattendedSwitch(
+                  _key('unattended-$device'),
+                  unattended,
+                  busy ? null : (on) => _setUnattended(device, on),
+                  quiet,
                 ),
             ],
           ),
