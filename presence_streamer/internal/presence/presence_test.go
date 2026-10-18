@@ -184,3 +184,27 @@ func TestCredentialsTheAuthAPIGivesItself(t *testing.T) {
 		t.Fatalf("aws %+v, %v", aws, err)
 	}
 }
+
+func TestMemorySentWithTheLease(t *testing.T) {
+	var memory []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		memory = append(memory, r.Header.Get("X-Presence-Memory"))
+		w.Write([]byte(`{"leader":true,"streamLeader":{"device":"calm_quiet_otter","seenAt":1},"silenceMs":3600000}`))
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+
+	// The streamer says its memory: the auth API prefers more as the leader.
+	api := &API{BaseURL: srv.URL, Memory: 4 << 30}
+	if l, err := api.StreamLease(ctx, "psk_k", "automatic_paranoid_axolotl", "calm_quiet_otter"); err != nil || !l.Leader {
+		t.Fatalf("lease %+v, %v", l, err)
+	}
+	// Unknown memory: none said.
+	api = &API{BaseURL: srv.URL}
+	if _, err := api.StreamLease(ctx, "psk_k", "automatic_paranoid_axolotl", "calm_quiet_otter"); err != nil {
+		t.Fatal(err)
+	}
+	if len(memory) != 2 || memory[0] != "4294967296" || memory[1] != "" {
+		t.Fatalf("memory %q", memory)
+	}
+}

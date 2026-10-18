@@ -71,10 +71,11 @@ public final class Profiles {
 
     /**
      * The profile's leading streamer: the one device of its streamers that
-     * may stream ({@link ProfileHandler#STREAM_LEASE}), and when it last
-     * said it's alive.
+     * may stream ({@link ProfileHandler#STREAM_LEASE}), when it last
+     * said it's alive, and its memory (bytes, 0 unknown): a streamer with
+     * more takes its place.
      */
-    record Leader(String device, Instant seenAt) {
+    record Leader(String device, Instant seenAt, long memory) {
     }
 
     /** A subject linked to a profile, with its email as last seen. */
@@ -130,12 +131,14 @@ public final class Profiles {
         List<String> devices(String profileId);
 
         /**
-         * Makes {@code deviceId} the profile's leading streamer, seen
-         * {@code now}, when the profile has none, it leads already, or its
-         * leader was last seen before {@code staleBefore}: at most one wins
-         * when several ask at once. The leader after (null: no such profile).
+         * Makes {@code deviceId}, with {@code memory} (bytes, 0 unknown),
+         * the profile's leading streamer, seen {@code now}, when the
+         * profile has none, it leads already, its leader was last seen
+         * before {@code staleBefore}, or the leader has less memory (0, or
+         * none recorded, is less than any): at most one wins when several
+         * ask at once. The leader after (null: no such profile).
          */
-        Leader claimLeader(String profileId, String deviceId, Instant now, Instant staleBefore);
+        Leader claimLeader(String profileId, String deviceId, long memory, Instant now, Instant staleBefore);
 
         /** The profile's leading streamer, or null. */
         Leader leader(String profileId);
@@ -518,18 +521,24 @@ public final class Profiles {
             }
 
             @Override
-            public Leader claimLeader(String profileId, String deviceId, Instant now, Instant staleBefore) {
+            public Leader claimLeader(String profileId, String deviceId, long memory, Instant now,
+                                      Instant staleBefore) {
+                // Unknown memory (0) takes no leader's place by its memory.
+                var more = memory > 0
+                        ? " OR attribute_not_exists(streamLeaderMemory) OR streamLeaderMemory < :memory" : "";
                 try {
                     return leaderOf(dynamo.updateItem(UpdateItemRequest.builder()
                             .tableName(profilesTable)
                             .key(Map.of("id", AttributeValue.fromS(profileId)))
-                            .updateExpression("SET streamLeader = :device, streamLeaderSeenAt = :now")
-                            // One leader: two streamers taking over a silent
-                            // one at once can't both win.
+                            .updateExpression("SET streamLeader = :device, streamLeaderSeenAt = :now,"
+                                    + " streamLeaderMemory = :memory")
+                            // One leader: two streamers taking over a silent (or
+                            // smaller) one at once can't both win.
                             .conditionExpression("attribute_exists(id) AND (attribute_not_exists(streamLeader)"
-                                    + " OR streamLeader = :device OR streamLeaderSeenAt < :stale)")
+                                    + " OR streamLeader = :device OR streamLeaderSeenAt < :stale" + more + ")")
                             .expressionAttributeValues(Map.of(
                                     ":device", AttributeValue.fromS(deviceId),
+                                    ":memory", AttributeValue.fromN(Long.toString(memory)),
                                     ":now", AttributeValue.fromN(Long.toString(now.toEpochMilli())),
                                     ":stale", AttributeValue.fromN(Long.toString(staleBefore.toEpochMilli()))))
                             .returnValues(ReturnValue.ALL_NEW)
@@ -554,7 +563,7 @@ public final class Profiles {
                     dynamo.updateItem(UpdateItemRequest.builder()
                             .tableName(profilesTable)
                             .key(Map.of("id", AttributeValue.fromS(profileId)))
-                            .updateExpression("REMOVE streamLeader, streamLeaderSeenAt")
+                            .updateExpression("REMOVE streamLeader, streamLeaderSeenAt, streamLeaderMemory")
                             .conditionExpression("streamLeader = :device")
                             .expressionAttributeValues(Map.of(":device", AttributeValue.fromS(deviceId)))
                             .build());
@@ -573,7 +582,9 @@ public final class Profiles {
         }
         var seen = item.get("streamLeaderSeenAt");
         var millis = seen == null || seen.n() == null ? 0L : Long.parseLong(seen.n());
-        return new Leader(device.s(), Instant.ofEpochMilli(millis));
+        var memory = item.get("streamLeaderMemory");
+        return new Leader(device.s(), Instant.ofEpochMilli(millis),
+                memory == null || memory.n() == null ? 0L : Long.parseLong(memory.n()));
     }
 
     /** The {@code devices} list of a profile's item, in order; empty without one. */

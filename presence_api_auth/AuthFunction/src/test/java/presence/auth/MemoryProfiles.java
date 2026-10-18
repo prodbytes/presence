@@ -129,13 +129,15 @@ class MemoryProfiles implements Profiles.Store {
     final Map<String, Profiles.Leader> leaders = new HashMap<>();
 
     @Override
-    public Profiles.Leader claimLeader(String profileId, String deviceId, Instant now, Instant staleBefore) {
+    public Profiles.Leader claimLeader(String profileId, String deviceId, long memory, Instant now,
+                                       Instant staleBefore) {
         if (!profiles.containsKey(profileId)) {
             return null;
         }
         var current = leaders.get(profileId);
-        if (current == null || current.device().equals(deviceId) || current.seenAt().isBefore(staleBefore)) {
-            leaders.put(profileId, new Profiles.Leader(deviceId, now));
+        if (current == null || current.device().equals(deviceId) || current.seenAt().isBefore(staleBefore)
+                || (memory > 0 && current.memory() < memory)) {
+            leaders.put(profileId, new Profiles.Leader(deviceId, now, memory));
         }
         return leaders.get(profileId);
     }

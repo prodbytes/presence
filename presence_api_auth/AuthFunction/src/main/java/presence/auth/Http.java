@@ -63,4 +63,22 @@ final class Http {
         var value = headers.getOrDefault("authorization", headers.getOrDefault("Authorization", ""));
         return value.regionMatches(true, 0, "Bearer ", 0, 7) ? value.substring(7).strip() : value.strip();
     }
+
+    /** The most memory a streamer can say it has: 1 PiB (more is junk). */
+    static final long MAX_MEMORY = 1L << 50;
+
+    /**
+     * A streamer's memory, {@code X-Presence-Memory: <bytes>} (its total
+     * RAM), which the leadership prefers more of; 0 when it's missing or
+     * not a number of bytes up to {@link #MAX_MEMORY} (older streamers).
+     */
+    static long memory(APIGatewayV2HTTPEvent event) {
+        Map<String, String> headers = event == null || event.getHeaders() == null ? Map.of() : event.getHeaders();
+        var value = headers.getOrDefault("x-presence-memory", headers.getOrDefault("X-Presence-Memory", "")).strip();
+        if (value.isEmpty() || value.length() > 16 || !value.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            return 0;
+        }
+        var bytes = Long.parseLong(value);
+        return bytes > MAX_MEMORY ? 0 : bytes;
+    }
 }
