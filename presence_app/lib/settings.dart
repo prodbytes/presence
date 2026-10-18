@@ -25,6 +25,7 @@ class SettingsView extends StatefulWidget {
     this.addDevice,
     this.blink,
     this.gopro,
+    this.reolink,
     this.location,
     this.tiles,
     this.onMapHeld,
@@ -93,9 +94,10 @@ class SettingsView extends StatefulWidget {
   /// profile with cloud sync. None: no section.
   final Widget? blink;
 
-  /// After it, **GoPro cameras** (`GoProSettings`): for a premium profile
-  /// with cloud sync. None: no section.
-  final Widget? gopro;
+  /// After it, **GoPro cameras** and **Reolink cameras**
+  /// (`NetCameraSettings`): for a premium profile with cloud sync. None: no
+  /// section.
+  final Widget? gopro, reolink;
 
   /// The app's configuration; every control edits it.
   final ConfigController config;
@@ -631,12 +633,18 @@ class _SettingsViewState extends State<SettingsView> {
                 title: l.settingsBlinkSection,
                 children: [blink],
               ),
-            // Then a Linux streamer fetching GoPro cameras' videos.
+            // Then a Linux streamer fetching GoPro's and Reolink's cameras' videos.
             if (widget.gopro case final gopro?)
               SettingsSection(
                 key: const Key('gopro-section'),
                 title: l.settingsGoProSection,
                 children: [gopro],
+              ),
+            if (widget.reolink case final reolink?)
+              SettingsSection(
+                key: const Key('reolink-section'),
+                title: l.settingsReolinkSection,
+                children: [reolink],
               ),
           ],
         );

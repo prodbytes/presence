@@ -337,25 +337,25 @@
   "settingsGoProSection": "GoPro cameras",
   "goproAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.",
   "goproNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the GoPro cameras' videos.",
-  "goproStreamer": "The streamer that fetches them",
-  "goproName": "Camera name",
-  "goproAddress": "Camera address",
+  "netcamStreamer": "The streamer that fetches them",
+  "netcamName": "Camera name",
+  "netcamAddress": "Camera address",
   "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",
   "goproPassword": "Camera password (home network only)",
-  "goproPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted from the cloud once the streamer has it.",
-  "goproAdd": "Add camera",
-  "goproRemove": "Remove",
+  "netcamPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted from the cloud once the streamer has it.",
+  "netcamAdd": "Add camera",
+  "netcamRemove": "Remove",
   "goproNone": "No GoPro cameras yet.",
   "goproCameras": "Its GoPro cameras:",
-  "goproWaiting": "Sent to {device}; it looks every 30 s…",
-  "@goproWaiting": {
+  "netcamWaiting": "Sent to {device}; it looks every 30 s…",
+  "@netcamWaiting": {
     "placeholders": {
       "device": {
         "type": "String"
       }
     }
   },
-  "goproChecking": "Reaching the camera…",
+  "netcamChecking": "Reaching the camera…",
   "goproError": "GoPro: {error}",
   "@goproError": {
     "placeholders": {
@@ -364,21 +364,47 @@
       }
     }
   },
-  "goproCameraError": "Can't fetch: {error}",
-  "@goproCameraError": {
+  "netcamCameraError": "Can't fetch: {error}",
+  "@netcamCameraError": {
     "placeholders": {
       "error": {
         "type": "String"
       }
     }
   },
-  "goproLastFetch": "Videos last fetched at {time}.",
-  "@goproLastFetch": {
+  "netcamLastFetch": "Videos last fetched at {time}.",
+  "@netcamLastFetch": {
     "placeholders": {
       "time": {
         "type": "String"
       }
     }
   },
-  "goproNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute."
+  "netcamNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "netcamUsername": "User",
+  "netcamChannel": "Channel (an NVR's camera)",
+  "netcamChannelHelp": "0 for a camera on its own, or an NVR's first camera.",
+  "settingsReolinkSection": "Reolink cameras",
+  "reolinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR's disk, with HTTPS on (its network settings).",
+  "reolinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Reolink cameras' recordings.",
+  "reolinkAddressHelp": "Its IP address on your network, as the Reolink app shows it (Settings › Network information).",
+  "reolinkPassword": "Camera password",
+  "reolinkNone": "No Reolink cameras yet.",
+  "reolinkCameras": "Its Reolink cameras:",
+  "reolinkError": "Reolink: {error}",
+  "@reolinkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamChannelOf": "channel {channel}",
+  "@netcamChannelOf": {
+    "placeholders": {
+      "channel": {
+        "type": "int"
+      }
+    }
+  }
 }

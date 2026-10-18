@@ -7020,3 +7020,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       pipeline (`os: GoPro`). Blink's per-camera pipelines are shared
       with GoPro's (`main_cameras.go`). Specs: [GoPro cameras](gopro.md)
       (new), [Streamer](streamer.md), [Settings](settings.md).
+
+479. **Reolink cameras through a streamer.** (2026-10-18)
+    - Asked: also support Reolink cameras on the streamer, configured in
+      the app, like GoPro's.
+    - Changed: Settings' last section, Reolink cameras: pick the Linux
+      streamer, add a camera (name, address, user, password, an NVR's
+      channel), list and remove them; sealed to that streamer
+      (`reolink.json`, answered in `reolink-status.json`). The streamer
+      logs in to the camera's HTTP API over HTTPS (certificate pinned),
+      keeps the login, deletes the request, gives the camera a device
+      ID, and every 2 minutes searches a day at a time for its new motion
+      recordings (the sub stream's by default) and fetches them into the
+      camera's own pipeline (`os: Reolink`), logging out after.
+      GoPro's request, status and fetching code became the shared
+      `netcam` package, with GoPro and Reolink as its kinds
+      (`main_netcams.go`); the app's GoPro section became
+      `NetCameraSettings`, shared by both, its common strings `netcam*`.
+      Specs: [Reolink cameras](reolink.md) (new), [GoPro
+      cameras](gopro.md), [Streamer](streamer.md), [Settings](settings.md).

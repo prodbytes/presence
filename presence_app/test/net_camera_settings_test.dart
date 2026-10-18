@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:presence_app/gopro_settings.dart';
+import 'package:presence_app/net_camera_settings.dart';
 import 'package:presence_app/l10n/gen/app_localizations.dart';
 
 void main() {
@@ -12,6 +12,7 @@ void main() {
   Future<void> show(
     WidgetTester tester, {
     List<String> streamers = const ['calm_quiet_otter'],
+    NetCameraKind? kind,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -19,7 +20,8 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: SingleChildScrollView(
-            child: GoProSettings(
+            child: NetCameraSettings(
+              kind: kind ?? NetCameraKind.gopro,
               streamers: () => streamers,
               putFile: (device, name, json) async {
                 if (!sendWorks) return false;
@@ -147,5 +149,55 @@ void main() {
           .text,
       '172.24.106.51',
     );
+  });
+
+  testWidgets('Reolink: a user, a password (needed) and an NVR channel go '
+      'to its own file', (tester) async {
+    await show(tester, kind: NetCameraKind.reolink);
+    expect(find.text('No Reolink cameras yet.'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('reolink-name')), 'Porch');
+    await tester.enterText(
+      find.byKey(const Key('reolink-address')),
+      '192.168.1.60',
+    );
+    // No password: nothing sent.
+    await tester.ensureVisible(find.byKey(const Key('reolink-add')));
+    await tester.tap(find.byKey(const Key('reolink-add')));
+    await tester.pumpAndSettle();
+    expect(sent, isEmpty);
+
+    await tester.enterText(find.byKey(const Key('reolink-password')), 'pw');
+    await tester.enterText(find.byKey(const Key('reolink-channel')), '2');
+    await tester.ensureVisible(find.byKey(const Key('reolink-add')));
+    await tester.tap(find.byKey(const Key('reolink-add')));
+    await tester.pumpAndSettle();
+    expect(sent.single.$2, 'reolink.json');
+    expect(sent.single.$3, {
+      'add': {
+        'name': 'Porch',
+        'address': '192.168.1.60',
+        'username': 'admin',
+        'password': 'pw',
+        'channel': 2,
+      },
+      'requestedAt': 1000,
+    });
+
+    status = {
+      'state': 'ok',
+      'requestedAt': 1000,
+      'cameras': [
+        {
+          'name': 'Porch',
+          'deviceId': 'bold_red_fox',
+          'address': 'https://192.168.1.60',
+          'channel': 2,
+        },
+      ],
+    };
+    await tester.pumpWidget(Container());
+    await show(tester, kind: NetCameraKind.reolink);
+    expect(find.text('Its Reolink cameras:'), findsOneWidget);
+    expect(find.text('https://192.168.1.60 · channel 2'), findsOneWidget);
   });
 }

@@ -2566,29 +2566,11 @@ abstract class AppLocalizations {
   /// **'A Linux streamer of yours (a Raspberry Pi) fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi.'**
   String get goproAbout;
 
-  /// No description provided for @goproAdd.
-  ///
-  /// In en, this message translates to:
-  /// **'Add camera'**
-  String get goproAdd;
-
-  /// No description provided for @goproAddress.
-  ///
-  /// In en, this message translates to:
-  /// **'Camera address'**
-  String get goproAddress;
-
   /// No description provided for @goproAddressHelp.
   ///
   /// In en, this message translates to:
   /// **'Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera\'s Wi-Fi 10.5.5.9.'**
   String get goproAddressHelp;
-
-  /// No description provided for @goproCameraError.
-  ///
-  /// In en, this message translates to:
-  /// **'Can\'t fetch: {error}'**
-  String goproCameraError(String error);
 
   /// No description provided for @goproCameras.
   ///
@@ -2596,29 +2578,11 @@ abstract class AppLocalizations {
   /// **'Its GoPro cameras:'**
   String get goproCameras;
 
-  /// No description provided for @goproChecking.
-  ///
-  /// In en, this message translates to:
-  /// **'Reaching the camera…'**
-  String get goproChecking;
-
   /// No description provided for @goproError.
   ///
   /// In en, this message translates to:
   /// **'GoPro: {error}'**
   String goproError(String error);
-
-  /// No description provided for @goproLastFetch.
-  ///
-  /// In en, this message translates to:
-  /// **'Videos last fetched at {time}.'**
-  String goproLastFetch(String time);
-
-  /// No description provided for @goproName.
-  ///
-  /// In en, this message translates to:
-  /// **'Camera name'**
-  String get goproName;
 
   /// No description provided for @goproNoStreamer.
   ///
@@ -2632,41 +2596,11 @@ abstract class AppLocalizations {
   /// **'No GoPro cameras yet.'**
   String get goproNone;
 
-  /// No description provided for @goproNotSent.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t send it: the streamer\'s key isn\'t here yet, or cloud sync is off. Try again in a minute.'**
-  String get goproNotSent;
-
   /// No description provided for @goproPassword.
   ///
   /// In en, this message translates to:
   /// **'Camera password (home network only)'**
   String get goproPassword;
-
-  /// No description provided for @goproPasswordNote.
-  ///
-  /// In en, this message translates to:
-  /// **'Sealed with the streamer\'s key (only your devices can open it) and deleted from the cloud once the streamer has it.'**
-  String get goproPasswordNote;
-
-  /// No description provided for @goproRemove.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove'**
-  String get goproRemove;
-
-  /// No description provided for @goproStreamer.
-  ///
-  /// In en, this message translates to:
-  /// **'The streamer that fetches them'**
-  String get goproStreamer;
-
-  /// No description provided for @goproWaiting.
-  ///
-  /// In en, this message translates to:
-  /// **'Sent to {device}; it looks every 30 s…'**
-  String goproWaiting(String device);
 
   /// No description provided for @healthApiAnswered.
   ///
@@ -3346,6 +3280,138 @@ abstract class AppLocalizations {
   /// **'Signed in as {identity}'**
   String navSignedInAs(String identity);
 
+  /// No description provided for @netcamAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add camera'**
+  String get netcamAdd;
+
+  /// No description provided for @netcamAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera address'**
+  String get netcamAddress;
+
+  /// No description provided for @netcamCameraError.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t fetch: {error}'**
+  String netcamCameraError(String error);
+
+  /// No description provided for @netcamChannel.
+  ///
+  /// In en, this message translates to:
+  /// **'Channel (an NVR\'s camera)'**
+  String get netcamChannel;
+
+  /// No description provided for @netcamChannelHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'0 for a camera on its own, or an NVR\'s first camera.'**
+  String get netcamChannelHelp;
+
+  /// No description provided for @netcamChannelOf.
+  ///
+  /// In en, this message translates to:
+  /// **'channel {channel}'**
+  String netcamChannelOf(int channel);
+
+  /// No description provided for @netcamChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaching the camera…'**
+  String get netcamChecking;
+
+  /// No description provided for @netcamLastFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos last fetched at {time}.'**
+  String netcamLastFetch(String time);
+
+  /// No description provided for @netcamName.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera name'**
+  String get netcamName;
+
+  /// No description provided for @netcamNotSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send it: the streamer\'s key isn\'t here yet, or cloud sync is off. Try again in a minute.'**
+  String get netcamNotSent;
+
+  /// No description provided for @netcamPasswordNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sealed with the streamer\'s key (only your devices can open it) and deleted from the cloud once the streamer has it.'**
+  String get netcamPasswordNote;
+
+  /// No description provided for @netcamRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get netcamRemove;
+
+  /// No description provided for @netcamStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'The streamer that fetches them'**
+  String get netcamStreamer;
+
+  /// No description provided for @netcamUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get netcamUsername;
+
+  /// No description provided for @netcamWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent to {device}; it looks every 30 s…'**
+  String netcamWaiting(String device);
+
+  /// No description provided for @reolinkAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A Linux streamer of yours (a Raspberry Pi) fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).'**
+  String get reolinkAbout;
+
+  /// No description provided for @reolinkAddressHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Its IP address on your network, as the Reolink app shows it (Settings › Network information).'**
+  String get reolinkAddressHelp;
+
+  /// No description provided for @reolinkCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'Its Reolink cameras:'**
+  String get reolinkCameras;
+
+  /// No description provided for @reolinkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Reolink: {error}'**
+  String reolinkError(String error);
+
+  /// No description provided for @reolinkNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Reolink cameras\' recordings.'**
+  String get reolinkNoStreamer;
+
+  /// No description provided for @reolinkNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No Reolink cameras yet.'**
+  String get reolinkNone;
+
+  /// No description provided for @reolinkPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera password'**
+  String get reolinkPassword;
+
   /// No description provided for @settingsAddDeviceCopy.
   ///
   /// In en, this message translates to:
@@ -4011,6 +4077,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not available on this device yet'**
   String get settingsRecognitionUnavailable;
+
+  /// No description provided for @settingsReolinkSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Reolink cameras'**
+  String get settingsReolinkSection;
 
   /// No description provided for @settingsSameAsClip.
   ///

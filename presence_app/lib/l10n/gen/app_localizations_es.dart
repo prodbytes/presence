@@ -1556,38 +1556,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Un streamer Linux tuyo (una Raspberry Pi) trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi.';
 
   @override
-  String get goproAdd => 'Agregar cámara';
-
-  @override
-  String get goproAddress => 'Dirección de la cámara';
-
-  @override
   String get goproAddressHelp =>
       'Su dirección IP: en la red de casa, la que muestra la app GoPro Quik; por USB 172.2x.1yz.51; en el Wi-Fi de la cámara 10.5.5.9.';
-
-  @override
-  String goproCameraError(String error) {
-    return 'No se pueden traer: $error';
-  }
 
   @override
   String get goproCameras => 'Sus cámaras GoPro:';
 
   @override
-  String get goproChecking => 'Conectando con la cámara…';
-
-  @override
   String goproError(String error) {
     return 'GoPro: $error';
   }
-
-  @override
-  String goproLastFetch(String time) {
-    return 'Videos traídos por última vez a las $time.';
-  }
-
-  @override
-  String get goproName => 'Nombre de la cámara';
 
   @override
   String get goproNoStreamer =>
@@ -1597,26 +1575,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get goproNone => 'Aún no hay cámaras GoPro.';
 
   @override
-  String get goproNotSent =>
-      'No se pudo enviar: la clave del streamer aún no está aquí, o la sincronización está apagada. Inténtalo en un minuto.';
-
-  @override
   String get goproPassword => 'Contraseña de la cámara (solo red de casa)';
-
-  @override
-  String get goproPasswordNote =>
-      'Sellada con la clave del streamer (solo tus dispositivos la abren) y borrada de la nube cuando el streamer la tiene.';
-
-  @override
-  String get goproRemove => 'Quitar';
-
-  @override
-  String get goproStreamer => 'El streamer que los trae';
-
-  @override
-  String goproWaiting(String device) {
-    return 'Enviado a $device; revisa cada 30 s…';
-  }
 
   @override
   String healthApiAnswered(String mode) {
@@ -2053,6 +2012,88 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get netcamAdd => 'Agregar cámara';
+
+  @override
+  String get netcamAddress => 'Dirección de la cámara';
+
+  @override
+  String netcamCameraError(String error) {
+    return 'No se pueden traer: $error';
+  }
+
+  @override
+  String get netcamChannel => 'Canal (una cámara de un NVR)';
+
+  @override
+  String get netcamChannelHelp =>
+      '0 para una cámara sola, o la primera cámara de un NVR.';
+
+  @override
+  String netcamChannelOf(int channel) {
+    return 'canal $channel';
+  }
+
+  @override
+  String get netcamChecking => 'Conectando con la cámara…';
+
+  @override
+  String netcamLastFetch(String time) {
+    return 'Videos traídos por última vez a las $time.';
+  }
+
+  @override
+  String get netcamName => 'Nombre de la cámara';
+
+  @override
+  String get netcamNotSent =>
+      'No se pudo enviar: la clave del streamer aún no está aquí, o la sincronización está apagada. Inténtalo en un minuto.';
+
+  @override
+  String get netcamPasswordNote =>
+      'Sellada con la clave del streamer (solo tus dispositivos la abren) y borrada de la nube cuando el streamer la tiene.';
+
+  @override
+  String get netcamRemove => 'Quitar';
+
+  @override
+  String get netcamStreamer => 'El streamer que los trae';
+
+  @override
+  String get netcamUsername => 'Usuario';
+
+  @override
+  String netcamWaiting(String device) {
+    return 'Enviado a $device; revisa cada 30 s…';
+  }
+
+  @override
+  String get reolinkAbout =>
+      'Un streamer Linux tuyo (una Raspberry Pi) trae las grabaciones que tus cámaras Reolink (o tu NVR) hacen al detectar movimiento, por su red: cada cámara es un dispositivo, y sus grabaciones con una persona o un animal se vuelven eventos. La cámara graba en su tarjeta SD o en el disco del NVR, con HTTPS activado (en su configuración de red).';
+
+  @override
+  String get reolinkAddressHelp =>
+      'Su dirección IP en tu red, como la muestra la app Reolink (Configuración › Información de red).';
+
+  @override
+  String get reolinkCameras => 'Sus cámaras Reolink:';
+
+  @override
+  String reolinkError(String error) {
+    return 'Reolink: $error';
+  }
+
+  @override
+  String get reolinkNoStreamer =>
+      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae las grabaciones de las cámaras Reolink.';
+
+  @override
+  String get reolinkNone => 'Aún no hay cámaras Reolink.';
+
+  @override
+  String get reolinkPassword => 'Contraseña de la cámara';
+
+  @override
   String get settingsAddDeviceCopy => 'Copiar enlace';
 
   @override
@@ -2476,6 +2517,9 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get settingsRecognitionUnavailable =>
       'Aún no disponible en este dispositivo';
+
+  @override
+  String get settingsReolinkSection => 'Cámaras Reolink';
 
   @override
   String get settingsSameAsClip => 'Igual que pulsar Clip';

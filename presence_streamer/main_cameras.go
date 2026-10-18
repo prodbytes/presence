@@ -13,7 +13,7 @@ import (
 	"github.com/prodbytes/presence/presence_streamer/internal/stream"
 )
 
-// cameraRef is a camera this streamer fetches for (Blink's, GoPro's): its
+// cameraRef is a camera this streamer fetches for (Blink's, GoPro's, Reolink's): its
 // device and its name.
 type cameraRef struct {
 	DeviceID, Name string

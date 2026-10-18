@@ -28,11 +28,14 @@ import (
 
 	"github.com/prodbytes/presence/presence_streamer/internal/detect"
 	"github.com/prodbytes/presence/presence_streamer/internal/google"
+	"github.com/prodbytes/presence/presence_streamer/internal/gopro"
 	"github.com/prodbytes/presence/presence_streamer/internal/ids"
+	"github.com/prodbytes/presence/presence_streamer/internal/netcam"
 	"github.com/prodbytes/presence/presence_streamer/internal/presence"
 	"github.com/prodbytes/presence/presence_streamer/internal/rclone"
 	"github.com/prodbytes/presence/presence_streamer/internal/recorder"
 	"github.com/prodbytes/presence/presence_streamer/internal/records"
+	"github.com/prodbytes/presence/presence_streamer/internal/reolink"
 	"github.com/prodbytes/presence/presence_streamer/internal/session"
 	"github.com/prodbytes/presence/presence_streamer/internal/state"
 	"github.com/prodbytes/presence/presence_streamer/internal/stream"
@@ -67,8 +70,12 @@ type options struct {
 	blinkEvery         time.Duration
 	// GoPro (specs/gopro.md): auto or off; low (the cameras' low-resolution
 	// copies) or full videos; how often videos are fetched.
-	gopro, goproVideo                                         string
-	goproEvery                                                time.Duration
+	gopro, goproVideo string
+	goproEvery        time.Duration
+	// Reolink (specs/reolink.md): auto or off; low (the sub stream's
+	// recordings) or full (the main stream's); how often they're fetched.
+	reolink, reolinkVideo                                     string
+	reolinkEvery                                              time.Duration
 	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
 }
 
@@ -243,6 +250,13 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 		goproEvery = 2 * time.Minute
 	}
 	fs.DurationVar(&o.goproEvery, "gopro-every", goproEvery, "how often GoPro cameras' new videos are fetched")
+	fs.StringVar(&o.reolink, "reolink", env("REOLINK", "auto"), "Reolink cameras: auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.reolinkVideo, "reolink-video", env("REOLINK_VIDEO", "low"), "Reolink recordings fetched: low (the sub stream's, when the camera records it) or full (the main stream's)")
+	reolinkEvery, err := time.ParseDuration(env("REOLINK_EVERY", "2m"))
+	if err != nil {
+		reolinkEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.reolinkEvery, "reolink-every", reolinkEvery, "how often Reolink cameras' new recordings are fetched")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
 	fs.StringVar(&o.ffmpeg, "ffmpeg", env("FFMPEG", "ffmpeg"), "ffmpeg")
 	fs.StringVar(&o.ffprobe, "ffprobe", env("FFPROBE", "ffprobe"), "ffprobe")
@@ -866,23 +880,37 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
-	// Blink's and GoPro's cameras, when this streamer is the one the app
-	// picked: their devices join the profile's at each renewal.
-	blinkCameras, runBlink := startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
-	goproCameras, runGoPro := startGoPro(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+	// Blink's, GoPro's and Reolink's cameras, when this streamer is the one
+	// the app picked: their devices join the profile's at each renewal.
+	var cameras []func() []string
+	var runs []func()
+	if devices, run := startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf); run != nil {
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
+	for _, n := range []struct {
+		on    string
+		kind  netcam.Kind
+		os    string
+		every time.Duration
+	}{
+		{o.gopro, gopro.Kind{Full: o.goproVideo == "full"}, "GoPro", o.goproEvery},
+		{o.reolink, reolink.Kind{Full: o.reolinkVideo == "full"}, "Reolink", o.reolinkEvery},
+	} {
+		if n.on == "off" {
+			continue
+		}
+		devices, run := startNetcam(ctx, n.kind, n.os, n.every, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
 	sess.Cameras = func() []string {
 		var out []string
-		for _, ids := range []func() []string{blinkCameras, goproCameras} {
-			if ids != nil {
-				out = append(out, ids()...)
-			}
+		for _, devices := range cameras {
+			out = append(out, devices()...)
 		}
 		return out
 	}
-	for _, run := range []func(){runBlink, runGoPro} {
-		if run != nil {
-			run()
-		}
+	for _, run := range runs {
+		run()
 	}
 	// Only while it leads the profile's streamers.
 	go keepLease(ctx, sess, cancel, logf)

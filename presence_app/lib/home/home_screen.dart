@@ -22,7 +22,7 @@ import '../clips.dart';
 import '../cloud/cloud_sync.dart';
 import '../config.dart';
 import '../delete_device.dart';
-import '../gopro_settings.dart';
+import '../net_camera_settings.dart';
 import '../show_device.dart';
 import '../device_events.dart';
 import '../events.dart';
@@ -177,6 +177,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// accounts to write from): a button at the top right of Setup and
   /// Profile ([HomeAppBar.onHelp]), no longer a tab.
   bool get _showHelp => !_dev && _hasAccess;
+
+  /// Settings' section for a kind of network camera (GoPro, Reolink): a
+  /// premium profile with cloud sync, not in DEV.
+  Widget? _netCameras(NetCameraKind kind) =>
+      switch ((widget.sync, widget.roles.profile)) {
+        (final sync?, final profile?)
+            when !_dev && (widget.roles.isPremium || widget.roles.isAdmin) =>
+          NetCameraSettings.of(
+            kind: kind,
+            sync: sync,
+            log: widget.log,
+            profileId: profile,
+            thisDevice: widget.deviceId,
+          ),
+        _ => null,
+      };
 
   /// Opens Help as a page of its own, over the tabs.
   void _openHelp() {
@@ -681,18 +697,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     _ => null,
                   },
-                  gopro: switch ((widget.sync, widget.roles.profile)) {
-                    (final sync?, final profile?)
-                        when !_dev &&
-                            (widget.roles.isPremium || widget.roles.isAdmin) =>
-                      GoProSettings.of(
-                        sync: sync,
-                        log: widget.log,
-                        profileId: profile,
-                        thisDevice: widget.deviceId,
-                      ),
-                    _ => null,
-                  },
+                  gopro: _netCameras(NetCameraKind.gopro),
+                  reolink: _netCameras(NetCameraKind.reolink),
                   liveAdmin: widget.roles.isAdmin,
                   liveFree:
                       widget.roles.hasAccess &&

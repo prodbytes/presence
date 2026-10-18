@@ -27,6 +27,8 @@ abstract final class DeviceOs {
       'Blink' => Icons.videocam_outlined,
       // A GoPro camera a streamer fetches for (specs/gopro.md).
       'GoPro' => Icons.videocam_outlined,
+      // A Reolink camera a streamer fetches for (specs/reolink.md).
+      'Reolink' => Icons.videocam_outlined,
       _ => Icons.devices_other,
     };
   }
