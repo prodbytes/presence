@@ -253,7 +253,8 @@ issuer), `AppleClientIds` (`APPLE_CLIENT_IDS`, default
 `AppleKeyId` and `AppleKeyParameter` (`APPLE_TEAM_ID`, as for the App
 Store build, `APPLE_SIGNIN_KEY_ID` and `APPLE_SIGNIN_KEY_PARAMETER`, a
 parameter under `/<prefix>/`; environment, `.env`, or in CI the
-repository variables of the same names), checks the stack's
+repository variables of the same names, the RC's parameter being
+`APPLE_SIGNIN_KEY_PARAMETER_RC`), checks the stack's
 `SessionIssuer` output is `https://<site>`, and passes it to the
 payments stack. Its smoke test requires the site's
 `/.well-known/openid-configuration` to name that issuer and its
