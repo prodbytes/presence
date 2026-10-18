@@ -699,9 +699,19 @@ and Reolink's cameras share the per-camera pipelines (`main_cameras.go`).
   - **Built package:** in the Lambda arm64 image, with sealed jobs in a
     local S3, the person's chunk was stored (`human` 0.994) and its
     recording opened identical, and the empty one was deleted.
-- **Not yet:** a Pi 4 or 5 (searching on the device), USB cameras,
-  systemd at boot, a real Google sign-in, and the real bucket and deployed
-  function (the next release and deploy).
+- **On a real Raspberry Pi 4** (2026-10-18): 8 GB, Debian 13 arm64, a
+  USB Logitech C920, release 0.7.202610181624-GA, installed headless with
+  the app's stream-key command (the arm64 `.deb`, with OpenCV):
+  - **Recording:** `auto` chose the USB camera (`v4l2`, `/dev/video0`)
+    with the hardware encoder (`h264_v4l2m2m`), 1280x720 at 15 fps.
+  - **Detection:** on the device (7819 MB of memory). A chunk with a
+    person (`human` 0.62) was stored as an event in the real bucket and
+    deleted from the Pi; still chunks were deleted without an upload.
+  - **Boot:** after a reboot the service started by itself (it waits for
+    the network to set the clock) and ran with no restarts; the chunk the
+    reboot cut off was found broken and deleted.
+- **Not yet:** a Pi 5, a camera module on a Pi 4 or 5, and a real Google
+  sign-in.
 
 ## Known limitations
 

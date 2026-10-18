@@ -7110,3 +7110,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `scripts/device-id.sh [count]` runs the app's
        `DeviceId.generate()` with `dart` and prints `count` IDs (default 1).
        Specs: [Devices, users and places](devices-users-places.md).
+
+485. **A new Raspberry Pi 4 streams to the profile.** (2026-10-18)
+     - Asked: install the streamer on a new Pi at 192.168.1.116, reboot it,
+       and make sure it stays healthy and its clips come through.
+     - Changed: no code. Installed with the app's stream-key command; it
+       records from its USB C920 with the hardware encoder, detects on the
+       device, came back by itself after a reboot, and stored a clip with a
+       person as an event. Specs: [Streamer](streamer.md) (verified on a Pi 4
+       with a USB camera and at boot).
