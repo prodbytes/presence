@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'device_slots.dart';
@@ -84,28 +85,41 @@ class CognitoCredentials {
   final DateTime Function() _now;
 
   CognitoSession? _session;
+
+  /// Whose [_session] is: [accountOf] the token it was fetched with.
+  String? _sessionAccount;
+
+  /// The token [_session] was fetched with.
   String? _sessionToken;
 
-  /// The fetch of a session under way, and the token it's for: callers
-  /// asking meanwhile share it (one auth API and Cognito call, not one
-  /// each).
+  /// The fetch of a session under way, and whose it is ([accountOf]):
+  /// callers asking meanwhile share it (one auth API and Cognito call, not
+  /// one each).
   Future<CognitoSession>? _inFlight;
-  String? _inFlightToken;
+  String? _inFlightAccount;
 
   /// Bumped by [clear]: a fetch that started before isn't kept.
   int _epoch = 0;
 
-  /// A session for [idToken], reused until its credentials expire soon or
-  /// the token changes. Calls made while one is being fetched for the same
-  /// token share it.
+  /// A session for [idToken] (a Presence session token), reused until its
+  /// credentials expire soon or [clear] (a sign-out, another profile or
+  /// account, a change of plan, which changes the credentials' `tier`
+  /// tag, or credentials AWS rejected). It's kept across a refreshed
+  /// session token of the same account ([accountOf]): the token rotates
+  /// about hourly, the credentials last about as long. Another account's
+  /// token never gets it; credentials without an expiry are kept for
+  /// their own token only. Calls made while one is being fetched for the
+  /// same account share it.
   Future<CognitoSession> session(String idToken) {
+    final account = accountOf(idToken);
     final current = _session;
     if (current != null &&
-        _sessionToken == idToken &&
+        _sessionAccount == account &&
+        (current.credentials.expiration != null || _sessionToken == idToken) &&
         !current.credentials.expiresSoon(_now())) {
       return Future.value(current);
     }
-    if (_inFlight case final fetching? when _inFlightToken == idToken) {
+    if (_inFlight case final fetching? when _inFlightAccount == account) {
       return fetching;
     }
     final epoch = _epoch;
@@ -113,19 +127,44 @@ class CognitoCredentials {
       // Not after a clear() (a sign-out, or rejected credentials).
       if (epoch == _epoch) {
         _session = session;
+        _sessionAccount = account;
         _sessionToken = idToken;
       }
       return session;
     });
     _inFlight = fetch;
-    _inFlightToken = idToken;
+    _inFlightAccount = account;
     fetch.whenComplete(() {
       if (identical(_inFlight, fetch)) {
         _inFlight = null;
-        _inFlightToken = null;
+        _inFlightAccount = null;
       }
     }).ignore();
     return fetch;
+  }
+
+  /// Whose [idToken] is: the Presence session token's issuer and subject
+  /// (`<iss>#<sub>`, the same for each refreshed token of an account), or
+  /// the token itself when it isn't a JWT with both. Read, not verified:
+  /// it only picks the cached session; the auth API checks each token it
+  /// gets.
+  @visibleForTesting
+  static String accountOf(String idToken) {
+    final parts = idToken.split('.');
+    if (parts.length == 3) {
+      try {
+        final claims = jsonDecode(
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+        );
+        if (claims case {'iss': final String iss, 'sub': final String sub}
+            when iss.isNotEmpty && sub.isNotEmpty) {
+          return 'jwt:$iss#$sub';
+        }
+      } catch (_) {
+        // Not a JWT: the token itself.
+      }
+    }
+    return 'token:$idToken';
   }
 
   Future<CognitoSession> _fetch(String idToken) async {
@@ -245,9 +284,10 @@ class CognitoCredentials {
   void clear() {
     _epoch++;
     _session = null;
+    _sessionAccount = null;
     _sessionToken = null;
     _inFlight = null;
-    _inFlightToken = null;
+    _inFlightAccount = null;
   }
 
   Future<Map<String, Object?>> _call(

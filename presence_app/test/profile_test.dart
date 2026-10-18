@@ -111,6 +111,136 @@ void main() {
       },
     );
 
+    group('kept per account', () {
+      /// A session token as the auth API issues it (unsigned here: the
+      /// cache only reads it).
+      String tokenOf(String sub, {int iat = 1, String iss = 'https://p.x'}) {
+        String part(Object json) =>
+            base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
+        return '${part({'alg': 'RS256'})}.'
+            '${part({'iss': iss, 'sub': sub, 'iat': iat})}.c2ln';
+      }
+
+      late List<String> bearers;
+      late DateTime clock;
+      var expiration = 4102444800;
+
+      CognitoCredentials make() {
+        bearers = [];
+        clock = DateTime.utc(2026, 10, 18, 12);
+        return CognitoCredentials(
+          region: 'us-east-1',
+          api: api,
+          now: () => clock,
+          client: MockClient((request) async {
+            bearers.add(request.headers['authorization']!);
+            final n = bearers.length;
+            return http.Response(
+              jsonEncode({
+                'identityId': 'us-east-1:p',
+                'token': 'local',
+                'credentials': {
+                  'AccessKeyId': 'AKIA$n',
+                  'SecretKey': 'secret',
+                  'Expiration': expiration,
+                },
+              }),
+              200,
+            );
+          }),
+        );
+      }
+
+      setUp(() => expiration = 4102444800);
+
+      test('a refreshed session token of the same account reuses the '
+          'credentials', () async {
+        final cognito = make();
+        final a = await cognito.session(tokenOf('p_a', iat: 1));
+        final b = await cognito.session(tokenOf('p_a', iat: 3600));
+        expect(identical(a, b), isTrue);
+        expect(bearers, hasLength(1));
+      });
+
+      test('another account, or another issuer, never gets them', () async {
+        final cognito = make();
+        await cognito.session(tokenOf('p_a'));
+        final other = await cognito.session(tokenOf('p_b'));
+        expect(other.credentials.accessKeyId, 'AKIA2');
+        expect(bearers.last, 'Bearer ${tokenOf('p_b')}');
+        final rc = await cognito.session(tokenOf('p_b', iss: 'https://rc.x'));
+        expect(rc.credentials.accessKeyId, 'AKIA3');
+        // Not JWTs: per token, as before.
+        await cognito.session('opaque-1');
+        await cognito.session('opaque-1');
+        await cognito.session('opaque-2');
+        expect(bearers, hasLength(5));
+      });
+
+      test('credentials expiring soon are fetched again, with the token '
+          'given', () async {
+        final cognito = make();
+        expiration =
+            clock.add(const Duration(minutes: 30)).millisecondsSinceEpoch ~/
+            1000;
+        await cognito.session(tokenOf('p_a', iat: 1));
+        clock = clock.add(const Duration(minutes: 20));
+        await cognito.session(tokenOf('p_a', iat: 2));
+        expect(bearers, hasLength(1));
+        clock = clock.add(const Duration(minutes: 6));
+        final renewed = await cognito.session(tokenOf('p_a', iat: 3));
+        expect(renewed.credentials.accessKeyId, 'AKIA2');
+        expect(bearers.last, 'Bearer ${tokenOf('p_a', iat: 3)}');
+      });
+
+      test('clear (sign-out, another profile, a change of plan: a new tier '
+          'tag) fetches again', () async {
+        final cognito = make();
+        await cognito.session(tokenOf('p_a'));
+        cognito.clear();
+        final again = await cognito.session(tokenOf('p_a', iat: 2));
+        expect(again.credentials.accessKeyId, 'AKIA2');
+        expect(bearers, hasLength(2));
+      });
+
+      test('credentials without an expiry are kept for their own token '
+          'only', () async {
+        bearers = [];
+        final noExpiry = CognitoCredentials(
+          region: 'us-east-1',
+          api: api,
+          client: MockClient((request) async {
+            bearers.add(request.headers['authorization']!);
+            return http.Response(
+              jsonEncode({
+                'identityId': 'us-east-1:p',
+                'token': 'local',
+                'credentials': {'AccessKeyId': 'AKIA', 'SecretKey': 's'},
+              }),
+              200,
+            );
+          }),
+        );
+        await noExpiry.session(tokenOf('p_a', iat: 1));
+        await noExpiry.session(tokenOf('p_a', iat: 1));
+        await noExpiry.session(tokenOf('p_a', iat: 2));
+        expect(bearers, hasLength(2));
+      });
+
+      test('reads the account from the token\'s issuer and subject', () {
+        expect(
+          CognitoCredentials.accountOf(tokenOf('p_a', iat: 1)),
+          CognitoCredentials.accountOf(tokenOf('p_a', iat: 2)),
+        );
+        expect(
+          CognitoCredentials.accountOf(tokenOf('p_a')),
+          isNot(CognitoCredentials.accountOf(tokenOf('p_b'))),
+        );
+        expect(CognitoCredentials.accountOf('a.b.c'), 'token:a.b.c');
+        expect(CognitoCredentials.accountOf('x'), 'token:x');
+      });
+    });
+
     test('callers asking at once share one fetch; one cleared meanwhile '
         'isn\'t kept', () async {
       var authCalls = 0;
