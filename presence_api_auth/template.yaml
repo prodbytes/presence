@@ -469,7 +469,12 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       Description: !Sub Encrypts Sign in with Apple refresh tokens (${AWS::StackName})
-      EnableKeyRotation: true
+      # Not rotated: each yearly rotation adds $1/month to the key (for the
+      # first two), and a symmetric key that only seals refresh tokens gains
+      # nothing from it. Changing this updates the key in place (no
+      # replacement), and KMS keeps every key material it ever had, so
+      # tokens sealed before still open.
+      EnableKeyRotation: false
       Tags:
         - Key: presence:stack
           Value: !Ref AWS::StackName

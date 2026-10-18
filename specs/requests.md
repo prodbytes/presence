@@ -6906,3 +6906,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `APPLE_SIGNIN_KEY_PARAMETER_RC`.
     - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
       [Sessions](sessions.md).
+
+472. **Stop rotating the Apple refresh-token data key.** (2026-10-18)
+    - `SessionDataKey` now has `EnableKeyRotation: false`: each yearly
+      rotation would add $1/month per stage. CloudFormation changes
+      that property in place (no replacement), and KMS keeps old key
+      material, so sealed tokens still decrypt. Takes effect at the
+      next auth API deploy.
+    - Specs: [Sessions](sessions.md).
