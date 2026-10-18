@@ -633,18 +633,19 @@ class EventTimeline extends StatefulWidget {
   }) => showSystemEvents ? events : events.where(isGrab).toList();
 
   /// Whether [event] shows even with the events with no one hidden: a grab
-  /// ([isGrab]) with a person or a pet on it, or that may have one, or any
-  /// other event (the system events have their own toggle).
+  /// ([isGrab]) with a person or an animal on it, or that may have one, or
+  /// any other event (the system events have their own toggle).
   ///
-  /// A clip has someone when recognition saw a person or pet on it (an
-  /// object tag [sortOfLabel] knows: `human`, `cat`, `dog`) or someone is
+  /// A clip has someone when recognition saw a person or any animal on it
+  /// (an object tag [isPersonOrAnimal]: `human`, `bird`, `cat`, `dog`,
+  /// `horse` and the rest) or someone is
   /// tagged on it; one not searched for objects yet (no object tags at all,
   /// not even none) may. A suggestion ("Is this Rex?") is about someone.
   static bool hasSomeone(AppEvent event) {
     if (event is! ClipRequested || !isGrab(event)) return true;
     final objects = event.annotations.objects;
     return objects == null ||
-        objects.any((o) => sortOfLabel(o.label) != null) ||
+        objects.any((o) => isPersonOrAnimal(o.label)) ||
         event.annotations.tags.isNotEmpty;
   }
 

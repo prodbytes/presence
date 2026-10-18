@@ -43,6 +43,25 @@ const Set<String> personLabels = {'human'};
 /// the other animals it knows aren't pets here.
 const Set<String> petLabels = {'cat', 'dog'};
 
+/// The object tags that are an animal: every animal the detector knows
+/// (as the streamer's `presence-detect.py` keeps), pets or not.
+const Set<String> animalLabels = {
+  'bird',
+  'cat',
+  'dog',
+  'horse',
+  'sheep',
+  'cow',
+  'elephant',
+  'bear',
+  'zebra',
+  'giraffe',
+};
+
+/// Whether an object tag [label] is a person or any animal ([animalLabels]).
+bool isPersonOrAnimal(String label) =>
+    personLabels.contains(label) || animalLabels.contains(label);
+
 /// The sort of subject an object tag [label] is, or null for anything else.
 SubjectSort? sortOfLabel(String label) => personLabels.contains(label)
     ? SubjectSort.person
