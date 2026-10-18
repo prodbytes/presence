@@ -3,12 +3,14 @@ package stream
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -19,11 +21,28 @@ import (
 )
 
 // bucket is a fake profile folder: objects by key, the operations done,
-// and an operation to fail once.
+// an operation to fail once, and one whose copy lands corrupted once (as
+// with rclone, it then fails verification and keeps no copy).
 type bucket struct {
-	objects map[string][]byte
-	ops     []string
-	failOn  string
+	objects   map[string][]byte
+	ops       []string
+	failOn    string
+	corruptOn string
+}
+
+// verify is rclone's check after a copy: the same size and MD5, or it
+// fails and the copy's deleted.
+func (b *bucket) verify(op string, sent []byte) ([]byte, error) {
+	got := sent
+	if b.corruptOn != "" && strings.Contains(op, b.corruptOn) {
+		b.corruptOn = ""
+		got = append([]byte("x"), sent[1:]...)
+	}
+	if len(got) != len(sent) || md5.Sum(got) != md5.Sum(sent) {
+		b.ops = b.ops[:len(b.ops)-1]
+		return nil, errors.New("corrupted on transfer: md5 hash differ")
+	}
+	return got, nil
 }
 
 func (b *bucket) fail(op string) error {
@@ -43,6 +62,9 @@ func (b *bucket) Put(_ context.Context, path, key, contentType string) error {
 	if err != nil {
 		return err
 	}
+	if data, err = b.verify("put "+key, data); err != nil {
+		return err
+	}
 	b.objects[key] = data
 	return nil
 }
@@ -54,6 +76,10 @@ func (b *bucket) Move(_ context.Context, from, to string) error {
 	data, ok := b.objects[from]
 	if !ok {
 		return fmt.Errorf("no %s", from)
+	}
+	data, err := b.verify("move "+from, data)
+	if err != nil {
+		return err
 	}
 	b.objects[to] = data
 	delete(b.objects, from)
@@ -403,5 +429,151 @@ func TestSettingsCarryTheKey(t *testing.T) {
 	if settings["deviceId"] != "able_adept_gadget" || settings["mediaKey"] != base64.StdEncoding.EncodeToString(key()) ||
 		settings["config"].(map[string]any)["version"] != 1.0 || settings["updatedAt"] != 5.0 {
 		t.Fatalf("settings %v", settings)
+	}
+}
+
+// names is what's left in the spool, by suffix after the chunk's name.
+func names(spool, c string) map[string]bool {
+	out := map[string]bool{}
+	for _, p := range leftovers(spool) {
+		out[strings.TrimPrefix(p, c)] = true
+	}
+	return out
+}
+
+// A copy that lands corrupted fails verification: it's a failed upload.
+// What it was for stays here and is tried again; what's verified already
+// is deleted here at once.
+func TestLocalFilesGoOnlyOnceVerified(t *testing.T) {
+	for _, c := range []struct {
+		step       string
+		kept, gone []string
+	}{
+		{"put ingest/", []string{"", ".json", ".sealed"}, nil},
+		{"put media/", []string{"", ".json", ".sealed", ".jpg", ".jpg.sealed"}, nil},
+		// The move fails: the sealed copy goes up instead, verified.
+		{"move ", nil, nil},
+		{"put clips/", []string{"", ".json"}, []string{".sealed", ".jpg", ".jpg.sealed"}},
+		{"put events/", []string{"", ".json"}, []string{".sealed", ".jpg", ".jpg.sealed", ".clip.json"}},
+	} {
+		t.Run(c.step, func(t *testing.T) {
+			b := &bucket{objects: map[string][]byte{}, corruptOn: c.step}
+			s, spool := streamer(t, b, "person")
+			ch := chunk(t, spool, "video")
+			err := s.Process(context.Background(), ch)
+			if c.kept == nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err == nil {
+					t.Fatal("no error")
+				}
+				left := names(spool, ch)
+				for _, k := range c.kept {
+					if !left[k] {
+						t.Errorf("%q deleted before it was verified (left %v)", k, left)
+					}
+				}
+				for _, g := range c.gone {
+					if left[g] {
+						t.Errorf("%q kept after it was verified", g)
+					}
+				}
+				if err := s.Process(context.Background(), ch); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(leftovers(spool)) != 0 {
+				t.Fatalf("left %v", leftovers(spool))
+			}
+			var media int
+			for key, data := range b.objects {
+				if strings.HasPrefix(key, "ingest/") {
+					t.Errorf("left in ingest: %s", key)
+				}
+				if strings.HasPrefix(key, "media/") {
+					media++
+					if strings.HasSuffix(key, ".mp4") && open(t, data) != "video" {
+						t.Errorf("%s doesn't open to the chunk", key)
+					}
+				}
+			}
+			if media != 2 {
+				t.Fatalf("media: %v", b.objects)
+			}
+		})
+	}
+}
+
+// In the cloud's mode, a chunk or job whose upload fails verification
+// stays, and goes up at the next try; once verified, it's deleted here.
+func TestCloudChunkGoesOnlyOnceVerified(t *testing.T) {
+	// The chunk; the job, after the chunk's verified.
+	for _, step := range []string{".mp4", ".ingest.json"} {
+		t.Run(step, func(t *testing.T) {
+			b := &bucket{objects: map[string][]byte{}}
+			s, spool := streamer(t, b, "person")
+			s.Cloud = true
+			if err := s.Settings(context.Background(), time.UnixMilli(5)); err != nil {
+				t.Fatal(err)
+			}
+			b.ops, b.corruptOn = nil, step
+			ch := chunk(t, spool, "video")
+			if err := s.Process(context.Background(), ch); err == nil {
+				t.Fatal("no error")
+			}
+			left := names(spool, ch)
+			if !left[""] || !left[".json"] {
+				t.Fatalf("deleted before it was verified: left %v", left)
+			}
+			if err := s.Process(context.Background(), ch); err != nil {
+				t.Fatal(err)
+			}
+			if len(b.ops) != 2 || len(leftovers(spool)) != 0 {
+				t.Fatalf("ops %v, left %v", b.ops, leftovers(spool))
+			}
+		})
+	}
+}
+
+// A stop (a crash, a power cut) after the last upload's verified and noted,
+// before the chunk's deleted: the next try deletes it, uploading nothing
+// again.
+func TestAStopBeforeTheDeleteUploadsNothingAgain(t *testing.T) {
+	for _, cloud := range []bool{false, true} {
+		b := &bucket{objects: map[string][]byte{}}
+		s, spool := streamer(t, b, "person")
+		s.Cloud = cloud
+		if err := s.Settings(context.Background(), time.UnixMilli(5)); err != nil {
+			t.Fatal(err)
+		}
+		ch := chunk(t, spool, "video")
+		// Stopped where it says it's done, before the delete.
+		s.Logf = func(f string, args ...any) {
+			if strings.Contains(fmt.Sprintf(f, args...), "deleted here") {
+				runtime.Goexit()
+			}
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			s.Process(context.Background(), ch)
+		}()
+		<-done
+		if _, err := os.Stat(ch); err != nil {
+			t.Fatal("not stopped before the delete")
+		}
+		ops := len(b.ops)
+		s.Logf = t.Logf
+		if err := s.Process(context.Background(), ch); err != nil {
+			t.Fatal(err)
+		}
+		if len(b.ops) != ops {
+			t.Errorf("cloud %v: uploaded again: %v", cloud, b.ops[ops:])
+		}
+		if len(leftovers(spool)) != 0 {
+			t.Errorf("cloud %v: left %v", cloud, leftovers(spool))
+		}
 	}
 }

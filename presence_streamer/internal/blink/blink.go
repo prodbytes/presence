@@ -399,6 +399,7 @@ func (b *Blink) fetch(ctx context.Context) {
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	added := false
+	handed := map[string]bool{}
 	for _, line := range strings.Split(stdout.String(), "\n") {
 		var answer struct {
 			State  string `json:"state"`
@@ -421,6 +422,7 @@ func (b *Blink) fetch(ctx context.Context) {
 				b.announce(ctx)
 				added = false
 			}
+			handed[c.File] = true
 			if err := b.Clip(ctx, camera, c.File); err != nil {
 				b.Logf("blink: clip %s: %v", c.File, err)
 			}
@@ -433,6 +435,7 @@ func (b *Blink) fetch(ctx context.Context) {
 			b.Logf("blink: fetching: %s", answer.Error)
 		}
 	}
+	b.leftovers(ctx, out, handed)
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && exit.ExitCode() == 2 {
 		// The token's no good: wait for a new login from the app.
@@ -445,6 +448,35 @@ func (b *Blink) fetch(ctx context.Context) {
 	}
 	if err := b.save(); err != nil {
 		b.Logf("blink: saving: %v", err)
+	}
+}
+
+// leftovers hands over the clips a fetch left in out without handing them
+// (the streamer stopped before it read the helper's answer, which then
+// skips a clip it finds downloaded already; a hand-over that failed), so
+// none stays here unsent; handed are this fetch's, handed already. A
+// download cut off (`.part`) is deleted: the helper fetches it again while
+// Blink still lists it, since where fetching got to moves on only after a
+// whole fetch.
+func (b *Blink) leftovers(ctx context.Context, out string, handed map[string]bool) {
+	dirs, _ := os.ReadDir(out)
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		camera, known := b.state.Cameras[d.Name()]
+		files, _ := os.ReadDir(filepath.Join(out, d.Name()))
+		for _, f := range files {
+			file := filepath.Join(out, d.Name(), f.Name())
+			switch {
+			case strings.HasSuffix(f.Name(), ".part"):
+				os.Remove(file)
+			case known && !handed[file] && strings.HasPrefix(f.Name(), "rec-") && strings.HasSuffix(f.Name(), ".mp4"):
+				if err := b.Clip(ctx, camera, file); err != nil {
+					b.Logf("blink: clip %s: %v", file, err)
+				}
+			}
+		}
 	}
 }
 

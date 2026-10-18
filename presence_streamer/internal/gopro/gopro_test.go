@@ -322,6 +322,44 @@ func TestUSBFullVideosAndRemove(t *testing.T) {
 	}
 }
 
+// A stop between a video's download and its hand-over: the camera still
+// lists it, so the next fetch fetches it again over the leftover and hands
+// it over once; one it no longer lists is handed over from the leftover; a
+// download cut off is deleted. Nothing stays in gopro-incoming.
+func TestALeftoverVideoIsHandedOverOnce(t *testing.T) {
+	cam := &camera{files: []file{{"GX010002.MP4", local(14, 14, 0), false}}}
+	srv := httptest.NewServer(cam)
+	defer srv.Close()
+	g, store, clips, _ := newGoPro(t)
+	g.Full = true
+	ctx := context.Background()
+	// Added (its first fetch finds nothing yet: the camera's empty).
+	files := cam.files
+	cam.files = nil
+	store.put(t, Request{Add: &Add{Name: "Dash", Address: address(srv)}, RequestedAt: 1})
+	g.step(ctx)
+	cam.mu.Lock()
+	cam.files = files
+	cam.mu.Unlock()
+	in := filepath.Join(g.Dir, "gopro-incoming", "gopro_cam_1")
+	os.MkdirAll(in, 0o700)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T120000.mp4"), []byte("video of"), 0o600)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T115000.mp4"), []byte("gone from the camera"), 0o600)
+	os.WriteFile(filepath.Join(in, "rec-gopro-20261014T121000.mp4.part"), []byte("vid"), 0o600)
+	g.lastFetch = time.Time{}
+	g.step(ctx)
+	want := []clip{
+		{"gopro_cam_1", "rec-gopro-20261014T120000.mp4", "video of GX010002.MP4"},
+		{"gopro_cam_1", "rec-gopro-20261014T115000.mp4", "gone from the camera"},
+	}
+	if fmt.Sprint(*clips) != fmt.Sprint(want) {
+		t.Fatalf("clips %v, want %v", *clips, want)
+	}
+	if left, _ := os.ReadDir(in); len(left) != 0 {
+		t.Fatalf("left %v", left)
+	}
+}
+
 func TestBaseOf(t *testing.T) {
 	for _, tc := range []struct {
 		address  string

@@ -97,10 +97,15 @@ fetch)
   [ -f "$REFUSE" ] && { echo '{"state":"error","error":"refused"}'; exit 2; }
   out=$6
   mkdir -p "$out/11" "$out/33"
-  echo video > "$out/11/rec-blink-20261014T120000.mp4"
-  echo video > "$out/33/rec-blink-20261014T120100.mp4"
-  echo '{"clip":{"camera":"11","name":"Porch","file":"'$out'/11/rec-blink-20261014T120000.mp4"}}'
-  echo '{"clip":{"camera":"33","name":"Shed","file":"'$out'/33/rec-blink-20261014T120100.mp4"}}'
+  # As the helper: a clip downloaded already is skipped.
+  [ -f "$out/11/rec-blink-20261014T120000.mp4" ] || {
+    echo video > "$out/11/rec-blink-20261014T120000.mp4"
+    echo '{"clip":{"camera":"11","name":"Porch","file":"'$out'/11/rec-blink-20261014T120000.mp4"}}'
+  }
+  [ -f "$out/33/rec-blink-20261014T120100.mp4" ] || {
+    echo video > "$out/33/rec-blink-20261014T120100.mp4"
+    echo '{"clip":{"camera":"33","name":"Shed","file":"'$out'/33/rec-blink-20261014T120100.mp4"}}'
+  }
   echo '{"state":"ok","latest":1791979260}'
   ;;
 esac
@@ -133,7 +138,8 @@ func newBlink(t *testing.T) (*Blink, *memStore, *[]string, *[]Camera) {
 		},
 		Clip: func(_ context.Context, c Camera, file string) error {
 			clips = append(clips, c.DeviceID+" "+filepath.Base(file))
-			return nil
+			// Moved to the camera's spool.
+			return os.Remove(file)
 		},
 		Poll: 10 * time.Millisecond, Every: time.Hour, Backfill: 24 * time.Hour, PINWait: 5 * time.Second,
 		Logf: t.Logf,
@@ -228,5 +234,33 @@ func TestARefusedTokenStopsFetchingAndDisconnectForgetsIt(t *testing.T) {
 	}
 	if _, err := os.Stat(b.TokenPath()); err == nil {
 		t.Fatal("the token is still there")
+	}
+}
+
+// A clip downloaded before a stop, never handed over (the helper skips it
+// as downloaded already), goes to its camera's pipeline at the next fetch,
+// once; a download cut off is deleted; nothing stays in blink-incoming.
+func TestALeftoverClipIsHandedOver(t *testing.T) {
+	b, _, clips, _ := newBlink(t)
+	os.WriteFile(b.TokenPath(), []byte("{}"), 0o600)
+	b.camera("11", "Porch")
+	in := filepath.Join(b.Dir, "blink-incoming", "11")
+	os.MkdirAll(in, 0o700)
+	os.WriteFile(filepath.Join(in, "rec-blink-20261014T120000.mp4"), []byte("video"), 0o600)
+	os.WriteFile(filepath.Join(in, "rec-blink-20261014T115900.mp4.part"), []byte("vid"), 0o600)
+	b.step(context.Background())
+	if len(*clips) != 2 || (*clips)[0] != "blink_camera_2 rec-blink-20261014T120100.mp4" ||
+		(*clips)[1] != "blink_camera_1 rec-blink-20261014T120000.mp4" {
+		t.Fatalf("clips %v", *clips)
+	}
+	var left []string
+	filepath.Walk(filepath.Join(b.Dir, "blink-incoming"), func(p string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			left = append(left, p)
+		}
+		return nil
+	})
+	if len(left) != 0 {
+		t.Fatalf("left %v", left)
 	}
 }
