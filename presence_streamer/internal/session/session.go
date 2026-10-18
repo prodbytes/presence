@@ -17,8 +17,9 @@ import (
 	"github.com/prodbytes/presence/presence_streamer/internal/presence"
 )
 
-// ErrFree is a free profile: the streamer streams only to premium ones.
-var ErrFree = errors.New("this profile is free: the streamer needs a Premium profile (cloud backup)")
+// ErrFree is a free profile: the streamer streams only to premium ones (a
+// "free" tier, or the auth API's Premium-only 403).
+var ErrFree = presence.ErrFree
 
 // WrongProfileError is an account whose profile isn't the one asked for.
 type WrongProfileError struct{ Want, Got string }
@@ -171,5 +172,5 @@ func Fatal(err error) bool {
 	var wrong WrongProfileError
 	return errors.Is(err, ErrFree) || errors.As(err, &wrong) ||
 		errors.Is(err, google.ErrRevoked) || errors.Is(err, presence.ErrUnauthorized) ||
-		errors.Is(err, presence.ErrKeyRefused)
+		errors.Is(err, presence.ErrKeyRefused) || errors.Is(err, presence.ErrDeviceLimit)
 }

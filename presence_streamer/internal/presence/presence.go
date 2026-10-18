@@ -49,6 +49,19 @@ var ErrUnauthorized = errors.New("the auth API refused the Google sign-in")
 // (a newer one replaced it, or the device was deleted in the app).
 var ErrKeyRefused = errors.New("the auth API refused the stream key: copy a new command from the app's profile view")
 
+// ErrFree is a free profile: the streamer streams only to premium ones.
+// The auth API says so with a "free" tier, or with a 403 ("streamers are
+// Premium only") to a stream key.
+var ErrFree = errors.New("this profile is free: the streamer needs a Premium profile (cloud backup)")
+
+// ErrDeviceLimit is the auth API refusing this device: the profile is past
+// its plan's device limit (a 403 with "reason": "deviceLimit").
+var ErrDeviceLimit = errors.New("the auth API refused this device: the profile is past its plan's device limit (remove a device in the app, or upgrade the plan)")
+
+// premiumOnly is the auth API's 403 error to a stream key of a profile
+// whose owner isn't premium.
+const premiumOnly = "streamers are Premium only"
+
 var (
 	identityPattern = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	bucketPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
@@ -159,7 +172,8 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 }
 
 // do sends req to the auth API and reads its answer into out; a 401 is
-// refused.
+// refused, the Premium-only 403 ErrFree and the device-limit 403
+// ErrDeviceLimit. Any other answer is an error that passes (retried).
 func (a *API) do(req *http.Request, refused error, out any) error {
 	res, err := a.http().Do(req)
 	if err != nil {
@@ -175,9 +189,18 @@ func (a *API) do(req *http.Request, refused error, out any) error {
 		return refused
 	case res.StatusCode != http.StatusOK:
 		var e struct {
-			Error string `json:"error"`
+			Error  string `json:"error"`
+			Reason string `json:"reason"`
 		}
 		_ = json.Unmarshal(data, &e)
+		if res.StatusCode == http.StatusForbidden {
+			switch {
+			case e.Reason == "deviceLimit":
+				return ErrDeviceLimit
+			case e.Error == premiumOnly:
+				return ErrFree
+			}
+		}
 		return fmt.Errorf("%s %s: HTTP %d %s", req.Method, req.URL.Path, res.StatusCode, e.Error)
 	}
 	return json.Unmarshal(data, out)
