@@ -7223,3 +7223,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        yellow.
      - Changed: the green dot is Gruvbox's aqua, `#8EC07C`. Specs:
        [Device presence](device-presence.md).
+
+495. **"Create command" is "Get command".** (2026-10-18)
+     - Asked: change "create command" to "get command".
+     - Changed: the Streamer box's button reads **Get command** (es
+       "Obtener comando", pt "Obter comando"), and its error "Couldn't get
+       the command". Specs: [Streamer](streamer.md), [Install
+       script](install-script.md), [README](README.md).

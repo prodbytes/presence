@@ -109,7 +109,7 @@ curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- \
   sheet's **Streamer** box (`StreamerCommand`,
   [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
   under the plan, for a premium profile (or an admin) with access, not in
-  DEV. **Create command** makes a new device ID and asks the auth API for
+  DEV. **Get command** makes a new device ID and asks the auth API for
   its stream key (`ProfileClient.streamKey`), then shows the command
   (selectable, monospace), a line that it holds the device's key, shown
   only now (deleting the device stops it; another command is another
