@@ -173,7 +173,12 @@ folder, and removed at the end of the job, even after a failure.
   `.ipa` with `xcrun altool --upload-app` (the key at
   `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`, removed after). It
   then shows in TestFlight; review and release stay manual. Without the
-  key, the `.ipa` is only attached to the release.
+  key, the `.ipa` is only attached to the release. RC and GA tags pushed
+  together can get the same build number (the build time in seconds) for
+  the same version; App Store Connect then refuses the second upload as a
+  duplicate (`ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE` with that build
+  number as `previousBundleVersion`), and the job takes that as done,
+  since the same build is already there. Any other upload error fails it.
 - **Variables and secrets:**
 
   | Name | Kind | What |

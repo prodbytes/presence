@@ -7002,3 +7002,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       gets them; credentials without an expiry (the local stack) stay per
       token.
     - Specs: [Cloud sync](cloud-sync.md).
+
+478. **Fix the cost findings that don't change the experience or the
+     features.** (2026-10-18)
+    - Done in their own PRs: the streamer's exit on a free profile or the
+      device limit (#416), free live sync's retries and resumed
+      subscriptions (#418), AWS credentials kept across the session
+      token's refresh (#419), no rotation of the Apple token key (#415),
+      ingest chunks deleted for good (#417, which waits on the deploy
+      role's boundary), and 30-day retention on 26 old log groups.
+    - Left as they are: the recognition gate (the 403s would change),
+      the heartbeat on scheduled connections (it saves nothing within the
+      5-min rule), the recognition warm-ups, rbacr's memory (slower), the
+      orphaned tables (empty, $0) and SnapStart (needs the deploy role's
+      alias permissions).
+    - The release of these fixes (0.7.202610181514) failed its GA iOS
+      upload: the RC and GA runs had the same build number, and App Store
+      Connect refused the second as a duplicate, so the GA release wasn't
+      published. The upload now takes that duplicate as done.
+    - Specs: [Release](release.md).
