@@ -186,6 +186,8 @@
   "usbcamNoneDetected": "No hay otra cámara conectada a él. Conecta una y enciéndela: aparece aquí en menos de un minuto.",
   "usbcamAdd": "Agregar",
   "usbcamUnplugged": "No está conectada: sus videos nuevos se traen cuando vuelva.",
+  "usbcamUnattended": "Desatendida: conservar solo las partes con movimiento y borrar los videos de la cámara una vez traídos",
+  "usbcamUnattendedHint": "Para una cámara que se deja grabando, así su tarjeta no se llena. Desactivado: se conserva cada video y no se borra nada de la cámara.",
   "usbcamError": "Cámaras USB: {error}",
   "settingsGroupThisDevice": "Este dispositivo",
   "settingsGroupAllDevices": "Todos los dispositivos"

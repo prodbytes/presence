@@ -161,3 +161,81 @@ func TestFetchedClipsAreDeletedOnceVerified(t *testing.T) {
 		})
 	}
 }
+
+// nobody finds no one.
+type nobody struct{}
+
+func (nobody) Search([]detect.Frame, string) (detect.Result, error) { return detect.Result{}, nil }
+
+// An unattended USB camera's chunks go through the streamer's motion
+// filter: without movement, deleted unsent; with it, kept as events with
+// no one in them. Turned off, every chunk is kept.
+func TestUnattendedUSBCameraKeepsOnlyMotion(t *testing.T) {
+	state := t.TempDir()
+	bucket := &verifyingBucket{objects: map[string][]byte{}, puts: map[string]int{}}
+	base := &stream.Streamer{
+		Store: bucket, Searcher: nobody{},
+		Keyframes: func(_ context.Context, _, dir string) ([]detect.Frame, error) {
+			return []detect.Frame{{Path: filepath.Join(dir, "1.jpg")}}, nil
+		},
+		Duration: func(context.Context, string) (time.Duration, error) { return 30 * time.Second, nil },
+		// "still" chunks have none.
+		Motion: func(_ context.Context, chunk string) (float64, error) {
+			data, _ := os.ReadFile(chunk)
+			if string(data) == "still" {
+				return 0.5, nil
+			}
+			return 40, nil
+		},
+		MotionMin: 5,
+		Key:       make([]byte, 32), ProfileID: "automatic_paranoid_axolotl",
+		UserID:      func() string { return "42" },
+		ObjectScore: 0.6, Logf: t.Logf,
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	defer stop()
+	spool := filepath.Join(state, "spool", "usbcam")
+	p := newCameraPipelines(ctx, base, spool, "usbcam", "USB camera", &wg, func(error) {}, t.Logf)
+	incoming := filepath.Join(state, "usbcam-incoming", "1")
+	os.MkdirAll(incoming, 0o700)
+	clip := func(name, content string, motion bool) {
+		file := filepath.Join(incoming, name)
+		os.WriteFile(file, []byte(content), 0o600)
+		if err := p.clip(ctx, cameraRef{DeviceID: "calm_quiet_camera", Name: "Porch", Motion: motion}, file); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wait := func(events, ingested int) {
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			n, _ := bucket.count("events/")
+			left, _ := filepath.Glob(filepath.Join(spool, "calm_quiet_camera", "*"))
+			if n == events && len(left) == 0 {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("events %d, left %v", n, left)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		bucket.mu.Lock()
+		defer bucket.mu.Unlock()
+		uploads := 0
+		for key, n := range bucket.puts {
+			if strings.HasPrefix(key, "ingest/") {
+				uploads += n
+			}
+		}
+		if uploads != ingested {
+			t.Fatalf("%d uploaded to ingest, want %d", uploads, ingested)
+		}
+	}
+	clip("rec-usbcam-20261014T100000.mp4", "still", true)
+	clip("rec-usbcam-20261014T100030.mp4", "moving", true)
+	wait(1, 1)
+	// Off: a still chunk is kept too.
+	clip("rec-usbcam-20261014T100100.mp4", "still", false)
+	wait(2, 2)
+}

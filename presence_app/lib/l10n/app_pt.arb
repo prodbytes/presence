@@ -734,5 +734,7 @@
   "usbcamNone": "Nenhuma câmera USB adicionada ainda.",
   "usbcamNoneDetected": "Nenhuma outra câmera conectada a ele. Conecte uma e ligue-a: ela aparece aqui em até um minuto.",
   "usbcamStreamer": "O streamer em que estão conectadas",
+  "usbcamUnattended": "Sem supervisão: manter só as partes com movimento e apagar os vídeos da câmera depois de buscados",
+  "usbcamUnattendedHint": "Para uma câmera deixada gravando, assim o cartão não enche. Desligado: todo vídeo é mantido e nada é apagado da câmera.",
   "usbcamUnplugged": "Desconectada: os vídeos novos são buscados quando ela voltar."
 }

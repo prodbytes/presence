@@ -2795,6 +2795,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usbcamStreamer => 'The streamer they\'re plugged into';
 
   @override
+  String get usbcamUnattended =>
+      'Unattended: keep only the parts with movement and delete videos from the camera once fetched';
+
+  @override
+  String get usbcamUnattendedHint =>
+      'For a camera left recording, so its card doesn\'t fill up. Off: every video is kept and nothing on the camera is deleted.';
+
+  @override
   String get usbcamUnplugged =>
       'Not plugged in: its new videos are fetched once it\'s back.';
 }

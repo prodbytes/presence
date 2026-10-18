@@ -77,6 +77,10 @@ type Streamer struct {
 	// least it must have to be uploaded (0: every chunk is).
 	Motion    func(ctx context.Context, chunk string) (float64, error)
 	MotionMin float64
+	// MotionFilter, when set, says whether the motion filter applies to
+	// the next chunk (a USB camera's unattended mode, which the app turns
+	// on and off); nil: it does.
+	MotionFilter func() bool
 
 	Key       []byte
 	DeviceID  string
@@ -179,7 +183,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	ingest := records.IngestKey(s.DeviceID, p.ClipID)
 	// No motion, nothing to keep: deleted here, before it costs an upload
 	// (and S3's storage).
-	if s.MotionMin > 0 && !p.Ingested && p.Motion == nil {
+	if s.MotionMin > 0 && (s.MotionFilter == nil || s.MotionFilter()) && !p.Ingested && p.Motion == nil {
 		motion, err := s.Motion(ctx, chunk)
 		if errors.Is(err, detect.ErrBroken) {
 			s.Logf("%s: broken, deleted (%v)", name, err)

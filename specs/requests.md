@@ -7422,3 +7422,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        en, es ("Este dispositivo", "Todos los dispositivos") and pt
        ("Este dispositivo", "Todos os dispositivos"). Specs:
        [Settings screen](settings.md).
+
+507. **USB cameras: unattended, only what moves, deleted from the camera.** (2026-10-19)
+     - Asked: "I will have to leave the cam recording; make sure only
+       videos with movement are uploaded and delete the rest so that the
+       camera won't fill up."
+     - Changed: a USB camera is **unattended** by default (new cameras,
+       and those added before, none stored off): the app's switch
+       "Unattended: keep only the parts with movement and delete videos
+       from the camera once fetched", on the add form (`{add: {…,
+       unattended}}`) and per camera (`{set: {deviceId, unattended}}`),
+       shown from the status's `unattended`. Each video fetched is cut
+       into 30 s chunks by ffmpeg (copied, at keyframes, video and audio
+       only), named by their start (`rec-usbcam-<UTC start>.mp4`), and
+       the whole video deleted from the streamer once split; unattended,
+       each chunk goes through the streamer's motion filter
+       (`--motion-min`): without movement, deleted unsent; with it, kept
+       as an event, someone in it or not. Unattended, a video is deleted
+       from the camera (`gphoto2 --delete-file <path>`, its own
+       `.LRV`/`.THM` first) once downloaded and its size checked, never
+       before, nor anything else; a failed delete is said in the camera's
+       error and retried at each fetch. A video whose size changes between
+       two listings (still written) waits. No more "bigger than half the
+       spool" skip: a video is fetched when twice its size leaves 512 MB
+       on the disk ("waiting for room on the streamer" meanwhile), and
+       chunks are handed to the pipeline while its spool holds under half
+       of `--spool-max-mb`, so none is dropped unsent. Turned off, every
+       chunk is kept and nothing on the camera deleted. es, pt
+       translated. Specs: [USB cameras](usb-cameras.md),
+       [Streamer](streamer.md).

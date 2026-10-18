@@ -27,7 +27,7 @@ func startUSBCams(ctx context.Context, o *options, deviceID string, key []byte, 
 	set := func(cameras []usbcam.Camera) {
 		refs := make([]cameraRef, len(cameras))
 		for i, c := range cameras {
-			refs[i] = cameraRef{DeviceID: c.DeviceID, Name: c.Name}
+			refs[i] = cameraRef{DeviceID: c.DeviceID, Name: c.Name, Motion: c.IsUnattended()}
 		}
 		pipelines.set(refs, true)
 	}
@@ -43,13 +43,22 @@ func startUSBCams(ctx context.Context, o *options, deviceID string, key []byte, 
 			return sess.Register(ctx)
 		},
 		Clip: func(ctx context.Context, c usbcam.Camera, file string) error {
-			return pipelines.clip(ctx, cameraRef{DeviceID: c.DeviceID, Name: c.Name}, file)
+			return pipelines.clip(ctx, cameraRef{DeviceID: c.DeviceID, Name: c.Name, Motion: c.IsUnattended()}, file)
 		},
-		Poll:  30 * time.Second,
-		Every: o.usbcamEvery, Backfill: 24 * time.Hour,
-		// A video never takes more than half the spool.
-		MaxBytes: int64(o.spoolMaxMB) << 20 / 2,
-		Logf:     logf,
+		// Each video is cut into chunks as the Pi's own recordings are.
+		Split: func(ctx context.Context, video, dir string, start time.Time) error {
+			ctx, cancel := context.WithTimeout(ctx, time.Hour)
+			defer cancel()
+			return usbcam.SplitVideo(ctx, o.ffmpeg, video, dir, start, o.chunk)
+		},
+		Spooled:  func(c usbcam.Camera) int64 { return pipelines.spooled(c.DeviceID) },
+		MaxSpool: int64(o.spoolMaxMB) << 20,
+		Free:     func() (int64, error) { return usbcam.FreeSpace(o.stateDir) },
+		MinFree:  512 << 20,
+		Settle:   5 * time.Second,
+		Poll:     30 * time.Second,
+		Every:    o.usbcamEvery, Backfill: 24 * time.Hour,
+		Logf: logf,
 	}
 	// The cameras known from before: pipelines now, and devices of the
 	// profile at the next renewal.

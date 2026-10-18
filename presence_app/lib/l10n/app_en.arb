@@ -2121,5 +2121,7 @@
   "usbcamNone": "No USB cameras added yet.",
   "usbcamNoneDetected": "No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.",
   "usbcamStreamer": "The streamer they're plugged into",
+  "usbcamUnattended": "Unattended: keep only the parts with movement and delete videos from the camera once fetched",
+  "usbcamUnattendedHint": "For a camera left recording, so its card doesn't fill up. Off: every video is kept and nothing on the camera is deleted.",
   "usbcamUnplugged": "Not plugged in: its new videos are fetched once it's back."
 }
