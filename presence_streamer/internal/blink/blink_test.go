@@ -152,9 +152,11 @@ func TestLoginWithAPINFromTheApp(t *testing.T) {
 	b, store, clips, registered := newBlink(t)
 	ctx := context.Background()
 	store.put(t, Request{Email: "a@b.c", Password: "secret", RequestedAt: 1})
-	// The app gives the PIN once the status asks for it.
+	// The app gives the PIN once the status asks for it, watching as long
+	// as the streamer waits for it (the helper can be slow to ask on a
+	// loaded machine).
 	go func() {
-		for i := 0; i < 400; i++ {
+		for deadline := time.Now().Add(b.PINWait + 5*time.Second); time.Now().Before(deadline); {
 			time.Sleep(5 * time.Millisecond)
 			store.mu.Lock()
 			_, has := store.objects["devices/calm_quiet_otter/blink-status.json"]
