@@ -395,14 +395,15 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         }
         if (STREAM_CREDENTIALS.equals(Http.route(event))) {
             try {
-                return streamCredentials(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1));
+                return streamCredentials(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1),
+                        Http.memory(event));
             } catch (RuntimeException e) {
                 return Aws.failed("profile", STREAM_CREDENTIALS, e, context);
             }
         }
         if (STREAM_LEASE.equals(Http.route(event))) {
             try {
-                return streamLease(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1));
+                return streamLease(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1), Http.memory(event));
             } catch (RuntimeException e) {
                 return Aws.failed("profile", STREAM_LEASE, e, context);
             }
@@ -419,7 +420,8 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 case "POST /api/auth/profile/devices/remove" ->
                         removeDevice(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/stream-key" -> streamKey(caller, Http.bodyText(event, MAX_DEVICE_ID));
-                case PROFILE_STREAM_LEASE -> profileStreamLease(caller, Http.bodyText(event, MAX_DEVICE_ID));
+                case PROFILE_STREAM_LEASE ->
+                        profileStreamLease(caller, Http.bodyText(event, MAX_DEVICE_ID), Http.memory(event));
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
                 case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
                 case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
@@ -609,12 +611,14 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * plan's device limit (its cameras past it only get hidden).
      *
      * <p>Only the profile's leading streamer streams: asking claims the
-     * leadership when the profile has no leader, or its leader has been
-     * silent for {@link #LEADER_SILENCE}. Another streamer gets a 409,
-     * {@code "reason": "notLeader"}, with the leader ({@link #leaderJson}),
-     * and no credentials; it waits, asking {@link #STREAM_LEASE}.
+     * leadership when the profile has no leader, its leader has been
+     * silent for {@link #LEADER_SILENCE}, or it has less memory than the
+     * streamer says ({@link Http#memory}, {@link #claimLeader}). Another
+     * streamer gets a 409, {@code "reason": "notLeader"}, with the leader
+     * ({@link #leaderJson}), and no credentials; it waits, asking {@link
+     * #STREAM_LEASE}.
      */
-    private APIGatewayV2HTTPResponse streamCredentials(String key, String body) {
+    private APIGatewayV2HTTPResponse streamCredentials(String key, String body, long memory) {
         if (!configured) {
             return notConfigured();
         }
@@ -635,7 +639,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!withinLimit(device, devices, limit)) {
             return pastLimit(limit, devices);
         }
-        var leader = claimLeader(profile.id(), device);
+        var leader = claimLeader(profile.id(), device, memory);
         if (leader == null || !leader.device().equals(device)) {
             return response(409, "{\"error\":\"another streamer leads this profile\",\"reason\":\"notLeader\""
                     + leaderJson(leader) + "}");
@@ -653,7 +657,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * are ignored), which a leading streamer renews every few minutes and
      * a waiting one asks for ({@link #streamLease}).
      */
-    private APIGatewayV2HTTPResponse streamLease(String key, String body) {
+    private APIGatewayV2HTTPResponse streamLease(String key, String body, long memory) {
         if (!configured) {
             return notConfigured();
         }
@@ -661,7 +665,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (streamer.refusal() != null) {
             return streamer.refusal();
         }
-        return streamLease(streamer.profile().id(), streamer.device(), deviceLimit(streamer.owner()));
+        return streamLease(streamer.profile().id(), streamer.device(), memory, deviceLimit(streamer.owner()));
     }
 
     /**
@@ -669,7 +673,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * for a streamer signed in with Google: the device in the body, one of
      * the caller's profile's devices; the caller premium (or pro).
      */
-    private APIGatewayV2HTTPResponse profileStreamLease(Caller caller, String device) {
+    private APIGatewayV2HTTPResponse profileStreamLease(Caller caller, String device, long memory) {
         if (!configured) {
             return notConfigured();
         }
@@ -684,32 +688,39 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!granted.contains(Roles.PREMIUM)) {
             return response(403, "{\"error\":\"streamers are Premium only\"}");
         }
-        return streamLease(profile.id(), device, deviceLimit(granted));
+        return streamLease(profile.id(), device, memory, deviceLimit(granted));
     }
 
     /**
      * A streamer's lease: {@code device} leads the profile when it led
-     * already, the profile had no leader, or the leader was silent for
-     * {@link #LEADER_SILENCE}; it's then seen now. Only a device among the
-     * profile's devices, within the plan's limit, can lead (403
+     * already, the profile had no leader, the leader was silent for
+     * {@link #LEADER_SILENCE}, or it has more {@code memory} than the
+     * leader ({@link #claimLeader}); it's then seen now. Only a device
+     * among the profile's devices, within the plan's limit, can lead (403
      * otherwise, as its credentials would be). Answers {@code {"leader":
      * true|false, "streamLeader": {"device", "seenAt"}, "silenceMs"}}: the
      * leader after, and how long a leader may be silent.
      */
-    private APIGatewayV2HTTPResponse streamLease(String profileId, String device, int limit) {
+    private APIGatewayV2HTTPResponse streamLease(String profileId, String device, long memory, int limit) {
         var devices = profiles.store().devices(profileId);
         if (!withinLimit(device, devices, limit)) {
             return pastLimit(limit, devices);
         }
-        var leader = claimLeader(profileId, device);
+        var leader = claimLeader(profileId, device, memory);
         return response(200, "{\"leader\":" + (leader != null && leader.device().equals(device))
                 + leaderJson(leader) + ",\"silenceMs\":" + LEADER_SILENCE.toMillis() + "}");
     }
 
-    /** {@link Profiles.Store#claimLeader} now, a leader silent for {@link #LEADER_SILENCE} replaced. */
-    private Profiles.Leader claimLeader(String profileId, String device) {
+    /**
+     * {@link Profiles.Store#claimLeader} now: a leader silent for {@link
+     * #LEADER_SILENCE} is replaced, and so is one with less memory than
+     * the streamer's (bytes; 0, unknown, takes no leader's place, and a
+     * leader of unknown memory gives way to any streamer that says its
+     * own). Equal memory keeps the leader, so two alike never take turns.
+     */
+    private Profiles.Leader claimLeader(String profileId, String device, long memory) {
         var now = profiles.clock().instant();
-        return profiles.store().claimLeader(profileId, device, now, now.minus(LEADER_SILENCE));
+        return profiles.store().claimLeader(profileId, device, memory, now, now.minus(LEADER_SILENCE));
     }
 
     /** The profile's leading streamer as an answer's field ({@link #leaderJson(Profiles.Leader)}). */

@@ -90,7 +90,9 @@ them while the health stack imports them. The API's routes:
 - **`POST /api/auth/stream/lease`** (no authorizer, the stream key) and
   **`POST /api/auth/profile/stream-lease`** (a member's session, premium):
   a streamer asks for or renews the profile's leadership; a leader silent
-  for an hour is replaced. The credentials answers carry the leader
+  for an hour, or with less memory than the streamer says
+  (`X-Presence-Memory`, also on the stream credentials), is replaced. The
+  credentials answers carry the leader
   (`streamLeader`). See [Streamer leadership](streamer-leader.md).
 - **`POST /api/auth/account/delete`** (`ProfileHandler`, any verified
   account, the body the profile ID the app shows): deletes the caller's

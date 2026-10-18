@@ -218,6 +218,14 @@ class ProfileTest {
         return event;
     }
 
+    /** {@code call} as a streamer with {@code memory}: {@code X-Presence-Memory}, as API Gateway passes it. */
+    private static APIGatewayV2HTTPEvent withMemory(APIGatewayV2HTTPEvent call, String memory) {
+        var headers = new HashMap<String, String>(call.getHeaders() == null ? Map.of() : call.getHeaders());
+        headers.put("x-presence-memory", memory);
+        call.setHeaders(headers);
+        return call;
+    }
+
     /**
      * A member makes a stream key for {@code device} of their profile while
      * premium (streamers are Premium's); the key. Their roles are as before
@@ -424,6 +432,56 @@ class ProfileTest {
                 .getStatusCode());
         assertTrue(later.handleRequest(leaseCall(first, "profile_1 calm_quiet_otter"), null).getBody()
                 .startsWith("{\"leader\":false,"));
+    }
+
+    @Test
+    void theStreamerWithMoreMemoryLeads() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var small = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var big = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        var alike = streamKeyFor("work", "julio@nu01.com", "swift_gentle_fox");
+        var old = streamKeyFor("work", "julio@nu01.com", "quiet_little_owl");
+        // An older streamer, saying no memory, leads first.
+        assertEquals(200, profiles.handleRequest(streamerCall(old, "profile_1 quiet_little_owl"), null)
+                .getStatusCode());
+        // Any streamer that says its memory takes its place.
+        assertEquals(200, profiles.handleRequest(withMemory(streamerCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null).getStatusCode());
+        assertTrue(profiles.handleRequest(leaseCall(old, "profile_1 quiet_little_owl"), null).getBody()
+                .startsWith("{\"leader\":false,"));
+        assertEquals(512_000_000L, store.leader("profile_1").memory());
+
+        // More memory takes the lead; the smaller one, back, waits.
+        var takeover = profiles.handleRequest(withMemory(streamerCall(big, "profile_1 brave_little_lamp"),
+                "4000000000"), null);
+        assertEquals(200, takeover.getStatusCode(), takeover.getBody());
+        var replaced = profiles.handleRequest(withMemory(leaseCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null);
+        assertTrue(replaced.getBody().startsWith("{\"leader\":false,\"streamLeader\":{\"device\":"
+                + "\"brave_little_lamp\","), replaced.getBody());
+        assertEquals(409, profiles.handleRequest(withMemory(streamerCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null).getStatusCode());
+
+        // As much memory keeps the leader: no taking turns.
+        assertEquals(409, profiles.handleRequest(withMemory(streamerCall(alike, "profile_1 swift_gentle_fox"),
+                "4000000000"), null).getStatusCode());
+        // Neither does saying none, or junk.
+        for (var junk : List.of("", "lots", "-1", "9".repeat(17), Long.toString(Http.MAX_MEMORY + 1))) {
+            assertTrue(profiles.handleRequest(withMemory(leaseCall(alike, "profile_1 swift_gentle_fox"), junk),
+                    null).getBody().startsWith("{\"leader\":false,"), junk);
+        }
+        // The leader renews with its memory, and keeps the lead.
+        assertTrue(profiles.handleRequest(withMemory(leaseCall(big, "profile_1 brave_little_lamp"),
+                "4000000000"), null).getBody().startsWith("{\"leader\":true,"));
+        assertEquals(4_000_000_000L, store.leader("profile_1").memory());
+
+        // Signed in with Google, the same.
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "bright_tiny_wren"),
+                null);
+        var google = profiles.handleRequest(withMemory(call(ProfileHandler.PROFILE_STREAM_LEASE, "work",
+                "julio@nu01.com", "bright_tiny_wren"), "8000000000"), null);
+        assertTrue(google.getBody().startsWith("{\"leader\":true,"), google.getBody());
     }
 
     @Test

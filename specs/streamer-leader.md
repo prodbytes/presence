@@ -2,22 +2,37 @@
 
 A profile can have several [streamers](streamer.md) (Raspberry Pis running
 `presence-streamer`), but **at most one streams to the cloud at a time:
-the leader**. The others wait, recording nothing, until they're granted
-the leadership. When the leader dies (offline for more than an hour) or is
-deleted, a waiting streamer takes its place.
+the leader**, the one with the most memory. The others wait, recording
+nothing, until they're granted the leadership. When the leader dies
+(offline for more than an hour) or is deleted, a waiting streamer takes
+its place.
 
 ## Who leads
 
 The auth API decides, and keeps the leader on the profile's item in the
-profiles table (`streamLeader`, the device ID, and `streamLeaderSeenAt`,
-when it was last heard from, epoch ms):
+profiles table (`streamLeader`, the device ID, `streamLeaderSeenAt`,
+when it was last heard from, epoch ms, and `streamLeaderMemory`, its
+memory in bytes, 0 unknown):
 
 - **A streamer is granted the leadership** when it asks (its credentials,
   or a lease, below) and the profile has **no leader**, it **leads
-  already**, or the leader has been **silent for more than an hour**
-  (`ProfileHandler.LEADER_SILENCE`). Asking while it leads renews it (seen
-  now). The grant is one conditional write (`Profiles.Store.claimLeader`),
-  so two streamers taking over a silent leader at once can't both win.
+  already**, the leader has been **silent for more than an hour**
+  (`ProfileHandler.LEADER_SILENCE`), or the leader has **less memory**
+  than it. Asking while it leads renews it (seen now, its memory as it
+  says now). The grant is one conditional write
+  (`Profiles.Store.claimLeader`), so two streamers taking over a silent or
+  smaller leader at once can't both win.
+- **The most memory leads.** Each streamer says its total memory
+  (`MemTotal` in `/proc/meminfo`, in bytes) in the header
+  **`X-Presence-Memory`** of its stream credentials and leases
+  (`Http.memory`; missing, not a number, or over 1 PiB counts as
+  unknown). A streamer with more memory than the leader takes its place
+  as soon as it asks; the old leader hears it at its next lease (within 5
+  minutes), or from its credentials' 409, and waits. **Equal memory keeps
+  the leader**, so two alike never take turns. A streamer of unknown
+  memory (older versions, or `/proc/meminfo` unreadable) takes no
+  leader's place by its memory, and a leader of unknown memory gives way
+  to any streamer that says its own.
 - **Only a device of the profile within the plan's device limit** can lead
   ([Plans](premium.md#devices)): a streamer past it gets the same 403 as
   its credentials, so it can't hold the place without streaming.
@@ -92,12 +107,18 @@ an hour." The leader comes from the credentials answer
   says the same to each; phones' credentials name the leader and never
   take it; a lease needs the device's key; a leader silent for exactly an
   hour still leads, one second more and the waiting streamer takes over
-  and the old one, back, waits; deleting a waiting streamer leaves the
+  and the old one, back, waits; a streamer saying its memory takes over
+  from one that says none, one with more memory takes over (the smaller
+  one's lease says it waits, its credentials get the 409), one with as
+  much, none or junk (`X-Presence-Memory` empty, not a number, past
+  1 PiB) doesn't, a Google-signed-in streamer with more takes over too;
+  deleting a waiting streamer leaves the
   leader, deleting the leader frees the place at once; a Google-signed-in
   streamer leases with its session (not before it's a device of the
   profile, not when free).
-- Streamer (`go test ./...`): the 409 read as `NotLeaderError` with the
-  leader, standby and not an exit; the lease with a key and with a Google
+- Streamer (`go test ./...`): `X-Presence-Memory` sent with the lease
+  when the memory is known, and not otherwise; the 409 read as
+  `NotLeaderError` with the leader, standby and not an exit; the lease with a key and with a Google
   sign-in; `waitToLead` asks until the leader's gone, saying who leads
   once, and stops with its context; `keepLease` stops streaming when
   another leads and when the lease lapses.
@@ -115,8 +136,15 @@ an hour." The leader comes from the credentials answer
 - **A Google-signed-in streamer's credentials aren't gated** (`POST
   /api/auth/credentials` is the phones' too): it keeps to the leadership
   itself, through its lease.
-- **No way to pick the leader** in the app; the first streamer to ask
-  leads. Deleting the leader makes way for the others.
+- **No way to pick the leader** in the app; the streamer with the most
+  memory leads, and among equals the first to ask. Deleting the leader
+  makes way for the others.
+- **A bigger streamer's takeover overlaps for up to 5 minutes**: the old
+  leader streams until its next lease (or credentials) says another
+  leads.
+- **Memory only**: not the CPU, the free memory or the network; and two
+  Pis of the same model can report slightly different `MemTotal` (the
+  GPU's share, the kernel), so the one with a little more leads.
 - **Blink's login stays on the streamer that logged in.** When another
   streamer takes the lead, connect Blink again (it's the first in Blink's
   list).
