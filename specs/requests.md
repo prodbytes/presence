@@ -7307,3 +7307,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        cats and dogs. The unidentified flag still looks for people and
        pets only. Specs: [Events](events.md),
        [Monitoring](monitoring.md).
+
+502. **A browser refresh keeps the events' search and filters.** (2026-10-18)
+     - Asked: on a browser refresh, keep the search and filters.
+     - Changed: the Monitoring tab's search and its system events and
+       events with no one toggles are kept in the browser tab's
+       `sessionStorage` (`presence.eventFilters`) and restored on a
+       refresh, as the open tab is (`EventFilters.remembered`,
+       `SessionMemory`). Also, the Pi 4's Blink clips deleted before #499
+       were fetched again and kept (its Blink position rewound). Specs:
+       [Monitoring](monitoring.md).

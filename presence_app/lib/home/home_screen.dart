@@ -37,6 +37,7 @@ import '../screen_off.dart';
 import '../screen_light.dart';
 import '../settings.dart';
 import '../system_health.dart';
+import '../session_memory.dart';
 import '../tab_memory.dart';
 import 'camera_buttons.dart';
 import 'camera_messages.dart';
@@ -78,6 +79,7 @@ class HomeScreen extends StatefulWidget {
     this.join,
     this.onJoinHandled,
     this.tabMemory,
+    this.sessionMemory,
     this.showDevice,
     this.deleteDevice,
     this.deleteAccount,
@@ -102,6 +104,10 @@ class HomeScreen extends StatefulWidget {
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
   final TabMemory? tabMemory;
+
+  /// Keeps the Monitoring tab's filters across a browser refresh; defaults
+  /// to the platform's ([SessionMemory]).
+  final SessionMemory? sessionMemory;
 
   /// The link this device was opened with to become one of a user's
   /// devices ([JoinLink]), until handled: a banner says what's left to do.
@@ -355,7 +361,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// grabs), the "Show events with no one" toggle (off: only the grabs
   /// with a person or pet), the search (blank at launch) and the event to
   /// open. Made on first use, once the execution mode is known.
-  EventFilters get _filters => _filtersOrNull ??= EventFilters(
+  /// Kept across a browser refresh ([EventFilters.remembered]).
+  EventFilters get _filters => _filtersOrNull ??= EventFilters.remembered(
+    widget.sessionMemory ?? SessionMemory(),
     showSystemEvents: _dev,
     showEventsWithNoOne: false,
   );
