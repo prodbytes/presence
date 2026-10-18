@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import 'events.dart';
 import 'l10n/l10n.dart';
+import 'session_memory.dart';
 
 /// What the Monitoring tab shows of the [EventLog], in one place: the "Show
 /// system events" toggle ([showSystemEvents]), the "Show events with no
@@ -26,6 +29,43 @@ class EventFilters extends ChangeNotifier {
       part.addListener(notifyListeners);
     }
   }
+
+  /// Filters kept in [memory] across a browser refresh: the toggles and the
+  /// search as they were (`presence.eventFilters`), else the defaults
+  /// given; each change is kept. A value that doesn't read is ignored.
+  factory EventFilters.remembered(
+    SessionMemory memory, {
+    bool showSystemEvents = true,
+    bool showEventsWithNoOne = true,
+  }) {
+    Map<String, Object?> kept = const {};
+    try {
+      final read = jsonDecode(memory.read(memoryKey) ?? '{}');
+      if (read is Map<String, Object?>) kept = read;
+    } on FormatException {
+      // Not ours, or cut short: the defaults.
+    }
+    T? of<T>(String key) => kept[key] is T ? kept[key] as T : null;
+    final filters = EventFilters(
+      showSystemEvents: of<bool>('system') ?? showSystemEvents,
+      showEventsWithNoOne: of<bool>('noOne') ?? showEventsWithNoOne,
+      search: of<String>('search') ?? '',
+    );
+    filters.addListener(
+      () => memory.write(
+        memoryKey,
+        jsonEncode({
+          'system': filters.showSystemEvents.value,
+          'noOne': filters.showEventsWithNoOne.value,
+          'search': filters.search.value,
+        }),
+      ),
+    );
+    return filters;
+  }
+
+  /// The [SessionMemory] key of [EventFilters.remembered].
+  static const String memoryKey = 'presence.eventFilters';
 
   /// Whether system events show ([ShowSystemEvents]): on, every event; off,
   /// only grabs ([EventTimeline.isGrab]).

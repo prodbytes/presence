@@ -46,6 +46,13 @@ the separate Events and Subjects tabs.
   events with no one in them" / "Hide events with no one in them"), off
   by default: only the grabs with a person or an animal on them show (see
   [Events](events.md)).
+- **A browser refresh keeps the search and both toggles** as they were
+  (`EventFilters.remembered`): the browser tab's `sessionStorage`
+  (`presence.eventFilters`, JSON `{system, noOne, search}`, through
+  `lib/session_memory.dart`), as the open tab is kept
+  ([Navigation](navigation.md)); a new browser tab starts with the
+  defaults, and a value that doesn't read is ignored. The apps don't
+  refresh.
 - It fits a 320 dp phone without overflowing: the open search field gets
   narrower.
 - **Wide screens (720 dp and up), two columns:**
