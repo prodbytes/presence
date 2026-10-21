@@ -7465,3 +7465,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      [sign-in](sign-in.md), [store readiness](store-readiness.md)); and
      store readiness's intro no longer says Presence is in neither store:
      it was submitted to App Review on 2026-10-16.
+
+510. **Sync the other agents' changes and cut a release.** (2026-10-21)
+     - Asked: bring in the work other agents sent, then cut the RC and GA
+       releases.
+     - Changed: the live sync test "a wanted clip whose fetch fails is
+       fetched at the next pass" failed every run on `main`: it checked
+       that the clip's fetch was tried as soon as the event arrived, but a
+       live message hands its event over first and wants its clip after.
+       The test now waits for the fetch to be tried. No app change. The
+       "Who is this?" request (511) was merged with `main` and released
+       with it.
