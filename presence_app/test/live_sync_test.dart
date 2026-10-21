@@ -1245,7 +1245,9 @@ void main() {
             'clipState': 'complete',
           }),
         );
-        await until(() => remote.isNotEmpty);
+        // The event is handed over before its clip is wanted: wait for the
+        // fetch the live message starts.
+        await until(() => backend.downloads.contains(recordKey));
         await sync.idle();
         expect(backend.downloads, contains(recordKey), reason: 'tried');
         expect(remote.where((r) => r.clips.isNotEmpty), isEmpty);
