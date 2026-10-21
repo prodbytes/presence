@@ -18,6 +18,7 @@ import 'identity/device_os.dart';
 import 'l10n/l10n.dart';
 import 'location/device_location.dart';
 import 'recognition/suggestion.dart';
+import 'recognition/subject_request.dart';
 import 'time_format.dart';
 
 export 'event_filters.dart' show EventFilters, EventView;
@@ -632,13 +633,13 @@ class EventTimeline extends StatefulWidget {
   final EventFilters? filters;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
-  /// clip (Capture all's too) or a suggestion about a clip ("Is this
-  /// Rex?"), which waits for an answer. A Capture all request has no
-  /// video of its own, and the clip each start takes
+  /// clip (Capture all's too) or a question about a clip ("Is this
+  /// Rex?", "Who is this?"), which waits for an answer. A Capture all
+  /// request has no video of its own, and the clip each start takes
   /// ([ClipTrigger.startup]) is routine: both are system events.
   static bool isGrab(AppEvent event) => switch (event) {
     ClipRequested(:final trigger) => trigger != ClipTrigger.startup,
-    SubjectSuggestion() => true,
+    SubjectSuggestion() || SubjectRequest() => true,
     _ => false,
   };
 
@@ -1103,11 +1104,12 @@ Iterable<String> eventSearchFields(
   final clip = switch (event) {
     ClipRequested() => event,
     SubjectSuggestion(:final clip) => clip,
+    SubjectRequest(:final clip) => clip,
     _ => null,
   };
   if (clip != null) {
     yield clip.clip.cameraLabel;
-    // A suggestion's own name is in its title; its clip's tags aren't it.
+    // A question's own name is in its title; its clip's tags aren't it.
     if (event is ClipRequested) {
       for (final tag in clip.annotations.tags) {
         yield tag.name;

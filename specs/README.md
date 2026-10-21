@@ -41,7 +41,8 @@ their data.
   searching "do a barrel roll" spins the screen.
 - [Event flags](event-flags.md): flags on an event's card, worked out from
   its data; a yellow **unidentified** flag on a clip showing a person or
-  pet (cat, dog) nobody's named, with **Identify** to name them.
+  pet (cat, dog) nobody's named, with **Identify** to name them, and a
+  **"Who is this?"** event asking for it once recognition gives up.
 - [Recording consent](consent.md): asked once per device, before anything
   shows or records: the right to record, and faces as biometric data under
   the GDPR, in plain terms, with a verification hash.

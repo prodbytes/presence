@@ -200,6 +200,11 @@ How each choice was measured (datasets, numbers) is in the models'
 
    A subject is tagged or asked about at most once per clip. Subjects
    already on the clip are skipped.
+
+   If, once done, a person or pet seen on the clip is still unnamed
+   (the clip is **unidentified**) and nobody was asked about, a **"Who
+   is this?"** event (`SubjectRequest`) asks the user to tag them; see
+   [Event flags](event-flags.md#who-is-this).
 7. **Object tags:** each label is kept **once per clip**, if seen on **2
    frames** or more, or on one at **0.8** or more (or on a clip of one
    frame): a label on one frame only, unsure, is more often a mistake than
@@ -241,8 +246,8 @@ How each choice was measured (datasets, numbers) is in the models'
 - The Events **search** matches them: "bicycle" finds the clips with a
   bicycle (see [Events](events.md)).
 - A `human`, `cat` or `dog` with nobody named on the clip flags it
-  **unidentified** (yellow, with **Identify**; see [Event
-  flags](event-flags.md)).
+  **unidentified** (yellow, with **Identify**), and recognition asks
+  **"Who is this?"** (see [Event flags](event-flags.md)).
 - They're labels, not subjects: no names, colors, maps, references or
   questions, and they never make anyone a subject.
 

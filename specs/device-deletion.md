@@ -87,8 +87,8 @@ app start, a clip) would bring it straight back.
 
 - Every stored event of that device in the signed-in profile that isn't
   deleted yet gets **`deletedAt`** (ms since the epoch, the time of the
-  deletion), and so do the **"Is this Rex?" suggestions about its clips**
-  (whatever device asked them). The records stay, with the field
+  deletion), and so do the **questions about its clips** ("Is this Rex?"
+  suggestions and "Who is this?" requests, whatever device asked them). The records stay, with the field
   (`AppEvent.deletedAt`, [Data formats](data-formats.md)).
 - They leave the event log at once (`EventLog.remove`), so **nothing shows
   them**: the timeline, its count and search, the device filter, the
@@ -132,8 +132,8 @@ there) and a snack bar says "Event deleted on every device"
 
 `Persistence.deleteEvent(id, profileId:)` does for one event what
 `deleteDevice` does for a device's (the same code, `_softDelete`): the
-event, if it's stored, in the profile and not deleted yet, and the "Is
-this Rex?" suggestions about its clip get `deletedAt`, leave the event
+event, if it's stored, in the profile and not deleted yet, and the
+questions about its clip ("Is this Rex?", "Who is this?") get `deletedAt`, leave the event
 log, have their pending recording downloads dropped, and are named
 changed so cloud sync uploads them deleted and live sync publishes them.
 The app also forgets its copies (`EventCopies.forget`). Any device's
@@ -161,7 +161,7 @@ there; with nothing of the profile's shown, it's disabled.
 `Persistence.deleteEvents(ids, profileId:)` deletes them at once, as
 `deleteEvent` does one (`deleteEvent` uses it): one pass over the stored
 events, those not in the profile or deleted already left out, the
-suggestions about their clips with them. It returns how many of the IDs
+questions about their clips with them. It returns how many of the IDs
 it deleted. The app forgets their copies, notifying once
 (`EventCopies.forgetAll`).
 

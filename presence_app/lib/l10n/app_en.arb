@@ -997,6 +997,19 @@
   "eventRecognitionPartial": "Recognition ran in part",
   "eventRecognitionRerunning": "Running recognition…",
   "eventRecognitionTapToRerun": "Tap to run recognition",
+  "eventRequestClipNotHere": "The clip isn't here yet",
+  "eventRequestIdentify": "Identify",
+  "eventRequestNamed": "Named {names}",
+  "@eventRequestNamed": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "eventRequestSeenBoth": "A person and a pet were seen",
+  "eventRequestSeenPerson": "A person was seen",
+  "eventRequestSeenPet": "A pet was seen",
   "eventSubjectsAllTagged": "People and pets: everyone known is already named",
   "eventSubjectsFound": "People and pets: {names}",
   "@eventSubjectsFound": {
@@ -1064,6 +1077,7 @@
   "eventTitleSignedIn": "Signed in",
   "eventTitleSignedOut": "Signed out",
   "eventTitleStartup": "Startup clip",
+  "eventTitleWhoIsThis": "Who is this?",
   "eventWhere": "Where",
   "eventsCountTooltip": "{shown} of {all} events shown",
   "@eventsCountTooltip": {

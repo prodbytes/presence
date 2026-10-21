@@ -1341,6 +1341,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventRecognitionTapToRerun => 'Tap to run recognition';
 
   @override
+  String get eventRequestClipNotHere => 'The clip isn\'t here yet';
+
+  @override
+  String get eventRequestIdentify => 'Identify';
+
+  @override
+  String eventRequestNamed(String names) {
+    return 'Named $names';
+  }
+
+  @override
+  String get eventRequestSeenBoth => 'A person and a pet were seen';
+
+  @override
+  String get eventRequestSeenPerson => 'A person was seen';
+
+  @override
+  String get eventRequestSeenPet => 'A pet was seen';
+
+  @override
   String get eventSubjectsAllTagged =>
       'People and pets: everyone known is already named';
 
@@ -1429,6 +1449,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventTitleStartup => 'Startup clip';
+
+  @override
+  String get eventTitleWhoIsThis => 'Who is this?';
 
   @override
   String get eventWhere => 'Where';

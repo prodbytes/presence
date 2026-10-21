@@ -64,7 +64,9 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   (object tags `human`, `cat`, `dog`) with fewer subjects named than sorts
   seen gets a yellow **unidentified** flag under its labels; **Identify**
   opens the player where they were seen, to name them, which makes them a
-  subject (or tags a known one). See [Event flags](event-flags.md).
+  subject (or tags a known one). When recognition can't name them, a
+  **"Who is this?"** event also asks for it in the events. See [Event
+  flags](event-flags.md).
 - **Removing a subject from an event:** a small **x** after each name
   (`RemoveLabelButton`, key `event-subject-remove-<id>`, tooltip "Remove
   subject Rex from this event") removes, at once and without asking, every tag of

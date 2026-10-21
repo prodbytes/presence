@@ -77,7 +77,7 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | Field | Type | |
 |---|---|---|
 | `id` | string | the event's ID |
-| `type` | string | `app_started`, `capture_all`, `clip_requested`, `subject_suggestion`, `generic`… |
+| `type` | string | `app_started`, `capture_all`, `clip_requested`, `subject_suggestion`, `subject_request`, `generic`… |
 | `title`, `detail` | string | as shown; `detail` may be null |
 | `time` | integer (ms, UTC) | when it happened; also its partition |
 | `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
@@ -104,7 +104,9 @@ they're worked out from `annotations` and `objectTags` wherever the event
 is read.
 
 "Is this Rex?" events (`subject_suggestion`) add `clipEventId`,
-`annotationId`, `subjectName` and `confidence`.
+`annotationId`, `subjectName` and `confidence`. "Who is this?" events
+(`subject_request`) add `clipEventId`, `sorts` (`person`, `pet`, or
+both) and `ms` (where the first was seen, into the recording).
 
 ### Clip record — `clips/year=YYYY/day=DDD/<clipId>.json`
 

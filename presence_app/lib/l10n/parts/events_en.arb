@@ -454,5 +454,19 @@
   },
   "clipNameSpotHint": "Who is at the ring?",
   "clipNameFrameHint": "Name someone on this frame",
-  "clipNameAdd": "Add"
+  "clipNameAdd": "Add",
+  "eventTitleWhoIsThis": "Who is this?",
+  "eventRequestSeenPerson": "A person was seen",
+  "eventRequestSeenPet": "A pet was seen",
+  "eventRequestSeenBoth": "A person and a pet were seen",
+  "eventRequestIdentify": "Identify",
+  "eventRequestNamed": "Named {names}",
+  "@eventRequestNamed": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "eventRequestClipNotHere": "The clip isn't here yet"
 }

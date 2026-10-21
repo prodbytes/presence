@@ -2260,6 +2260,42 @@ abstract class AppLocalizations {
   /// **'Tap to run recognition'**
   String get eventRecognitionTapToRerun;
 
+  /// No description provided for @eventRequestClipNotHere.
+  ///
+  /// In en, this message translates to:
+  /// **'The clip isn\'t here yet'**
+  String get eventRequestClipNotHere;
+
+  /// No description provided for @eventRequestIdentify.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify'**
+  String get eventRequestIdentify;
+
+  /// No description provided for @eventRequestNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Named {names}'**
+  String eventRequestNamed(String names);
+
+  /// No description provided for @eventRequestSeenBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'A person and a pet were seen'**
+  String get eventRequestSeenBoth;
+
+  /// No description provided for @eventRequestSeenPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'A person was seen'**
+  String get eventRequestSeenPerson;
+
+  /// No description provided for @eventRequestSeenPet.
+  ///
+  /// In en, this message translates to:
+  /// **'A pet was seen'**
+  String get eventRequestSeenPet;
+
   /// No description provided for @eventSubjectsAllTagged.
   ///
   /// In en, this message translates to:
@@ -2409,6 +2445,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Startup clip'**
   String get eventTitleStartup;
+
+  /// No description provided for @eventTitleWhoIsThis.
+  ///
+  /// In en, this message translates to:
+  /// **'Who is this?'**
+  String get eventTitleWhoIsThis;
 
   /// No description provided for @eventWhere.
   ///

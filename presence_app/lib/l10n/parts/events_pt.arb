@@ -163,5 +163,12 @@
   "eventRecognitionFailed": "O reconhecimento falhou: {reason}",
   "clipNameSpotHint": "Quem está no círculo?",
   "clipNameFrameHint": "Nomeie alguém neste quadro",
-  "clipNameAdd": "Adicionar"
+  "clipNameAdd": "Adicionar",
+  "eventTitleWhoIsThis": "Quem é?",
+  "eventRequestSeenPerson": "Uma pessoa foi vista",
+  "eventRequestSeenPet": "Um animal de estimação foi visto",
+  "eventRequestSeenBoth": "Uma pessoa e um animal de estimação foram vistos",
+  "eventRequestIdentify": "Identificar",
+  "eventRequestNamed": "Nomeado: {names}",
+  "eventRequestClipNotHere": "O clipe ainda não está aqui"
 }

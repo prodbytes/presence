@@ -74,8 +74,9 @@
   its [object tags](recognition.md)** (`cat`, `bicycle`…) or **one of its
   [flags](event-flags.md)** (`unidentified`) contains the
   text. Suggestions waiting for an answer aren't tags, so they don't
-  match a clip; the "Is this Rex?" event matches through its own title,
-  and its clip's camera label. Blank, every event shows.
+  match a clip; the "Is this Rex?" and "Who is this?" events match
+  through their own title and detail, and their clip's camera label.
+  Blank, every event shows.
   - The search works together with the system events and events with no
     one toggles: an event shows only if it passes all three. A search that is a device's **whole
     ID** (ignoring case and spaces around it), such as one set by tapping
@@ -211,8 +212,9 @@
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
     requested, Motion detected, Scheduled clip, and the clips taken for a
     Capture all, titled "Capture all" with the grid icon), and the
-    [recognition](recognition.md) suggestions about them ("Is this
-    Rex?", `SubjectSuggestion`), which wait for an answer. A **Startup
+    [recognition](recognition.md) questions about them ("Is this
+    Rex?", `SubjectSuggestion`; "Who is this?", `SubjectRequest`), which
+    wait for an answer. A **Startup
     clip** (`ClipTrigger.startup`, one per start) is routine: a system
     event, hidden with the others.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
