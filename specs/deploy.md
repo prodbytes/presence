@@ -15,7 +15,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/privacy`, `/tos`, `/delete-account` | S3 `privacy/index.html`, `tos/index.html` and `delete-account/index.html` (a CloudFront Function, `<stack>-pages`, maps them): the [legal pages](legal.md) |
-| `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/app/*`, `/app` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/payments/*` | The [payments API](payments-api.md)'s own HTTP API (`presence_api_payments`, stack `presence-payments`; origin `payments`), matched before `/api/*`. Not cached, every viewer header but `Host` forwarded |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
 | `/health` | The [health check](health-check.md)'s own HTTP API (`presence_health`, stack `presence-health`; origin `health`), public, not cached |
@@ -414,7 +414,7 @@ managed security-headers one. Both keep its headers (HSTS one year,
 strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
 `X-Frame-Options: DENY` instead of `SAMEORIGIN`:
 
-- **`<stack>-app`** (`/app*`): a Content Security Policy for what the web
+- **`<stack>-app`** (`/app/*`, `/app`): a Content Security Policy for what the web
   app loads, and `Permissions-Policy: camera=(self), microphone=(self),
   geolocation=(self)`:
   - `default-src 'self'`; `object-src 'none'`; `base-uri 'self'`;

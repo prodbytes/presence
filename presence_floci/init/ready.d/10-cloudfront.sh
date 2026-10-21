@@ -2,7 +2,7 @@
 # Creates the Presence CloudFront distribution in Floci. It only routes, as
 # the deployed CloudFront would; the index and the app run on their own dev
 # servers:
-#   /app*   -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
+#   /app/*, /app -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
 #   /api/*  -> the local auth API  (Floci's own HTTP API, from 05-auth-api.sh)
 #   *       -> presence_index      (http://$PRESENCE_ORIGIN_HOST:$INDEX_PORT),
 #              whose / redirects to /app/
@@ -64,12 +64,12 @@ behavior() {
 }
 
 origin_count=2
-behavior_count=1
+behavior_count=2
 api_origin=""
 api_behavior=""
 if [ -n "$API_HOST" ]; then
   origin_count=3
-  behavior_count=2
+  behavior_count=3
   # Floci itself, on its own port, over HTTP (inside the container).
   api_origin=$(printf ', {"Id": "api", "DomainName": "%s", "CustomOriginConfig": {"HTTPPort": 4566, "HTTPSPort": 443, "OriginProtocolPolicy": "http-only"}}' "$API_HOST")
   api_behavior=", {\"PathPattern\": \"/api/*\", $(behavior api)}"
@@ -85,7 +85,8 @@ distribution=$(aws cloudfront create-distribution \
     \"Origins\": {\"Quantity\": $origin_count, \"Items\": [$(origin app "$WEB_PORT"), $(origin index "$INDEX_PORT")$api_origin]},
     \"DefaultCacheBehavior\": {$(behavior index)},
     \"CacheBehaviors\": {\"Quantity\": $behavior_count, \"Items\": [
-      {\"PathPattern\": \"/app*\", $(behavior app)}$api_behavior
+      {\"PathPattern\": \"/app/*\", $(behavior app)},
+      {\"PathPattern\": \"/app\", $(behavior app)}$api_behavior
     ]}
   }")
 

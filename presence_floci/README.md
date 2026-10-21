@@ -7,7 +7,7 @@ would. The index and the app keep running on their own dev servers:
 | Path | Origin |
 |------|--------|
 | default (`/`, anything else) | `presence_index`, Python `http.server` (`INDEX_PORT`, 8081): `/` redirects to `/app/` |
-| `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
+| `/app/*`, `/app` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
 | `/api/*` | The auth API ([presence_api_auth](../presence_api_auth)), deployed into Floci itself at every start |
 
 It's also the **local cloud** ([specs/local-cloud.md](../specs/local-cloud.md)):

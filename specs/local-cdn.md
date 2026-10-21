@@ -8,7 +8,7 @@ servers:
 | Path | Origin |
 |------|--------|
 | default (`/`, anything else) | [Site index](site-index.md) (`python3 -m http.server`, 8081): `/` redirects to `/app/` |
-| `/app*` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
+| `/app/*`, `/app` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
 | `/api/*` | The [auth API](auth-api.md), deployed into Floci itself (below) |
 
 CloudFront forwards paths unchanged and can't strip a prefix, so each origin
