@@ -148,9 +148,12 @@ folder, and removed at the end of the job, even after a failure.
     upload key's, for side-loaded builds). The site doesn't serve that
     file yet: nothing in `presence_index/site/` or `scripts/deploy.sh`
     makes it. Its `sha256_cert_fingerprints` list takes several.
-  - Google sign-in's Android OAuth client must have the app signing key's
-    SHA-1 (and the upload key's, for side-loaded builds), or sign-in fails
-    in the store build.
+  - Google sign-in needs one Android OAuth client per signing key (a
+    client takes one SHA-1): the app signing key's, or sign-in fails in
+    the store build, and the upload key's, for side-loaded builds. Each in
+    presence-492410, the web client's project (Google refuses an Android
+    client in another project, error 28444); a package and SHA-1 can be in
+    one client only, across all projects.
 
 ### App Store (iOS)
 
