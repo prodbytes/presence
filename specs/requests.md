@@ -7451,3 +7451,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        chunk is kept and nothing on the camera deleted. es, pt
        translated. Specs: [USB cameras](usb-cameras.md),
        [Streamer](streamer.md).
+508. **The web app's CloudFront path is exact.** (2026-10-21) Found while
+     fixing the same in TabCam: the site's web app behavior was the prefix
+     `/app*`, which also takes `/apple-touch-icon.png`, `/apps…` and the
+     like from the index (and locally sends them to the Flutter dev
+     server). It's now `/app/*` plus `/app` (which the function redirects
+     to `/app/`), in `presence_infra/site.yaml` and the local Floci
+     CloudFront alike. See [deploy](deploy.md) and
+     [local CDN](local-cdn.md).
