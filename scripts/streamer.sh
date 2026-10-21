@@ -16,6 +16,10 @@
 # - The Google OAuth client for the device sign-in comes from
 #   GOOGLE_DEVICE_CLIENT_ID and GOOGLE_DEVICE_CLIENT_SECRET (the environment,
 #   else .env); without them the streamer asks for them at run time.
+# - Live sync's AWS IoT endpoint comes from IOT_ENDPOINT (the environment,
+#   else .env), as the app's builds: the account's iot:Data-ATS endpoint,
+#   the same for prod and the RC. Without it the streamer's live sync is
+#   off unless PRESENCE_STREAMER_IOT_ENDPOINT sets one at run time.
 # - The version is scripts/version.sh's (VERSION_Z overrides Z).
 set -euo pipefail
 
@@ -41,12 +45,20 @@ for value in "$client_id" "$client_secret"; do
   fi
 done
 [[ -n "$client_id" ]] || echo "warning: no GOOGLE_DEVICE_CLIENT_ID: the streamer will need one at run time" >&2
+iot_endpoint=${IOT_ENDPOINT:-$(dotenv IOT_ENDPOINT)}
+# Only AWS IoT's form is built in: a local .env's ws://localhost (the local
+# stack's broker) isn't for a Pi.
+if [[ -n "$iot_endpoint" && ! "$iot_endpoint" =~ ^[a-z0-9]+-ats\.iot\.[a-z0-9-]+\.amazonaws\.com$ ]]; then
+  echo "warning: IOT_ENDPOINT '$iot_endpoint' isn't <id>-ats.iot.<region>.amazonaws.com: not built in" >&2
+  iot_endpoint=
+fi
+[[ -n "$iot_endpoint" ]] || echo "warning: no IOT_ENDPOINT: the streamer's live sync is off unless set at run time" >&2
 
 # The model (presence_streamer/detector/models.txt), checked against its
 # SHA-256.
 bash scripts/models.sh "$out/models"
 
-ldflags="-s -w -X main.version=$VERSION -X main.googleClientID=$client_id -X main.googleClientSecret=$client_secret"
+ldflags="-s -w -X main.version=$VERSION -X main.googleClientID=$client_id -X main.googleClientSecret=$client_secret -X main.iotEndpoint=$iot_endpoint"
 
 for arch in armhf arm64; do
   case "$arch" in
@@ -70,13 +82,14 @@ for arch in armhf arm64; do
     pkg=$stage/deb
     install -d "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/lib/presence-streamer" \
       "$pkg/usr/share/presence-streamer/models" "$pkg/lib/systemd/system" "$pkg/etc/default" \
-      "$pkg/usr/share/doc/presence-streamer"
+      "$pkg/usr/share/doc/presence-streamer" "$pkg/lib/udev/rules.d"
     install -m 755 "$dir/presence-streamer" "$pkg/usr/bin/presence-streamer"
     install -m 755 "$dir/presence-detect.py" "$pkg/usr/lib/presence-streamer/presence-detect.py"
     install -m 755 "$dir/presence-blink.py" "$pkg/usr/lib/presence-streamer/presence-blink.py"
     install -m 644 "$dir"/models/* "$pkg/usr/share/presence-streamer/models/"
     install -m 644 packaging/streamer/presence-streamer.service "$pkg/lib/systemd/system/"
     install -m 644 packaging/streamer/default "$pkg/etc/default/presence-streamer"
+    install -m 644 packaging/streamer/85-presence-streamer-usbcam.rules "$pkg/lib/udev/rules.d/"
     install -m 644 "$src/README.md" "$pkg/usr/share/doc/presence-streamer/README.md"
     for script in postinst prerm postrm; do
       install -m 755 "packaging/streamer/$script" "$pkg/DEBIAN/$script"

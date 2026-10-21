@@ -169,6 +169,15 @@ Color _on(BuildContext context) => Theme.of(context).colorScheme.primary;
 Color _off(BuildContext context) =>
     Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
 
+/// [event]'s holders, the cloud's copy in cold storage if it's a clip
+/// recorded more than [EventCopies.coldStorageAfter] ago.
+CopiesSummary _summaryOf(EventCopies copies, AppEvent event) =>
+    copies.summaryOf(
+      event.id,
+      origin: event.deviceId,
+      clipTime: event is ClipRequested ? event.time : null,
+    );
+
 /// How many devices hold a copy of [event]: an icon and the number, the
 /// cloud not counted ([EventCloudBadge] shows it), with the holders in its
 /// tooltip ("On 2 devices", then "This device, Cloud, pixel_ab12"; with
@@ -188,7 +197,10 @@ class EventCopiesBadge extends StatelessWidget {
             for (final h in summary.holders)
               switch (h) {
                 EventCopies.thisDevice => l.eventCopiesThisDevice,
-                EventCopies.cloudHolder => l.eventCopiesCloud,
+                EventCopies.cloudHolder =>
+                  summary.coldStorage
+                      ? l.eventCopiesCloudColdStorage
+                      : l.eventCopiesCloud,
                 _ => h,
               },
           ].join(', ');
@@ -202,7 +214,7 @@ class EventCopiesBadge extends StatelessWidget {
     if (copies == null || event.deletedAt != null) {
       return const SizedBox.shrink();
     }
-    final summary = copies.summaryOf(event.id, origin: event.deviceId);
+    final summary = _summaryOf(copies, event);
     final l = context.l10n;
     final devices = summary.devices.length;
     final actions = EventCopiesScope.actionsOf(context);
@@ -248,7 +260,7 @@ class EventCloudBadge extends StatelessWidget {
     if (copies == null || event.deletedAt != null) {
       return const SizedBox.shrink();
     }
-    final summary = copies.summaryOf(event.id, origin: event.deviceId);
+    final summary = _summaryOf(copies, event);
     final l = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     // Archived (the goal): kept in the cloud, and no longer (or never, in
@@ -261,12 +273,16 @@ class EventCloudBadge extends StatelessWidget {
         : (Icons.cloud_done, scheme.secondary, l.eventCloudArchived);
     final actions = EventCopiesScope.actionsOf(context);
     final cloud = summary.cloud;
+    // Its recording archived in cold storage: kept, but not playable.
+    final said = summary.coldStorage
+        ? '$tooltip\n${l.eventCloudColdStorage}'
+        : tooltip;
     return _Indicator(
       icon: icon,
       color: color,
       tooltip: actions == null
-          ? tooltip
-          : '$tooltip\n${cloud ? l.eventCloudTapToDelete : l.eventCloudTapToPut}',
+          ? said
+          : '$said\n${cloud ? l.eventCloudTapToDelete : l.eventCloudTapToPut}',
       onTap: actions == null
           ? null
           : () => cloud

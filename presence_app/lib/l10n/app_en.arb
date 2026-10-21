@@ -2,7 +2,7 @@
   "@@locale": "en",
   "aboutLinkCopied": "Link copied",
   "aboutOpenSource": "Presence is open source:",
-  "aboutParagraph": "Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
+  "aboutParagraph": "Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
   "authAccessAdmin": "Admin Access",
   "authAccessFree": "Free Access",
   "authAccessPremium": "Premium Access",
@@ -107,20 +107,6 @@
       }
     }
   },
-  "authDevicesHidden": "{count, plural, =1{1 device's events are hidden: {plan} shows your first {limit} devices.} other{{count} devices' events are hidden: {plan} shows your first {limit} devices.}}",
-  "@authDevicesHidden": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authFeedback": "Feedback",
   "authFeedbackIntro": "Members' messages from the Help tab, the latest active first. Your replies show there.",
   "authFeedbackLoadFailed": "Couldn't load feedback ({error}).",
@@ -136,6 +122,15 @@
   "@authHidden": {
     "description": "A device whose events are hidden"
   },
+  "authHiddenCount": "{count, plural, =1{1 device hidden} other{{count} devices hidden}}",
+  "@authHiddenCount": {
+    "description": "Under the Profile tab's device list: how many devices the plan hides.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "authHiddenTooltip": "Past the plan's device limit: it doesn't sync, and its events are hidden here",
   "authHideDevice": "Hide {device}'s events",
   "@authHideDevice": {
@@ -145,6 +140,22 @@
       }
     }
   },
+  "authJoin": "Join Presence",
+  "authJoinFree": "Join free",
+  "authJoinFreeFailed": "Couldn't join right now. Try again in a moment.",
+  "authJoinFreeText": "{email} isn't a member of Presence yet. Join free to use it on this device.",
+  "@authJoinFreeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authLeader": "leader",
+  "@authLeader": {
+    "description": "The profile's leading streamer, in the device list"
+  },
+  "authLeaderTooltip": "The profile's leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it's been offline for an hour.",
   "authLinkAnother": "Link another account",
   "authLinkCode": "Link code",
   "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",
@@ -165,20 +176,6 @@
     }
   },
   "authLinkedToProfile": "Linked to the profile.",
-  "authMoreHidden": "{count, plural, =1{1 more device doesn't sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don't sync, and their events are hidden: {plan} syncs your first {limit}.}}",
-  "@authMoreHidden": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authNoEvents": "No events",
   "authNoFeedback": "No feedback yet.",
   "authNoRoles": "No roles yet",
@@ -193,28 +190,9 @@
     }
   },
   "authOsUnknown": "Operating system unknown",
-  "authOthersHidden": "This device doesn't sync, and your other devices' events are hidden on it: {plan} syncs your first {limit} devices.",
-  "@authOthersHidden": {
-    "placeholders": {
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authOwner": "Owner",
   "@authOwner": {
     "description": "The profile's owner account"
-  },
-  "authPastLimit": "This device is past your plan's first {limit}: it doesn't sync, so only its own events show here.",
-  "@authPastLimit": {
-    "placeholders": {
-      "limit": {
-        "type": "int"
-      }
-    }
   },
   "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
   "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with, and members to Pro. Leave one empty not to offer that plan.",
@@ -290,30 +268,8 @@
     }
   },
   "authPremiumMonthly": "Premium monthly",
-  "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
-  "@authPremiumShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authPremiumYearly": "Premium yearly",
   "authProMonthly": "Pro monthly",
-  "authProShowsUpTo": "{text} Pro shows up to {limit}.",
-  "@authProShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authProYearly": "Pro yearly",
   "authProfile": "Profile",
   "@authProfile": {
@@ -397,11 +353,11 @@
       }
     }
   },
-  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.",
-  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi",
+  "authStreamerBody": "Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.",
+  "authStreamerCopied": "Command copied: paste it on the streamer",
   "authStreamerCopy": "Copy command",
-  "authStreamerCreate": "Create command",
-  "authStreamerFailed": "Couldn't create the command ({error})",
+  "authStreamerCreate": "Get command",
+  "authStreamerFailed": "Couldn't get the command ({error})",
   "@authStreamerFailed": {
     "placeholders": {
       "error": {
@@ -410,7 +366,7 @@
     }
   },
   "authStreamerKeyOnce": "It holds this device's key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.",
-  "authStreamerTitle": "Stream from a Raspberry Pi",
+  "authStreamerTitle": "Streamer",
   "authSubscribe": "Subscribe",
   "authSubscribeButton": "Subscribe at nu01.com",
   "authSubscribeText": "{email} doesn't have access to Presence yet. Subscribe at nu01.com: Free, or Premium for cloud backup and more devices. Then check again here.",
@@ -424,6 +380,7 @@
   "authSyncFree": "Each device keeps its events; your devices share them every 15 minutes (Premium: instantly)",
   "authThisAccount": "This account",
   "authThisDevice": "this device",
+  "authThisDeviceHidden": "This device doesn't sync",
   "authUnavailable": "Sign-in is unavailable.",
   "authUnlink": "Unlink",
   "authUnlinked": "{email} was unlinked.",
@@ -462,7 +419,7 @@
   "authVoucherTooMany": "Too many tries. Wait a while and try again.",
   "authVouchersTitle": "Vouchers and maintenance",
   "authYourAccount": "Your account",
-  "blinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
+  "blinkAbout": "A streamer of yours fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
   "blinkConnect": "Connect",
   "blinkConnected": "Connected to Blink as {account}. Its cameras:",
   "@blinkConnected": {
@@ -493,7 +450,7 @@
   },
   "blinkLoggingIn": "Logging in to Blink…",
   "blinkNoCameras": "No cameras yet.",
-  "blinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras' clips.",
+  "blinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Blink cameras' clips.",
   "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
   "blinkOff": "Not connected to Blink.",
   "blinkPassword": "Blink password",
@@ -507,6 +464,8 @@
       }
     }
   },
+  "blinkRemove": "Remove",
+  "blinkRemoveNote": "Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.",
   "blinkSendPin": "Send PIN",
   "blinkStreamer": "The streamer that fetches them",
   "blinkWaiting": "Sent to {device}; it looks every 30 s…",
@@ -517,10 +476,6 @@
       }
     }
   },
-  "cameraActionAll": "Show all devices",
-  "cameraActionNormal": "Back to normal: this camera",
-  "cameraActionStopped": "Stop: no capturing or syncing",
-  "cameraActionUnattended": "Go unattended: screen off, still capturing",
   "cameraAgeDays": "{days} d ago",
   "@cameraAgeDays": {
     "placeholders": {
@@ -559,6 +514,7 @@
   "@cameraClip": {
     "description": "The Clip button's label"
   },
+  "cameraClipArchived": "Archived: this video is in cold storage",
   "cameraClipCameraOff": "Camera off",
   "cameraClipCountdown": "Clip · {time}",
   "@cameraClipCountdown": {
@@ -620,22 +576,27 @@
   "@cameraLive": {
     "description": "All grid: under this device's ID, its picture is live"
   },
-  "cameraModeAll": "All",
+  "cameraModeAll": "All devices",
   "@cameraModeAll": {
     "description": "Camera mode: every device in a grid"
   },
-  "cameraModeNormal": "Normal",
+  "cameraModeAllHint": "Every device in a grid",
+  "cameraModeMenu": "Camera mode",
+  "cameraModeNormal": "This camera",
   "@cameraModeNormal": {
     "description": "Camera mode: this device's camera"
   },
+  "cameraModeNormalHint": "Full screen",
   "cameraModeStopped": "Stopped",
   "@cameraModeStopped": {
     "description": "Camera mode: nothing captured or synced"
   },
+  "cameraModeStoppedHint": "Camera off, still syncing",
   "cameraModeUnattended": "Unattended",
   "@cameraModeUnattended": {
     "description": "Camera mode: screen off, still capturing"
   },
+  "cameraModeUnattendedHint": "Screen off, still capturing",
   "cameraNight": "Night",
   "cameraNightTooltip": "Night mode: as bright as it goes, and lit while a clip records",
   "cameraNotFound": "No camera found",
@@ -951,6 +912,7 @@
   "eventAlreadyDeleted": "Event already deleted",
   "eventCancel": "Cancel",
   "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventCloudColdStorage": "Its recording is in cold storage: it can't be played from the cloud",
   "eventCloudDelete": "Delete",
   "eventCloudDeleteBody": "Its recording, thumbnail and tags are deleted from the cloud. This device won't upload it again unless you put it back.",
   "eventCloudDeleteFailed": "Couldn't delete it from the cloud",
@@ -972,6 +934,7 @@
     }
   },
   "eventCopiesCloud": "Cloud",
+  "eventCopiesCloudColdStorage": "Cloud (cold storage)",
   "eventCopiesLiveOff": "Live sync is off: other devices' copies are unknown",
   "eventCopiesNone": "No copy known",
   "eventCopiesNotSynced": "Not synced",
@@ -1147,6 +1110,7 @@
       }
     }
   },
+  "eventsHideNoOne": "Hide events with no one in them",
   "eventsHideSystem": "Hide system events",
   "eventsNoGrabs": "No grabs yet: system events are hidden",
   "eventsNoMatch": "No events match \"{query}\"",
@@ -1157,11 +1121,13 @@
       }
     }
   },
+  "eventsNoOneHidden": "No one seen yet: events with no one are hidden",
   "eventsNone": "No events",
   "eventsSearch": "Search events",
   "eventsSearchClear": "Clear search",
   "eventsShowDevice": "Show this device's events",
   "eventsShowEveryDevice": "Show every device's events",
+  "eventsShowNoOne": "Show events with no one in them",
   "eventsShowSystem": "Show system events",
   "feedbackAdmin": "Admin",
   "feedbackAnswered": "Answered",
@@ -1180,6 +1146,20 @@
   "feedbackTeam": "Presence team",
   "feedbackTooManyTries": "Too many tries. Wait a minute.",
   "feedbackYou": "You",
+  "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.",
+  "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",
+  "goproCameras": "Its GoPro cameras:",
+  "goproError": "GoPro: {error}",
+  "@goproError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "goproNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras' videos.",
+  "goproNone": "No GoPro cameras yet.",
+  "goproPassword": "Camera password (home network only)",
   "healthApiAnswered": "Auth API: answered ({mode} mode)",
   "@healthApiAnswered": {
     "placeholders": {
@@ -1569,6 +1549,63 @@
       }
     }
   },
+  "netcamAdd": "Add camera",
+  "netcamAddress": "Camera address",
+  "netcamCameraError": "Can't fetch: {error}",
+  "@netcamCameraError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamChannel": "Channel (an NVR's camera)",
+  "netcamChannelHelp": "0 for a camera on its own, or an NVR's first camera.",
+  "netcamChannelOf": "channel {channel}",
+  "@netcamChannelOf": {
+    "placeholders": {
+      "channel": {
+        "type": "int"
+      }
+    }
+  },
+  "netcamChecking": "Reaching the camera…",
+  "netcamLastFetch": "Videos last fetched at {time}.",
+  "@netcamLastFetch": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamName": "Camera name",
+  "netcamNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "netcamPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted from the cloud once the streamer has it.",
+  "netcamRemove": "Remove",
+  "netcamStreamer": "The streamer that fetches them",
+  "netcamUsername": "User",
+  "netcamWaiting": "Sent to {device}; it looks every 30 s…",
+  "@netcamWaiting": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "reolinkAbout": "A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR's disk, with HTTPS on (its network settings).",
+  "reolinkAddressHelp": "Its IP address on your network, as the Reolink app shows it (Settings › Network information).",
+  "reolinkCameras": "Its Reolink cameras:",
+  "reolinkError": "Reolink: {error}",
+  "@reolinkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "reolinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras' recordings.",
+  "reolinkNone": "No Reolink cameras yet.",
+  "reolinkPassword": "Camera password",
   "settingsAddDeviceCopy": "Copy link",
   "settingsAddDeviceLinkCopied": "Link copied",
   "settingsAddDeviceQr": "QR code for {link}",
@@ -1646,6 +1683,7 @@
   "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
   "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
   "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
+  "settingsDeleteDeviceCameraNotTold": "Its streamer couldn't be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings' camera section.",
   "settingsDeleteDeviceCancel": "Cancel",
   "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
   "settingsDeleteDeviceConfirm": "Delete videos",
@@ -1691,6 +1729,15 @@
   "settingsDeleteDeviceTitle": "Delete device?",
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",
+  "settingsGoProSection": "GoPro cameras",
+  "settingsGroupAllDevices": "All devices",
+  "@settingsGroupAllDevices": {
+    "description": "Setup heading over the settings that affect all the profile's devices (its streamers' cameras)"
+  },
+  "settingsGroupThisDevice": "This device",
+  "@settingsGroupThisDevice": {
+    "description": "Setup heading over the settings of this device only"
+  },
   "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",
   "settingsHistorySection": "History",
   "settingsJoinDismiss": "Dismiss",
@@ -1839,6 +1886,7 @@
   "settingsRecognitionSubtitle": "People and pets tagged before, found on this device",
   "settingsRecognitionSwitch": "Recognize subjects in new clips",
   "settingsRecognitionUnavailable": "Not available on this device yet",
+  "settingsReolinkSection": "Reolink cameras",
   "settingsSameAsClip": "Same as pressing Clip",
   "settingsScheduleEvery": "One clip every",
   "settingsScheduleSection": "Scheduled clips",
@@ -1847,7 +1895,8 @@
   "settingsShowLogSubtitle": "The app's latest messages and health",
   "settingsStartupClip": "Startup clip: once the camera is ready",
   "settingsSubjectEvents": "How many events to load at once",
-  "settingsSubjectsSection": "Subjects",
+  "settingsSubjectsSection": "Events",
+  "settingsUsbCamSection": "USB cameras",
   "storeDays": "{count, plural, =1{1 day} other{{count} days}}",
   "@storeDays": {
     "description": "A free trial's length",
@@ -2015,6 +2064,23 @@
       }
     }
   },
+  "streamerLeader": "Leader ({device})",
+  "@streamerLeader": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerLeaderUnknown": "Leader (none yet; {device} for now)",
+  "@streamerLeaderUnknown": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerPickerHelp": "Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.",
   "subjectsEvents": "{count, plural, =1{1 event} other{{count} events}}",
   "@subjectsEvents": {
     "placeholders": {
@@ -2052,5 +2118,24 @@
       }
     }
   },
-  "subjectsRecognizedAuto": "Recognized automatically"
+  "subjectsRecognizedAuto": "Recognized automatically",
+  "usbcamAbout": "A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.",
+  "usbcamAdd": "Add",
+  "usbcamCameras": "Its USB cameras:",
+  "usbcamDetected": "Plugged into it, to add:",
+  "usbcamError": "USB cameras: {error}",
+  "@usbcamError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "usbcamNoStreamer": "Set up a streamer first (Profile › Streamer); the cameras are plugged into it.",
+  "usbcamNone": "No USB cameras added yet.",
+  "usbcamNoneDetected": "No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.",
+  "usbcamStreamer": "The streamer they're plugged into",
+  "usbcamUnattended": "Unattended: keep only the parts with movement and delete videos from the camera once fetched",
+  "usbcamUnattendedHint": "For a camera left recording, so its card doesn't fill up. Off: every video is kept and nothing on the camera is deleted.",
+  "usbcamUnplugged": "Not plugged in: its new videos are fetched once it's back."
 }

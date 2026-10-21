@@ -235,10 +235,9 @@ void main() {
       tester,
     ) async {
       await launch(tester);
-      // The link near the bottom, then the ID last.
+      // The link last, under the health line and the IDs.
       final link = await openAddDevice(tester);
       expect(find.textContaining('ana@example.com'), findsOneWidget);
-      // Below the health line, and above the IDs, the last thing.
       // Up from Add a device to the health line above it.
       final health = find.byKey(const Key('system-health'));
       for (var i = 0; i < 10 && health.evaluate().isEmpty; i++) {
@@ -257,11 +256,15 @@ void main() {
             .dy,
         greaterThan(tester.getTopLeft(health).dy),
       );
-      await scrollSettingsTo(tester, find.byKey(const Key('settings-ids')));
+      await scrollSettingsTo(tester, find.byKey(const Key('add-device')));
       expect(
-        tester.getTopLeft(find.byKey(const Key('settings-ids'))).dy,
+        tester.getTopLeft(find.byKey(const Key('add-device'))).dy,
         greaterThan(
-          tester.getBottomLeft(find.byKey(const Key('add-device'))).dy,
+          tester
+              .getBottomLeft(
+                find.byKey(const Key('settings-ids'), skipOffstage: false),
+              )
+              .dy,
         ),
       );
       final deviceId = deviceIdShown(tester);

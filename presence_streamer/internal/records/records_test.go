@@ -75,6 +75,24 @@ func TestTheEventsOSIsTheCamerasOrLinux(t *testing.T) {
 	}
 }
 
+// A fetched camera's events name it (cameraName); the Pi's own don't say
+// one, nor storedAt unless it's given.
+func TestTheEventsCameraNameAndStoredAt(t *testing.T) {
+	chunk := Chunk{Start: time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC), Duration: 30 * time.Second}
+	pi, _ := ClipOf(chunk, "e", "c", Camera{ID: "libcamera", Label: "Raspberry Pi camera"}, "d", "u", "p", nil)
+	if s := string(JSON(pi)); strings.Contains(s, "cameraName") || strings.Contains(s, "storedAt") {
+		t.Fatalf("the Pi's own event: %s", s)
+	}
+	chunk.StoredAt = chunk.Start.Add(5 * time.Hour)
+	garden, gardenClip := ClipOf(chunk, "e", "c", Camera{ID: "reolink", Label: "Garden", OS: "Reolink", Name: "Garden"}, "d", "u", "p", nil)
+	var got map[string]any
+	json.Unmarshal(JSON(garden), &got)
+	if got["cameraName"] != "Garden" || got["storedAt"] != float64(chunk.StoredAt.UnixMilli()) ||
+		got["time"] != float64(chunk.Start.UnixMilli()) || gardenClip.CameraLabel != "Garden" {
+		t.Fatalf("event %v", got)
+	}
+}
+
 // The job fixture presence_ingest's tests check with the cloud detector
 // (test_app.py); UPDATE_FIXTURE=1 writes it again.
 func TestJobFixture(t *testing.T) {

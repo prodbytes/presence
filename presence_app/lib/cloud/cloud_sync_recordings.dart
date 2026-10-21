@@ -13,6 +13,11 @@ class _Recordings {
   /// Recordings being downloaded now, by object key: one download each.
   final Map<String, Future<bool>> _inFlight = {};
 
+  /// Recordings found archived (in Glacier Deep Archive: S3 answered
+  /// 403 `InvalidObjectState`), by object key: not asked for again while
+  /// the app runs. Restoring them isn't supported yet.
+  final Set<String> _archived = {};
+
   /// Downloads the recording at [key] into the `MediaStore` as [mediaId],
   /// and marks it as synced and no longer pending. Once at a time per key.
   Future<bool> _download(CloudSession session, String key, String mediaId) {
@@ -48,20 +53,24 @@ class _Recordings {
 
   /// Downloads the recording [mediaId] of clip [clipId] from the signed-in
   /// profile's folder into the `MediaStore`, for playing a clip fetched
-  /// from the cloud whose recording isn't here yet. Returns whether it's
-  /// stored now; false when signed out, or it isn't in the cloud, or the
-  /// download failed.
-  Future<bool> fetchRecording(String clipId, String mediaId) async {
+  /// from the cloud whose recording isn't here yet. Returns
+  /// [RecordingFetch.stored] when it's stored now; [RecordingFetch.missing]
+  /// when signed out, or it isn't in the cloud, or the download failed;
+  /// [RecordingFetch.archived] when it's in the cloud but archived (S3
+  /// Glacier Deep Archive, 67 days after upload): it can't be played until
+  /// restored, which isn't supported yet. Never a reason to renew the
+  /// credentials or stop syncing.
+  Future<RecordingFetch> fetchRecording(String clipId, String mediaId) async {
     final idToken = _sync.auth.idToken;
     if (_sync._owner == null ||
         idToken == null ||
         _sync.stopped ||
         _sync._disposed) {
-      return false;
+      return RecordingFetch.missing;
     }
     try {
       var session = await _sync.backend.connect(idToken);
-      if (!Records.isSafeId(clipId)) return false;
+      if (!Records.isSafeId(clipId)) return RecordingFetch.missing;
       final candidates = _recordingKeys(clipId);
       final synced = _sync._synced ??= await (await _sync._store).syncedKeys();
       final key =
@@ -73,18 +82,31 @@ class _Recordings {
           (await session.list('media/$clipId.'))
               .where(candidates.contains)
               .firstOrNull;
-      if (key == null) return false;
+      if (key == null) return RecordingFetch.missing;
+      final objectKey = '${session.prefix}/$key';
+      if (_archived.contains(objectKey)) return RecordingFetch.archived;
+      Future<RecordingFetch> download(CloudSession session) async =>
+          await _download(session, key, mediaId)
+          ? RecordingFetch.stored
+          : RecordingFetch.missing;
       try {
-        return await _download(session, key, mediaId);
+        try {
+          return await download(session);
+        } on S3Exception catch (e) {
+          if (!e.credentialsRejected && !e.clockSkewed) rethrow;
+          if (e.credentialsRejected) _sync.backend.reset();
+          session = await _sync.backend.connect(idToken);
+          return await download(session);
+        }
       } on S3Exception catch (e) {
-        if (!e.credentialsRejected && !e.clockSkewed) rethrow;
-        if (e.credentialsRejected) _sync.backend.reset();
-        session = await _sync.backend.connect(idToken);
-        return await _download(session, key, mediaId);
+        if (!e.archived) rethrow;
+        debugPrint('Presence: the recording of $clipId is archived: $key');
+        _archived.add(objectKey);
+        return RecordingFetch.archived;
       }
     } catch (e) {
       debugPrint('Presence: could not download recording of $clipId: $e');
-      return false;
+      return RecordingFetch.missing;
     }
   }
 

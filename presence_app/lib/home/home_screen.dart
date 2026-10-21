@@ -12,7 +12,6 @@ import '../auth/delete_account.dart';
 import '../auth/rbacr_client.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/help_view.dart';
-import '../auth/plan_notice.dart';
 import '../auth/payments_client.dart';
 import '../auth/store_billing.dart';
 import '../auth/profile_client.dart';
@@ -23,6 +22,8 @@ import '../clips.dart';
 import '../cloud/cloud_sync.dart';
 import '../config.dart';
 import '../delete_device.dart';
+import '../net_camera_settings.dart';
+import '../usb_camera_settings.dart';
 import '../show_device.dart';
 import '../device_events.dart';
 import '../events.dart';
@@ -37,9 +38,11 @@ import '../screen_off.dart';
 import '../screen_light.dart';
 import '../settings.dart';
 import '../system_health.dart';
+import '../session_memory.dart';
 import '../tab_memory.dart';
 import 'camera_buttons.dart';
 import 'camera_messages.dart';
+import 'camera_mode_menu.dart';
 import 'camera_status.dart';
 import 'home_app_bar.dart';
 import 'home_navigation_bar.dart';
@@ -77,6 +80,7 @@ class HomeScreen extends StatefulWidget {
     this.join,
     this.onJoinHandled,
     this.tabMemory,
+    this.sessionMemory,
     this.showDevice,
     this.deleteDevice,
     this.deleteAccount,
@@ -101,6 +105,10 @@ class HomeScreen extends StatefulWidget {
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
   final TabMemory? tabMemory;
+
+  /// Keeps the Monitoring tab's filters across a browser refresh; defaults
+  /// to the platform's ([SessionMemory]).
+  final SessionMemory? sessionMemory;
 
   /// The link this device was opened with to become one of a user's
   /// devices ([JoinLink]), until handled: a banner says what's left to do.
@@ -163,6 +171,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The tabs shown, the open one, and the one remembered across refreshes.
   late final HomeTabs _tabs;
 
+  /// The tab open at the last change of [_tabs], to see the Profile tab
+  /// open.
+  HomeTab? _lastTab;
+
   /// The Log tab shows for admins (so in DEV too: the anonymous user is a
   /// root there) when Settings' switch is on: by default in DEV only.
   bool get _showLog =>
@@ -176,6 +188,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// accounts to write from): a button at the top right of Setup and
   /// Profile ([HomeAppBar.onHelp]), no longer a tab.
   bool get _showHelp => !_dev && _hasAccess;
+
+  /// Settings' section for a kind of network camera (GoPro, Reolink): a
+  /// premium profile with cloud sync, not in DEV.
+  Widget? _netCameras(NetCameraKind kind) =>
+      switch ((widget.sync, widget.roles.profile)) {
+        (final sync?, final profile?)
+            when !_dev && (widget.roles.isPremium || widget.roles.isAdmin) =>
+          NetCameraSettings.of(
+            kind: kind,
+            sync: sync,
+            log: widget.log,
+            profileId: profile,
+            config: widget.config,
+            thisDevice: widget.deviceId,
+          ),
+        _ => null,
+      };
+
+  /// Settings' USB cameras section: as [_netCameras].
+  Widget? _usbCameras() => switch ((widget.sync, widget.roles.profile)) {
+    (final sync?, final profile?)
+        when !_dev && (widget.roles.isPremium || widget.roles.isAdmin) =>
+      UsbCameraSettings.of(
+        sync: sync,
+        log: widget.log,
+        profileId: profile,
+        config: widget.config,
+        thisDevice: widget.deviceId,
+      ),
+    _ => null,
+  };
 
   /// Opens Help as a page of its own, over the tabs.
   void _openHelp() {
@@ -257,29 +300,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  /// What the mode button shows: Normal (this camera), All (the grid),
+  /// The mode the menu shows: Normal (this camera), All (the grid),
   /// Unattended (the screen off) or Stopped (the camera off,
-  /// [CameraRig.paused], kept in the settings; syncing halted with it).
+  /// [CameraRig.paused], kept in the settings; syncing goes on).
   CameraMode get _mode => CameraMode.of(
     paused: widget.rig.paused,
     unattended: _unattended,
     showAll: _showAll,
   );
 
-  /// Normal → All → Unattended → Stopped → Normal.
-  void _nextMode() {
-    switch (_mode) {
+  /// Switches to [mode], picked from the mode menu: leaves the mode shown
+  /// (the grid, the screen off or the camera off), then enters [mode].
+  void _setMode(CameraMode mode) {
+    final was = _mode;
+    if (mode == was) return;
+    if (_showAll && mode != CameraMode.all) setState(() => _showAll = false);
+    if (was == CameraMode.unattended) _setUnattended(false);
+    if (was == CameraMode.stopped) widget.rig.setPaused(false);
+    switch (mode) {
       case CameraMode.normal:
+        break;
+      case CameraMode.all:
         setState(() => _showAll = true);
         _askForGrabs();
-      case CameraMode.all:
-        setState(() => _showAll = false);
-        _setUnattended(true);
       case CameraMode.unattended:
-        _setUnattended(false);
-        widget.rig.setPaused(true);
+        _setUnattended(true);
       case CameraMode.stopped:
-        widget.rig.setPaused(false);
+        widget.rig.setPaused(true);
     }
   }
 
@@ -326,10 +373,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// What the Monitoring tab shows, kept while switching tabs: the device
   /// picked by tapping an event's device (none at launch: every device's),
   /// the "Show system events" toggle (on in DEV, off otherwise: only
-  /// grabs), the search (blank at launch) and the event to open. Made on
-  /// first use, once the execution mode is known.
-  EventFilters get _filters =>
-      _filtersOrNull ??= EventFilters(showSystemEvents: _dev);
+  /// grabs), the "Show events with no one" toggle (off: only the grabs
+  /// with a person or pet), the search (blank at launch) and the event to
+  /// open. Made on first use, once the execution mode is known.
+  /// Kept across a browser refresh ([EventFilters.remembered]).
+  EventFilters get _filters => _filtersOrNull ??= EventFilters.remembered(
+    widget.sessionMemory ?? SessionMemory(),
+    showSystemEvents: _dev,
+    showEventsWithNoOne: false,
+  );
   EventFilters? _filtersOrNull;
 
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
@@ -362,6 +414,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// buttons and (signed in) cloud sync.
   bool get _hasAccess => _dev || (_signedIn && widget.roles.hasAccess);
 
+  void _onTabChanged() {
+    _noteTab();
+    setState(() {});
+  }
+
+  /// The Profile tab opened: its device list asks for the profile's
+  /// devices again, so one added since (a streamer) shows.
+  void _noteTab() {
+    final tab = _tabs.current;
+    if (tab == HomeTab.profile && _lastTab != HomeTab.profile) {
+      widget.sync?.refreshDevices();
+    }
+    _lastTab = tab;
+  }
+
+  /// Opens the tab remembered across refreshes, once there's access: the
+  /// Profile tab too, whose controller may start on it (no change seen).
+  void _restoreTab() {
+    _tabs.restore(hasAccess: _hasAccess);
+    _noteTab();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -369,28 +443,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       memory: widget.tabMemory ?? TabMemory(),
       shown: _shownTabs,
-      onChanged: () => setState(() {}),
+      onChanged: _onTabChanged,
     );
     _messages = CameraMessages(showFor: HomeScreen.messageFor)
       ..addListener(_onMessage);
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
     widget.config.addListener(_onConfigChanged);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
   }
 
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
     _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     if (mounted) setState(() {});
   }
 
   /// Settings' Log switch adds or removes the Log tab.
   void _onConfigChanged() {
     if (!_tabs.sync(_shownTabs)) return;
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     if (mounted) setState(() {});
   }
 
@@ -402,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Signing in or out adds or removes the Profile tab.
     _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
-    _tabs.restore(hasAccess: _hasAccess);
+    _restoreTab();
     final error = widget.auth.error;
     final problem = widget.auth.problem;
     // The problem too: the same text may come with another meaning.
@@ -595,7 +669,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         showDevice: widget.showDevice,
         deleteDevice: widget.deleteDevice,
         deleteAccount: widget.deleteAccount,
+        joinFree: widget.store?.joinFree,
         onHelp: _showHelp ? _openHelp : null,
+        modeMenu: _onCamera && _hasAccess
+            ? ListenableBuilder(
+                listenable: widget.rig,
+                builder: (context, _) =>
+                    CameraModeMenu(mode: _mode, onSelected: _setMode),
+              )
+            : null,
       ),
       body: Stack(
         children: [
@@ -631,28 +713,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     final sync? => sync.syncAll,
                     null => null,
                   },
-                  notice: switch (widget.sync) {
-                    final sync? => ListenableBuilder(
-                      listenable: Listenable.merge([
-                        sync,
-                        widget.log,
-                        ?widget.payments,
-                      ]),
-                      builder: (context, _) => DeviceLimitNotice(
-                        log: widget.log,
-                        slots: sync.deviceSlots,
-                        profileId: widget.roles.profile,
-                        thisDevice: widget.deviceId,
-                        email: widget.auth.user?.email,
-                        links: widget.payments?.links,
-                        // The store's plans are on the Profile tab.
-                        onUpgrade: _tabs.shows(HomeTab.profile)
-                            ? () => _tabs.animateTo(HomeTab.profile)
-                            : null,
-                      ),
-                    ),
-                    null => null,
-                  },
                 ),
               ),
               // Full width, with the device's location map.
@@ -686,10 +746,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         sync: sync,
                         log: widget.log,
                         profileId: profile,
+                        config: widget.config,
                         thisDevice: widget.deviceId,
                       ),
                     _ => null,
                   },
+                  gopro: _netCameras(NetCameraKind.gopro),
+                  reolink: _netCameras(NetCameraKind.reolink),
+                  usbcam: _usbCameras(),
                   liveAdmin: widget.roles.isAdmin,
                   liveFree:
                       widget.roles.hasAccess &&
@@ -806,13 +870,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           : null,
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
-          ? CameraButtons(
-              rig: widget.rig,
-              unattended: _unattended,
-              showAll: _showAll,
-              onNextMode: _nextMode,
-              onClip: _clip,
-            )
+          ? CameraButtons(rig: widget.rig, onClip: _clip)
           : null,
     );
   }

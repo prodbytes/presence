@@ -171,7 +171,7 @@ Pro syncs exactly as Premium; only its device limit differs.
   starts the sync over with new credentials (`CloudSync.reconnect`).
   Becoming premium uploads what's here; becoming free stops using the
   bucket. What a free profile had in the bucket stays until the bucket's
-  lifecycle expires it (90 days), and is found again if it becomes premium.
+  lifecycle erases it (365 days), and is found again if it becomes premium.
 - **Credentials from before the bucket required the tag** (the first hour
   after the release) are refused with `AccessDenied`. A pass takes that
   like expired credentials: it renews them once and tries again
@@ -205,12 +205,12 @@ month, at 2 clips an hour:
 | | Messages | Cost |
 |---|---|---|
 | Heartbeat (8,640: CONNECT + PUBLISH + RETAINED) | ~25,900 | ~$0.026 |
-| Scheduled connections (2,880: CONNECT + 3 SUBSCRIBE) | ~11,500 | ~$0.012 |
+| Scheduled connections (2,880: CONNECT; 3 SUBSCRIBE only for a new session, [kept](live-sync.md#free)) | ~2,900 | ~$0.003 |
 | Events (1,440, ≤ 17 KB: 4 units out, 4 delivered to one other device) | ~11,500 | ~$0.012 |
 | Connection-minutes (~11,500) | | ~$0.001 |
 | Auth API (720 credentials, Lambda; 2,880 anonymous checks, mostly CDN) | | < $0.005 |
 
-About **$0.05 per free device per month** (2 devices ≈ $0.10; before:
+About **$0.045 per free device per month** (2 devices ≈ $0.10; before:
 ≈ $0.64 for 2, when every event published at once and connected on its
 own). The heartbeat alone is ≈ $0.026 per device (10 free devices ≈
 $0.26). Event deliveries grow with devices²: with Free's 10 devices each
@@ -253,7 +253,8 @@ are **hidden**, and the user is asked to upgrade: a free one to
   (`pastDeviceLimit`, `deviceSlots`). Cloud sync stops on it as on any
   refusal, without trying again by itself (until sign-in, **Retry**, or a
   change of plan, which reconnects), and takes the slots, so the plan box
-  and the Monitoring tab's card say this device is past the limit.
+  and the Profile tab's hidden-devices line say this device doesn't
+  sync.
 - **Every device agrees**, since the list is the auth API's, not worked
   out from events, which differ from device to device (a free device has
   no history from before it connected).
@@ -275,8 +276,14 @@ are **hidden**, and the user is asked to upgrade: a free one to
   doesn't know, the app asks for new credentials (and the list with
   them), once per device and at most every 30 s
   (`CloudSync.noticeDevices`). A device is listed before its events can
-  reach another, since it needs credentials to send them. Otherwise the list is read
-  again with each new set of credentials (hourly) or a change of tier.
+  reach another, since it needs credentials to send them.
+- **Asked for again** (`CloudSync.refreshDevices`, new credentials and
+  the list with them) when the **Profile tab opens** and on the **Sync**
+  button, at most every 30 s (shared with `noticeDevices`), so a new
+  [streamer](streamer.md), with no event of its own yet, shows in the
+  list at once. The tab the app reopens on counts as opened. Otherwise
+  the list is read again with each new set of credentials (hourly) or a
+  change of tier.
 - **Deleting a device** ([Device deletion](device-deletion.md), either
   choice) takes it off the list (`POST /api/auth/profile/devices/remove`, the device ID
   as the body; `CloudSync.releaseDevice`), so the next one takes its
@@ -308,27 +315,24 @@ are **hidden**, and the user is asked to upgrade: a free one to
     Android "." and the App Store's or Google Play's plans with their own
     prices, Restore purchases, Manage subscription and the terms;
     elsewhere no purchase button. And **Check again**.
-  - Past the limit, a line in the warning color: on this device, "This
-    device is past your plan's first 10: it doesn't sync, so only its own
-    events show here."; otherwise how many devices are past it ("1 more
-    device doesn't sync, and its events are hidden: Free syncs your first
-    10.").
+  - Past the limit, one small muted line (body-small, the muted text
+    color; no card, banner or warning color) between the device list and
+    the plan box (`HiddenDevicesLine`): "This device doesn't sync" on a
+    device past the limit, otherwise how many are hidden ("3 devices
+    hidden"); and, on the web only, " · **Upgrade**", a small underlined
+    link: for a free profile to Premium's checkout (its monthly link, else
+    its yearly, else nu01.com), for a premium one to Pro's (its monthly
+    link, else its yearly; no link until one is set), for Pro none. On iOS
+    and Android no link (the store's plans are in the plan box just
+    below) and never Pro. Nothing when nothing's hidden.
   - Each hidden device in the list is labelled **hidden** (tooltip: past
     the plan's device limit: it doesn't sync).
   - Not shown in DEV or without access.
 - **The account roles chip** says Free Access, Premium Access, Pro Access
   or Admin Access.
-- **The Monitoring tab** ([Monitoring](monitoring.md)), when events are
-  hidden, a card above the search (`DeviceLimitNotice`): how many
-  devices' events are hidden, or that this device doesn't sync, that the
-  plan (Free, Premium) syncs the first 10 or 25, and the next plan:
-  - Free: "Premium shows up to 25." and an **Upgrade** button: to the
-    Stripe checkout on the web, to the Profile tab's store plans on iOS
-    and Android, none elsewhere;
-  - Premium, on the web only: "Pro shows up to 50." and, once a Pro
-    Stripe link is set, an **Upgrade** button to Pro's checkout (its
-    monthly link, else its yearly);
-  - Pro: no upgrade.
+- **The Monitoring tab** ([Monitoring](monitoring.md)) says nothing about
+  the plan or hidden devices: it stays lean, and the call to upgrade is on
+  the Profile tab only.
 - **The connectivity check**: "Free: devices share events every 15 min"
   instead of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see

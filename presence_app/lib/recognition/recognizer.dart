@@ -310,8 +310,13 @@ class SubjectRecognizer {
   /// with object tags already has them looked for again ([recognizeNow]'s
   /// `again`), with this device's detector and the cloud's breeds and
   /// coats ("black cat"). The results are saved on the event, which syncs
-  /// back, so every device's indicator shows them. Clips older than
-  /// [syncedWithin] are left.
+  /// back, so every device's indicator shows them. Clips recorded and
+  /// stored ([AppEvent.storedAt]) more than [syncedWithin] ago are left:
+  /// a camera's clip a streamer fetched hours after it was recorded (a
+  /// GoPro back on the network, a Reolink's backlog) is still new. The
+  /// cameras a streamer fetches clips from (Blink, GoPro, Reolink) are
+  /// devices of their own, and their clips go through this like the
+  /// streamer's own.
   ///
   /// One device does each clip, not every one that can: this one waits
   /// its [electionRank] times [electionStep] (rank 0: at once), then
@@ -329,7 +334,13 @@ class SubjectRecognizer {
       // Still coming from its device: taken when it arrives (it's replaced
       // by the clip then, Persistence.showArrivedClips).
       if (event.clip.awaitingRemote) continue;
-      if (event.time.isBefore(since) || _searched.contains(event.id)) continue;
+      // Recorded or stored lately: a camera's clip a streamer fetched
+      // (Blink, GoPro, Reolink) may be stored long after it was recorded.
+      final stored = event.storedAt;
+      final latest = stored != null && stored.isAfter(event.time)
+          ? stored
+          : event.time;
+      if (latest.isBefore(since) || _searched.contains(event.id)) continue;
       if (event.annotations.subjectSearch != null) continue;
       if (_pending.any((j) => j.event.id == event.id)) continue;
       if (_electing.containsKey(event.id)) continue;
@@ -387,8 +398,8 @@ class SubjectRecognizer {
   /// Whether a device that runs [os] (`AppEvent.os`) with [memoryMb] of
   /// memory (`AppEvent.memoryMb`, null: unknown) can recognize: the web
   /// app, Android and iOS, with [minRecognitionMemoryMb] or more
-  /// ([supported] there). A Raspberry Pi streamer (`Linux`) and a Blink
-  /// camera can't.
+  /// ([supported] there). A Raspberry Pi streamer (`Linux`) and the
+  /// cameras it fetches clips from (`Blink`, `GoPro`, `Reolink`) can't.
   static bool canRecognize(String? os, int? memoryMb) =>
       os != null &&
       (os.startsWith('Web') || os == 'Android' || os == 'iOS') &&

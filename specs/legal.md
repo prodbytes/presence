@@ -19,7 +19,7 @@ and the RC's), as static pages of the [site index](site-index.md) module:
   account dialog links to the deletion page's subscriptions part
   ([Account deletion](account-deletion.md)).
 - Each links to the others and to the app (`/app/`), with a canonical URL
-  and an effective date (all three 14 October 2026). The operator is
+  and an effective date (Privacy Policy and Terms 15 October 2026, the deletion page 14 October 2026). The operator is
   **ProdBytes**; the contact is julio@nu01.com.
 - The look: the app's Gruvbox palette ([Theme](theme.md)), dark or light
   as the system is, a 44 rem column, and on phones (under 560 px) the
@@ -37,7 +37,7 @@ and the RC's), as static pages of the [site index](site-index.md) module:
   random account number; logs), from where and why; that nothing is sold
   or used for ads, and Apple, Google or Stripe hold card details; where it's kept and for how long (on the device for
   the History setting, two weeks by default; Premium's uploads in AWS in
-  the United States, deleted after 90 days; free sync not stored; media
+  the United States, videos archived after 67 days, everything erased after 365 days; free sync not stored; media
   encrypted on the device with AES-256-GCM, keys shared through the
   profile's settings, event details not encrypted); who else handles it
   (Google, AWS, Apple and Google for in-app purchases, which don't get the
@@ -70,7 +70,7 @@ and the RC's), as static pages of the [site index](site-index.md) module:
   the account signed in when buying and can't be moved; otherwise the
   subscribing email must be the Google account's; 30 days' notice of
   price changes; payments by Apple, Google or Stripe); content stays the user's (cloud
-  copies deleted after 90 days); availability "as is", not an emergency
+  videos archived after 67 days, every copy erased after 365); availability "as is", not an emergency
   system; liability capped at 12 months' payments; ending (a refund of an
   unused period if the service stops); changes; contact.
 

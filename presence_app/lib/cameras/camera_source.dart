@@ -19,6 +19,17 @@ class CameraUnavailable implements Exception {
   String toString() => message;
 }
 
+/// A stored recording that isn't here, and can't come down: the cloud's
+/// copy is archived (in cold storage, S3 Glacier Deep Archive, 67 days
+/// after upload). [ClipMedia.acquireUrl] throws it; the player says so
+/// rather than that the clip couldn't load. Restoring isn't supported yet.
+class RecordingArchived implements Exception {
+  const RecordingArchived();
+
+  @override
+  String toString() => 'The recording is archived in cold storage';
+}
+
 /// A window of recorded video inside a recording file.
 ///
 /// The file is either live in memory (on web, a Blob object URL) or stored,

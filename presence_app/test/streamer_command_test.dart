@@ -49,7 +49,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Stream from a Raspberry Pi'), findsOneWidget);
+    expect(find.text('Streamer'), findsOneWidget);
     // No key until asked: each command is a new device.
     expect(find.byKey(const Key('streamer-command-text')), findsNothing);
     expect(profiles.streamKeys, isEmpty);
@@ -68,7 +68,7 @@ void main() {
     await tester.pump();
     expect(copied, command);
     expect(
-      find.text('Command copied: paste it on the Raspberry Pi'),
+      find.text('Command copied: paste it on the streamer'),
       findsOneWidget,
     );
   });

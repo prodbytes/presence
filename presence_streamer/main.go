@@ -28,22 +28,27 @@ import (
 
 	"github.com/prodbytes/presence/presence_streamer/internal/detect"
 	"github.com/prodbytes/presence/presence_streamer/internal/google"
+	"github.com/prodbytes/presence/presence_streamer/internal/gopro"
 	"github.com/prodbytes/presence/presence_streamer/internal/ids"
+	"github.com/prodbytes/presence/presence_streamer/internal/netcam"
 	"github.com/prodbytes/presence/presence_streamer/internal/presence"
 	"github.com/prodbytes/presence/presence_streamer/internal/rclone"
 	"github.com/prodbytes/presence/presence_streamer/internal/recorder"
 	"github.com/prodbytes/presence/presence_streamer/internal/records"
+	"github.com/prodbytes/presence/presence_streamer/internal/reolink"
 	"github.com/prodbytes/presence/presence_streamer/internal/session"
 	"github.com/prodbytes/presence/presence_streamer/internal/state"
 	"github.com/prodbytes/presence/presence_streamer/internal/stream"
 )
 
-// Set at build time (-ldflags -X): the version, and the Google OAuth
-// client ("TVs and Limited Input devices") the device sign-in uses.
+// Set at build time (-ldflags -X): the version, the Google OAuth client
+// ("TVs and Limited Input devices") the device sign-in uses, and live
+// sync's AWS IoT endpoint (the app's IOT_ENDPOINT).
 var (
 	version            = "dev"
 	googleClientID     = ""
 	googleClientSecret = ""
+	iotEndpoint        = ""
 )
 
 // Exit codes: the service doesn't restart for usage (2) or a free
@@ -63,9 +68,24 @@ type options struct {
 	chunk                                                              time.Duration
 	// Blink (specs/streamer.md, "Blink cameras"): auto or off; the helper
 	// script; how often clips are fetched.
-	blink, blinkHelper                                        string
-	blinkEvery                                                time.Duration
+	blink, blinkHelper string
+	blinkEvery         time.Duration
+	// GoPro (specs/gopro.md): auto or off; low (the cameras' low-resolution
+	// copies) or full videos; how often videos are fetched.
+	gopro, goproVideo string
+	goproEvery        time.Duration
+	// Reolink (specs/reolink.md): auto or off; low (the sub stream's
+	// recordings) or full (the main stream's); how often they're fetched.
+	reolink, reolinkVideo string
+	reolinkEvery          time.Duration
+	// USB cameras (specs/usb-cameras.md): auto or off; gphoto2; how often
+	// videos are fetched.
+	usbcam, gphoto2                                           string
+	usbcamEvery                                               time.Duration
 	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
+	// Live sync (specs/streamer.md, "Live sync"): the AWS IoT endpoint (off:
+	// none) and the topics' stage (empty: from the API).
+	iotEndpoint, stage string
 }
 
 // env is the PRESENCE_STREAMER_<name> setting, or def.
@@ -232,6 +252,29 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 		blinkEvery = 2 * time.Minute
 	}
 	fs.DurationVar(&o.blinkEvery, "blink-every", blinkEvery, "how often Blink's clips are fetched")
+	fs.StringVar(&o.gopro, "gopro", env("GOPRO", "auto"), "GoPro cameras: auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.goproVideo, "gopro-video", env("GOPRO_VIDEO", "low"), "GoPro videos fetched: low (the camera's low-resolution copy, when it made one) or full")
+	goproEvery, err := time.ParseDuration(env("GOPRO_EVERY", "2m"))
+	if err != nil {
+		goproEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.goproEvery, "gopro-every", goproEvery, "how often GoPro cameras' new videos are fetched")
+	fs.StringVar(&o.reolink, "reolink", env("REOLINK", "auto"), "Reolink cameras: auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.reolinkVideo, "reolink-video", env("REOLINK_VIDEO", "low"), "Reolink recordings fetched: low (the sub stream's, when the camera records it) or full (the main stream's)")
+	reolinkEvery, err := time.ParseDuration(env("REOLINK_EVERY", "2m"))
+	if err != nil {
+		reolinkEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.reolinkEvery, "reolink-every", reolinkEvery, "how often Reolink cameras' new recordings are fetched")
+	fs.StringVar(&o.usbcam, "usbcam", env("USBCAM", "auto"), "USB cameras (PTP/MTP, e.g. a GoPro HERO5-8): auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.gphoto2, "gphoto2", env("GPHOTO2", "gphoto2"), "gphoto2 (USB cameras)")
+	usbcamEvery, err := time.ParseDuration(env("USBCAM_EVERY", "2m"))
+	if err != nil {
+		usbcamEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.usbcamEvery, "usbcam-every", usbcamEvery, "how often USB cameras' new videos are fetched")
+	fs.StringVar(&o.iotEndpoint, "iot-endpoint", env("IOT_ENDPOINT", iotEndpoint), "live sync's AWS IoT endpoint (<id>-ats.iot.<region>.amazonaws.com), or off")
+	fs.StringVar(&o.stage, "stage", env("STAGE", ""), "live sync's stage, prod or rc (default: rc for an rc. site, else prod)")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
 	fs.StringVar(&o.ffmpeg, "ffmpeg", env("FFMPEG", "ffmpeg"), "ffmpeg")
 	fs.StringVar(&o.ffprobe, "ffprobe", env("FFPROBE", "ffprobe"), "ffprobe")
@@ -400,7 +443,8 @@ func run(o *options, setupOnly bool) int {
 			return exitError
 		}
 	}
-	api := &presence.API{BaseURL: o.api}
+	// Its memory: the streamer with the most leads the profile's streamers.
+	api := &presence.API{BaseURL: o.api, Memory: memTotal()}
 	if o.key != "" || o.deviceID != "" {
 		// The app's command: the device and its key, no Google sign-in.
 		if code := takeKey(ctx, o, s, profile, api); code != 0 {
@@ -409,16 +453,16 @@ func run(o *options, setupOnly bool) int {
 	}
 	if s.StreamKey != "" {
 		sess := &session.Session{API: api, StreamKey: s.StreamKey, ProfileID: s.ProfileID, DeviceID: s.DeviceID}
-		creds, err := sess.Credentials(ctx)
-		if err != nil {
+		_, err := sess.Credentials(ctx)
+		if err != nil && !session.Standby(err) {
 			return exitFor(err, s, logf)
 		}
 		logf("profile %s (premium), device %s, with its stream key", s.ProfileID, s.DeviceID)
 		if setupOnly {
-			fmt.Printf("Ready: device %s streams to profile %s.\n", s.DeviceID, s.ProfileID)
+			ready(s.DeviceID, s.ProfileID, err)
 			return 0
 		}
-		return streamCamera(ctx, o, s, sess, creds, logf)
+		return lead(ctx, o, s, sess, logf)
 	}
 
 	if o.clientID == "" || o.clientSecret == "" {
@@ -459,16 +503,132 @@ func run(o *options, setupOnly bool) int {
 	}
 
 	sess := &session.Session{Google: g, API: api, RefreshToken: s.RefreshToken, ProfileID: profile, DeviceID: s.DeviceID}
-	creds, err := sess.Credentials(ctx)
-	if err != nil {
+	if _, err := sess.Credentials(ctx); err != nil {
 		return exitFor(err, s, logf)
 	}
 	logf("profile %s (premium), device %s, signed in as %s", profile, s.DeviceID, s.Email)
 	if setupOnly {
-		fmt.Printf("Ready: device %s streams to profile %s.\n", s.DeviceID, profile)
+		ready(s.DeviceID, profile, nil)
 		return 0
 	}
-	return streamCamera(ctx, o, s, sess, creds, logf)
+	return lead(ctx, o, s, sess, logf)
+}
+
+// ready says setup is done: the device streams to the profile, or waits
+// while another streamer leads it (waiting, a [session.Standby] error).
+func ready(device, profile string, waiting error) {
+	if waiting != nil {
+		fmt.Printf("Ready: device %s of profile %s waits: %v. It streams once it leads (when that one is gone for an hour, or deleted in the app).\n", device, profile, waiting)
+		return
+	}
+	fmt.Printf("Ready: device %s streams to profile %s.\n", device, profile)
+}
+
+// leaseEvery is how often a streamer asks for (waiting) or renews
+// (leading) its leadership of the profile's streamers.
+var leaseEvery = 5 * time.Minute
+
+// standby is streamCamera's answer when the streamer lost the leadership:
+// it waits for it again.
+const standby = -1
+
+// lead streams while the streamer leads the profile's streamers: only one
+// of a profile's streamers streams at a time. It waits for the leadership
+// (asking every [leaseEvery]), streams, and waits again if another takes
+// its place. It answers the exit code.
+func lead(ctx context.Context, o *options, s *state.State, sess *session.Session, logf func(string, ...any)) int {
+	for {
+		if err := waitToLead(ctx, sess, logf); err != nil {
+			return exitFor(err, s, logf)
+		}
+		creds, err := sess.Credentials(ctx)
+		if session.Standby(err) {
+			// Another took the lead meanwhile.
+			continue
+		}
+		if err != nil {
+			return exitFor(err, s, logf)
+		}
+		if code := streamCamera(ctx, o, s, sess, creds, logf); code != standby {
+			return code
+		}
+	}
+}
+
+// waitToLead returns once the streamer leads the profile (nil), or with why
+// it must stop: ctx ended or a fatal error. It says who leads meanwhile.
+func waitToLead(ctx context.Context, sess *session.Session, logf func(string, ...any)) error {
+	said := ""
+	for pause := 5 * time.Second; ; {
+		lease, err := sess.Lease(ctx)
+		wait := leaseEvery
+		switch {
+		case err == nil && lease.Leader:
+			if said != "" {
+				logf("leading the profile's streamers now: streaming")
+			}
+			return nil
+		case err == nil:
+			leader := "another streamer"
+			if l := lease.StreamLeader; l != nil {
+				leader = l.Device
+			}
+			if leader != said {
+				logf("waiting: %s leads this profile's streamers; this one streams once it leads (asking every %s; a leader silent for %s is replaced)",
+					leader, leaseEvery, time.Duration(lease.SilenceMs)*time.Millisecond)
+				said = leader
+			}
+			pause = 5 * time.Second
+		case session.Fatal(err) && !session.Standby(err):
+			return err
+		default:
+			logf("asking for the lead: %v; trying again in %s", err, pause)
+			wait, pause = pause, min(2*pause, leaseEvery)
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-time.After(wait):
+		}
+	}
+}
+
+// keepLease renews the leadership every [leaseEvery] while ctx lasts. It
+// cancels ctx when another streamer leads (it was silent too long), when
+// the lease couldn't be renewed for as long as a leader may be silent
+// (another may lead by then), or on a fatal error.
+func keepLease(ctx context.Context, sess *session.Session, cancel context.CancelCauseFunc, logf func(string, ...any)) {
+	renewed := time.Now()
+	silence := time.Hour
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(leaseEvery):
+		}
+		lease, err := sess.Lease(ctx)
+		switch {
+		case err == nil && lease.Leader:
+			renewed = time.Now()
+			if lease.SilenceMs > 0 {
+				silence = time.Duration(lease.SilenceMs) * time.Millisecond
+			}
+		case err == nil:
+			cancel(presence.NotLeaderError{Leader: lease.StreamLeader})
+			return
+		case session.Fatal(err):
+			cancel(err)
+			return
+		case ctx.Err() == nil:
+			logf("renewing the lead: %v", err)
+			// A leader unheard for this long may have been replaced: stop
+			// rather than stream beside the new one.
+			if time.Since(renewed) >= silence-leaseEvery {
+				cancel(session.ErrLeaseLapsed)
+				return
+			}
+		}
+	}
 }
 
 // streamKeyPattern is a stream key as the auth API makes them.
@@ -496,7 +656,9 @@ func takeKey(ctx context.Context, o *options, s *state.State, profile string, ap
 		log.Printf("%q isn't a device ID (they look like calm_quiet_otter)", device)
 		return exitUsage
 	}
-	if _, err := session.CheckKey(ctx, api, key, profile, device); err != nil {
+	// Another streamer leading the profile doesn't make the key wrong: this
+	// one waits for the lead.
+	if _, err := session.CheckKey(ctx, api, key, profile, device); err != nil && !session.Standby(err) {
 		return exitFor(err, s, log.Printf)
 	}
 	s.ProfileID, s.DeviceID, s.StreamKey, s.RefreshToken, s.Email = profile, device, key, "", ""
@@ -672,7 +834,7 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}
 	label := o.cameraLabel
 	if label == "" {
-		label = map[string]string{"libcamera": "Raspberry Pi camera", "v4l2": "USB camera", "test": "Test camera"}[rec.Source]
+		label = map[string]string{"libcamera": "Streamer camera", "v4l2": "USB camera", "test": "Test camera"}[rec.Source]
 	}
 	logf("camera: %s (%s, %s encoder), %dx%d at %d fps, %s chunks", label, rec.Source, rec.Encoder, rec.Width, rec.Height, rec.FPS, rec.Chunk)
 
@@ -712,6 +874,13 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		Logf:        logf,
 	}
 
+	// Live sync: each stored event goes to the profile's devices at once
+	// (the camera pipelines below copy Publish), and pings are answered.
+	live := liveSync(o, s.DeviceID, creds.IdentityID, key, sess, logf)
+	if live != nil {
+		st.Publish = func(event []byte, objectKey, etag string) { live.PublishEvent(event, objectKey, etag) }
+	}
+
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -737,8 +906,51 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
-	// Blink's cameras, when this streamer is the one the app picked.
-	startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+	if live != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			live.Run(ctx)
+		}()
+	}
+	// Blink's, GoPro's, Reolink's and USB cameras, when this streamer is the one
+	// the app picked: their devices join the profile's at each renewal.
+	var cameras []func() []string
+	var runs []func()
+	if devices, run := startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf); run != nil {
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
+	for _, n := range []struct {
+		on    string
+		kind  netcam.Kind
+		os    string
+		every time.Duration
+	}{
+		{o.gopro, gopro.Kind{Full: o.goproVideo == "full"}, "GoPro", o.goproEvery},
+		{o.reolink, reolink.Kind{Full: o.reolinkVideo == "full"}, "Reolink", o.reolinkEvery},
+	} {
+		if n.on == "off" {
+			continue
+		}
+		devices, run := startNetcam(ctx, n.kind, n.os, n.every, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
+	if o.usbcam != "off" {
+		devices, run := startUSBCams(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
+		cameras, runs = append(cameras, devices), append(runs, run)
+	}
+	sess.Cameras = func() []string {
+		var out []string
+		for _, devices := range cameras {
+			out = append(out, devices()...)
+		}
+		return out
+	}
+	for _, run := range runs {
+		run()
+	}
+	// Only while it leads the profile's streamers.
+	go keepLease(ctx, sess, cancel, logf)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
@@ -757,6 +969,10 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	// up the stop.
 	detector.Close()
 	wg.Wait()
+	if cause := context.Cause(ctx); session.Standby(cause) {
+		logf("not leading any more (%v): recording stopped; waiting for the lead", cause)
+		return standby
+	}
 	return exitFor(context.Cause(ctx), s, logf)
 }
 
@@ -775,8 +991,9 @@ func exitFor(failure error, s *state.State, logf func(string, ...any)) int {
 		s.SignOut()
 		return exitUsage
 	case errors.As(failure, &wrong) || errors.Is(failure, presence.ErrUnauthorized) ||
-		errors.Is(failure, presence.ErrKeyRefused):
-		// Not better by trying again: someone must run setup.
+		errors.Is(failure, presence.ErrKeyRefused) || errors.Is(failure, presence.ErrDeviceLimit):
+		// Not better by trying again: someone must run setup, or free a
+		// device in the app.
 		log.Print(failure)
 		return exitUsage
 	default:

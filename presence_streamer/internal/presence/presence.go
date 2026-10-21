@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,10 @@ type API struct {
 	// CognitoURL overrides Cognito's endpoint (tests); empty is AWS's for
 	// the identity's region.
 	CognitoURL string
+	// Memory is the streamer's total memory in bytes (0 unknown), sent as
+	// X-Presence-Memory: the auth API prefers the streamer with more as
+	// the profile's leader.
+	Memory int64
 
 	// mu guards session: the session token last exchanged.
 	mu      sync.Mutex
@@ -48,6 +53,46 @@ var ErrUnauthorized = errors.New("the auth API refused the Google sign-in")
 // ErrKeyRefused is the auth API refusing the stream key: not this device's
 // (a newer one replaced it, or the device was deleted in the app).
 var ErrKeyRefused = errors.New("the auth API refused the stream key: copy a new command from the app's profile view")
+
+// ErrFree is a free profile: the streamer streams only to premium ones.
+// The auth API says so with a "free" tier, or with a 403 ("streamers are
+// Premium only") to a stream key.
+var ErrFree = errors.New("this profile is free: the streamer needs a Premium profile (cloud backup)")
+
+// ErrDeviceLimit is the auth API refusing this device: the profile is past
+// its plan's device limit (a 403 with "reason": "deviceLimit").
+var ErrDeviceLimit = errors.New("the auth API refused this device: the profile is past its plan's device limit (remove a device in the app, or upgrade the plan)")
+
+// premiumOnly is the auth API's 403 error to a stream key of a profile
+// whose owner isn't premium.
+const premiumOnly = "streamers are Premium only"
+
+// Leader is a profile's leading streamer: the one of its streamers that
+// streams, and when the auth API last heard from it.
+type Leader struct {
+	Device string `json:"device"`
+	SeenAt int64  `json:"seenAt"`
+}
+
+// NotLeaderError is the auth API refusing a streamer credentials (409,
+// "notLeader") because another streamer leads the profile.
+type NotLeaderError struct{ Leader *Leader }
+
+func (e NotLeaderError) Error() string {
+	if e.Leader == nil {
+		return "another streamer leads this profile"
+	}
+	return fmt.Sprintf("another streamer, %s, leads this profile", e.Leader.Device)
+}
+
+// Lease is the auth API's answer to a streamer's lease (POST
+// /api/auth/stream/lease): whether it leads the profile, the leader, and
+// how long a leader may be silent before another takes its place.
+type Lease struct {
+	Leader       bool    `json:"leader"`
+	StreamLeader *Leader `json:"streamLeader"`
+	SilenceMs    int64   `json:"silenceMs"`
+}
 
 var (
 	identityPattern = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -152,6 +197,9 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
+	if a.Memory > 0 {
+		req.Header.Set("X-Presence-Memory", strconv.FormatInt(a.Memory, 10))
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "text/plain")
 	}
@@ -159,7 +207,9 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 }
 
 // do sends req to the auth API and reads its answer into out; a 401 is
-// refused.
+// refused, the notLeader 409 a NotLeaderError, the Premium-only 403
+// ErrFree and the device-limit 403 ErrDeviceLimit. Any other answer is an
+// error that passes (retried).
 func (a *API) do(req *http.Request, refused error, out any) error {
 	res, err := a.http().Do(req)
 	if err != nil {
@@ -175,9 +225,19 @@ func (a *API) do(req *http.Request, refused error, out any) error {
 		return refused
 	case res.StatusCode != http.StatusOK:
 		var e struct {
-			Error string `json:"error"`
+			Error        string  `json:"error"`
+			Reason       string  `json:"reason"`
+			StreamLeader *Leader `json:"streamLeader"`
 		}
 		_ = json.Unmarshal(data, &e)
+		switch {
+		case res.StatusCode == http.StatusConflict && e.Reason == "notLeader":
+			return NotLeaderError{Leader: e.StreamLeader}
+		case res.StatusCode == http.StatusForbidden && e.Reason == "deviceLimit":
+			return ErrDeviceLimit
+		case res.StatusCode == http.StatusForbidden && e.Error == premiumOnly:
+			return ErrFree
+		}
 		return fmt.Errorf("%s %s: HTTP %d %s", req.Method, req.URL.Path, res.StatusCode, e.Error)
 	}
 	return json.Unmarshal(data, out)
@@ -209,7 +269,7 @@ func (a *API) Credentials(ctx context.Context, idToken, deviceID string) (Creden
 // StreamCredentials are the profile's credentials for its device deviceID,
 // with the device's stream key (from the app's profile view) instead of a
 // Google sign-in (POST /api/auth/stream/credentials). cameras are the
-// devices it streams for (its Blink cameras), which join the profile's
+// devices it streams for (its Blink, GoPro and Reolink cameras), which join the profile's
 // devices too.
 func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID string, cameras ...string) (Credentials, error) {
 	var c Credentials
@@ -217,6 +277,23 @@ func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID st
 	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/credentials", key, ErrKeyRefused,
 		strings.NewReader(body), &c)
 	return c, checked(c, err)
+}
+
+// StreamLease renews or asks for the leadership of the device deviceID,
+// with its stream key (POST /api/auth/stream/lease).
+func (a *API) StreamLease(ctx context.Context, key, profileID, deviceID string) (Lease, error) {
+	var l Lease
+	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/lease", key, ErrKeyRefused,
+		strings.NewReader(profileID+" "+deviceID), &l)
+	return l, err
+}
+
+// ProfileLease is StreamLease for a streamer signed in with Google (POST
+// /api/auth/profile/stream-lease, with its session token).
+func (a *API) ProfileLease(ctx context.Context, idToken, deviceID string) (Lease, error) {
+	var l Lease
+	err := a.call(ctx, http.MethodPost, "/api/auth/profile/stream-lease", idToken, strings.NewReader(deviceID), &l)
+	return l, err
 }
 
 // checked is err, or what's wrong with the answer c.

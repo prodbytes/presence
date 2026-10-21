@@ -26,6 +26,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
+    Duration? from,
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
     // Held while sampling: an opened copy of a sealed recording is
@@ -33,7 +34,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
     final path = await media.acquireUrl();
     try {
       if (path.isEmpty) return;
-      final times = sampleTimes(media, every);
+      final times = sampleTimes(media, every, from: from);
       final seen = <int>{};
       for (var i = 0; i < times.length; i += batch) {
         final ms = times.sublist(i, (i + batch).clamp(0, times.length));

@@ -3,11 +3,11 @@
 What the App Store (iOS) and Google Play (Android) require that Presence
 does and doesn't meet yet. Audited 2026-10-14 against the code on `main`,
 and updated as items are fixed.
-Presence isn't in either store: Android ships as a side-loaded APK, iOS as
-an unsigned development build ([Release builds](release.md)). The release
-workflow can now make signed store builds (an `.aab` and an App Store
-`.ipa`) once their keys are in its secrets ([Store
-signing](release.md#store-signing)).
+On the App Store, Presence was submitted to App Review on 2026-10-16
+(below). On Google Play it isn't yet: the developer account awaits
+verification, and Android ships as a side-loaded APK meanwhile. RC and GA
+releases make the signed store builds (an `.aab` and an App Store `.ipa`)
+([Store signing](release.md#store-signing)).
 
 ## Blockers: both stores
 
@@ -29,38 +29,67 @@ signing](release.md#store-signing)).
 
 ## Blockers: App Store
 
-- **Sign in with Apple (4.8): built, needs Apple's setup.** The iOS app
-  offers Sign in with Apple beside Google, with equal prominence, asking
-  only for name and email (private relay addresses work), on top of
-  Presence's own [sessions](sessions.md); account deletion revokes the
-  Apple tokens ([Sessions](sessions.md#sign-in-with-apples-revocation)).
-  Still to do: enable Sign in with Apple on the App ID
-  `com.nu01.presence` (the App Store profile must include it), create a
-  Sign in with Apple key and put it in SSM
-  (`APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`), and give the
-  review notes a way to sign in with Apple too.
-- **No distribution certificate yet.** The release workflow builds an
-  App Store `.ipa` (manual signing, `ExportOptions.plist` with
-  `app-store-connect`) and uploads RC and GA builds to App Store Connect,
-  but only once `APPLE_TEAM_ID`, an Apple Distribution certificate, an
-  App Store provisioning profile (and, for the upload, an App Store
-  Connect API key) are in its secrets ([Store
-  signing](release.md#app-store-ios)). Until then it uploads an unsigned
-  `Runner.app`.
+- **Getting in as a new account (3.1.1, 5.1.1): fixed (2026-10-16).** A
+  signed-in user without membership could only subscribe at nu01.com,
+  which stranded App Review and pointed to buying outside the app (Play's
+  payments policy too). The iOS and Android sign-up sheet now has **Join
+  free** in the app ([Membership](membership.md#getting-access-join-free-or-subscribe)),
+  which the [payments API](payments-api.md#join-free) grants with the
+  deploy's `RBACR_GRANT_TOKEN`; it mentions neither Premium's prices nor
+  nu01.com. **The reviewer's path:** consent, Sign in (Apple or Google),
+  the **Sign up** icon (top right), **Join free**, and the tabs appear;
+  Premium is then in the Profile tab, bought in the sandbox. Step 3 of
+  `store/app-store/review_notes.txt` says so. Needs `RBACR_GRANT_TOKEN`
+  set on the GA deploy, or Join free answers 503.
+
+- **Sign in with Apple (4.8): done (2026-10-18).** The iOS app offers
+  Sign in with Apple beside Google, with equal prominence, asking only for
+  name and email (private relay addresses work), on top of Presence's own
+  [sessions](sessions.md). The App ID `com.nu01.presence` has the
+  capability (the App Store profile includes it), and account deletion
+  revokes the Apple tokens with the Sign in with Apple key `YUVZ8W59A4`
+  (primary App ID `com.nu01.presence`), kept in the private credentials
+  repo and in SSM at `/presence/apple-signin-key` and
+  `/presence-rc/apple-signin-key` ([Sessions](sessions.md#sign-in-with-apples-revocation)).
+  The review notes tell the reviewer to sign in with any Apple ID.
+- **Signing and upload: set up (2026-10-15).** The team (`LMX88986F3`)
+  is a paid Apple Developer Program member, and the release workflow's
+  secrets are all set: the Apple Distribution certificate, the App Store
+  profile (with Sign in with Apple) and the App Store Connect API key
+  ([Store signing](release.md#app-store-ios)); the files are kept in the
+  private credentials repo. RC and GA builds are signed and uploaded to
+  App Store Connect.
+- **The app record:** "PresenceCam" (Apple ID `6823219680`, SKU
+  `presence`, bundle ID `com.nu01.presence`, English (U.S.)), since
+  "Presence" is taken in the App Store. The name under the icon stays
+  "Presence". Its listing is pushed from the repo
+  ([App Store listing](app-store-listing.md)).
+- **Submitted to App Review (2026-10-16):** version 0.7.202610161834
+  (build 1792175686) with the subscription group "Presence Premium" and
+  both subscriptions, its first. Done before it: the Paid Apps
+  agreement, banking and tax forms (active), the EU trader status (Digital
+  Services Act), App Privacy (12 data types, all for app functionality,
+  linked to the user, none for tracking), the review notes and contact.
+  Still open in Business: the EU DAC7 information ("Missing Info"),
+  which the account holder fills in.
 
 ## Blockers: Google Play
 
-- **No upload key yet.** Release builds sign with an upload key from
-  the environment or `android/key.properties`, and the release workflow
-  builds an **Android App Bundle** signed with it, once the
-  `ANDROID_UPLOAD_KEY*` secrets exist; a release bundle without a key
-  fails rather than use the debug key. Still to do: create the key
-  (`scripts/android-upload-key.sh`), set the secrets, turn on Play App
-  Signing and upload the first `.aab` ([Store
+- **The developer account** (`nu01.com`, a personal account) is waiting
+  for Google's identity verification (2026-10-16); Play Console creates no
+  app until it passes. As a personal account made after November 2023, it
+  must run a closed test with at least 12 testers for 14 days before
+  production.
+- **Upload key: made (2026-10-16).** The upload key is in the private
+  credentials repo (`env.local/android/`), SHA-1
+  `A3:AC:95:CD:30:67:EE:E7:46:29:A2:20:99:05:CF:D6:B5:A7:80:D9`, and the
+  `ANDROID_UPLOAD_KEY*` secrets are set, so RC and GA releases build a
+  signed `.aab`. Still to do once the account is verified: create the
+  app, turn on Play App Signing and upload the first `.aab` ([Store
   signing](release.md#google-play-android)). The `assetlinks.json` for
   [App Links](add-device.md), which the site doesn't serve yet, must then
-  list Play's app signing certificate, and Google sign-in's Android
-  client its SHA-1.
+  list Play's app signing certificate, and Play's app signing key needs
+  its own Google sign-in Android client ([release](release.md#google-play-android)).
 
 ## Declarations and reviews needed
 
@@ -91,8 +120,8 @@ signing](release.md#store-signing)).
   - while a build is in review, GA must take sandbox purchases
     (`STORE_ALLOW_SANDBOX=true`, [Payments API](payments-api.md#deploying)):
     the reviewer buys Premium in the sandbox with the production build;
-  - the subscriptions submitted with the version, with a review
-    screenshot each.
+  - the subscriptions submitted with the version; each has its review
+    screenshot (the Premium plans, uploaded by the listing script).
 
 ## Risks
 

@@ -47,6 +47,11 @@
   "@authHidden": {
     "description": "A device whose events are hidden"
   },
+  "authLeader": "leader",
+  "@authLeader": {
+    "description": "The profile's leading streamer, in the device list"
+  },
+  "authLeaderTooltip": "The profile's leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it's been offline for an hour.",
   "authNoEvents": "No events",
   "authHideDevice": "Hide {device}'s events",
   "authShowDevice": "Show {device}'s events",
@@ -156,6 +161,17 @@
     }
   },
   "authSubscribeButton": "Subscribe at nu01.com",
+  "authJoin": "Join Presence",
+  "authJoinFreeText": "{email} isn't a member of Presence yet. Join free to use it on this device.",
+  "@authJoinFreeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authJoinFree": "Join free",
+  "authJoinFreeFailed": "Couldn't join right now. Try again in a moment.",
   "authVoucherPrompt": "Have a voucher code? Redeem it to get in right away.",
   "authVoucherLabel": "Voucher code",
   "authRedeem": "Redeem",
@@ -264,73 +280,14 @@
       }
     }
   },
-  "authPastLimit": "This device is past your plan's first {limit}: it doesn't sync, so only its own events show here.",
-  "@authPastLimit": {
-    "placeholders": {
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authMoreHidden": "{count, plural, =1{1 more device doesn't sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don't sync, and their events are hidden: {plan} syncs your first {limit}.}}",
-  "@authMoreHidden": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
   "authUpgradePremium": "Upgrade to Premium",
   "authUpgrade": "Upgrade",
-  "authOthersHidden": "This device doesn't sync, and your other devices' events are hidden on it: {plan} syncs your first {limit} devices.",
-  "@authOthersHidden": {
-    "placeholders": {
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authDevicesHidden": "{count, plural, =1{1 device's events are hidden: {plan} shows your first {limit} devices.} other{{count} devices' events are hidden: {plan} shows your first {limit} devices.}}",
-  "@authDevicesHidden": {
+  "authThisDeviceHidden": "This device doesn't sync",
+  "authHiddenCount": "{count, plural, =1{1 device hidden} other{{count} devices hidden}}",
+  "@authHiddenCount": {
+    "description": "Under the Profile tab's device list: how many devices the plan hides.",
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
-  "@authPremiumShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authProShowsUpTo": "{text} Pro shows up to {limit}.",
-  "@authProShowsUpTo": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
         "type": "int"
       }
     }
@@ -383,7 +340,7 @@
   "maintenanceTitle": "Sorry, Presence is down for maintenance.",
   "maintenanceBody": "We'll be back soon. This page comes back on its own.",
   "aboutLinkCopied": "Link copied",
-  "aboutParagraph": "Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
+  "aboutParagraph": "Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
   "aboutOpenSource": "Presence is open source:",
   "legalPrivacy": "Privacy Policy",
   "legalTerms": "Terms of Service",
@@ -419,13 +376,13 @@
   "authPaymentsInvalid": "Empty, or an https link on stripe.com",
   "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
   "authPaymentsUnavailable": "The payments API didn't answer.",
-  "authStreamerTitle": "Stream from a Raspberry Pi",
-  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.",
+  "authStreamerTitle": "Streamer",
+  "authStreamerBody": "Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.",
   "authStreamerCopy": "Copy command",
-  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi",
-  "authStreamerCreate": "Create command",
+  "authStreamerCopied": "Command copied: paste it on the streamer",
+  "authStreamerCreate": "Get command",
   "authStreamerKeyOnce": "It holds this device's key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.",
-  "authStreamerFailed": "Couldn't create the command ({error})",
+  "authStreamerFailed": "Couldn't get the command ({error})",
   "@authStreamerFailed": {
     "placeholders": {
       "error": {

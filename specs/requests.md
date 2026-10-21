@@ -6509,7 +6509,964 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          missing key. `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md).
 
-450. **"Who is this?": ask the user to tag an unnamed person or pet.** (2026-10-15)
+450. **Cloud data: readable 67 days, then the coldest archive, erased
+     after 365 days.** (2026-10-15)
+     - Asked: how long Blink keeps clips (60 days in the US, CA, MX, AU and
+       NZ; 30 in the EU and UK); keep ours 67 days, everywhere; after that,
+       archive to Glacier's coldest storage class, and delete permanently
+       after 365 days; adjust the AWS resources to work like that.
+     - Changed: the user-data bucket's lifecycle (user-data.yaml):
+       - Objects over 128 KB (recordings, streamer video) move to Glacier
+         Deep Archive 67 days after they're written.
+       - Smaller ones (events, clip records, thumbnails) stay where they
+         are, since moving them would cost more than it saves.
+       - Every object expires at 335 days, and its old version is removed
+         30 days later, so it's erased for good at 365 days. This replaces
+         90 + 30.
+       - The Privacy Policy and Terms say so (effective 15 October 2026),
+         and so do the README and the specs.
+       - The app's handling of an archived recording (S3 answers 403
+         `InvalidObjectState`) is a separate PR.
+       - Spec: [Cloud sync](cloud-sync.md), [Legal](legal.md).
+
+451. **Archived recordings: cold storage after 67 days.** (2026-10-15)
+     - Asked: keep cloud data 67 days, then archive it to the coldest
+       Glacier tier, deleting everything after 365 days.
+     - Changed (the app's handling of archived recordings; the bucket's
+       lifecycle itself is in a separate PR):
+       - S3 errors are classified by their XML `<Code>`
+         (`S3Exception.code`): a GET of an object in Glacier Deep Archive
+         answers 403 `InvalidObjectState`, now `archived`, and never
+         `credentialsRejected` (only `AccessDenied`, `ExpiredToken`,
+         `InvalidToken`; by their words only without a code), so it never
+         renews the credentials or stops sync.
+       - `CloudSync.fetchRecording` returns `RecordingFetch` (`stored`,
+         `missing`, `archived`); an archived recording is remembered while
+         the app runs (no GET again), its load fails with
+         `RecordingArchived`, and the player (native and web) says
+         "Archived: this video is in cold storage" (en, es, pt) instead
+         of "Couldn't load this clip". Restoring isn't supported yet.
+       - A pass skips archived objects like gone ones
+         (`_Fetcher._getOrSkip`, `_getIfThere`): a thumbnail or frame left
+         out, the pass going on.
+       - Event copies: a clip older than 67 days held by the cloud is in
+         cold storage (`EventCopies.coldStorageAfter`,
+         `CopiesSummary.coldStorage`): the cloud indicator's tooltip says
+         its recording can't be played from the cloud, and the copies'
+         holders say "Cloud (cold storage)".
+       - Tests: `s3_test` (the codes), `cloud_sync_test` (an archived
+         recording, with the fake S3 answering 403 `InvalidObjectState`:
+         archived, not asked again, credentials not renewed, sync going
+         on; a pass meeting archived objects stays synced),
+         `persistence_test` (the player shows the archived message),
+         `event_copies_test` (cold storage in the summary and tooltips).
+         `flutter analyze` is clean, `flutter test` passes.
+     - Specs: [Cloud sync](cloud-sync.md), [Clips](clips.md), [Event
+       copies](event-copies.md).
+
+452. **Make sure the APIs accept calls only from the app's web, Android and
+     iOS clients, not from other people.** (2026-10-15)
+    - Checked live: prod enforces the origin check. Direct calls to the
+      APIs' `execute-api` hosts are refused (403, or 401 on payments
+      without a token), and the same routes answer through the site. A
+      script calling through the site's domain is still answered like the
+      app, because only app attestation can tell them apart.
+    - As asked, attestation goes on a new roadmap rather than being built
+      now. [ROADMAP.md](../ROADMAP.md) (linked from the README) plans
+      Firebase App Check: Play Integrity, App Attest once the paid Apple
+      enrollment lands, and reCAPTCHA Enterprise on web. The streamer stays
+      allowed through its device sign-in. Requests are logged first and
+      refused in a later release.
+    - Specs: [Origin check](origin-check.md) now says it's live and links
+      the roadmap, and so does the index.
+
+453. **Lean events view: no hidden-devices upsell.** (2026-10-15)
+     - Asked: remove the "hidden devices, Pro shows your first 50
+       devices" message from the events view, so it stays lean; a call to
+       action only in the Profile view, and discreetly.
+     - Changed:
+       - The Monitoring tab's hidden-devices card (`DeviceLimitNotice`,
+         with its "Premium/Pro shows up to …" text and Upgrade button) is
+         gone, with `MonitoringView.notice` and its wiring in the home
+         screen. No other non-profile view (Camera, Settings/Setup) had an
+         upgrade banner; Setup's informational Premium notes stay.
+       - The Profile tab: the plan box's warning-colored "past the limit"
+         line is replaced by one small muted line under the device list
+         (`HiddenDevicesLine`): "3 devices hidden" or "This device doesn't
+         sync", and on the web " · Upgrade", a small underlined link to
+         the next plan's checkout (Premium's for free, Pro's for premium
+         once its link is set). The store apps get no link and never a
+         Pro mention. The per-device **hidden** label stays.
+       - Strings: `authHiddenCount` and `authThisDeviceHidden` added (en,
+         es, pt); `authPastLimit`, `authMoreHidden`, `authOthersHidden`,
+         `authDevicesHidden`, `authPremiumShowsUpTo` and
+         `authProShowsUpTo` dropped.
+       - Tests: `monitoring_test` (no upsell even with hidden devices),
+         `device_slots_test` (the line: absent when nothing's hidden, the
+         count, this device, the web links; in the account sheet, present
+         with a hidden device, gone without), `store_billing_test` (no
+         link and no Pro in the store apps). `flutter analyze` is clean,
+         `flutter test` passes.
+     - Specs: [Monitoring](monitoring.md), [Premium and free](premium.md),
+       [Upgrade to Premium](upgrade.md), [Sign-in](sign-in.md).
+
+454. **Every event has a thumbnail: black ones made again.** (2026-10-15)
+     - Asked: "Got a black event. Make sure all events have a thumbnail;
+       regenerate if necessary."
+     - Cause: a clip's thumbnail is the camera's frame at the trigger
+       (`captureFrame`, the same on Android, iOS and the web), taken
+       while the night light (torch or screen) only starts with the clip,
+       or while a camera just opened is still opening up its exposure (a
+       Clip press or Capture all right after the camera opens), or a frame
+       that didn't decode: black. Nothing checked it, and the card showed
+       it as it was.
+     - Changed:
+       - `ThumbnailMaker` (`lib/clips/clip_thumbnail.dart`): a thumbnail
+         whose mean luma (BT.601, read 64 px wide on a grid of at most
+         64 × 64 pixels) is below 16 is black; a black or missing one is
+         made from the recording, from its middle on (middle, 0.7, 0.9:
+         the first frame that isn't black, 480 px wide, sealed), or, all
+         black (a night scene), the brightest, shown as a placeholder.
+         Frames come from the recognition sampler (`ClipFrameSampler`,
+         now with `from`), so no native code changed.
+       - `Persistence.thumbnails` (set where recordings can be read:
+         Android, iOS, web) checks each clip once (`thumbnailCheck` in its
+         local record): this device's clips as they're recorded, every
+         clip restored or fetched, one at a time 250 ms apart, and another
+         device's clip once its recording comes down to be played. Only
+         recordings stored here are read, never downloaded for it. A new
+         thumbnail is stored (`thumbnailRedone`), replaces the card's
+         (`VideoClip.replaceThumbnail`), and names its event changed.
+       - Cloud sync uploads a remade thumbnail again (fingerprint
+         `thumbnail@<thumbnailRedone>`), and never `thumbnailCheck`.
+       - The card shows a placeholder (camera icon) for a missing or
+         black thumbnail, never a black box; the All grid skips black
+         ones. Events of other kinds have no thumbnail and are unchanged.
+       - Tests: `clip_thumbnail_test` (black detection, the frame chosen
+         instead, all dark, no recording, regeneration in `Persistence`
+         stored and named changed, nothing fetched for another device's
+         clip, the card's placeholder and its update), `cloud_sync_test`
+         (a remade thumbnail goes up again, a check alone sends nothing).
+         `flutter analyze` is clean, `flutter test` passes.
+     - Specs: [Clips](clips.md), [Recording and data
+       formats](data-formats.md), [Cloud sync](cloud-sync.md).
+
+455. **Estimate the cost per device: expected, pessimistic, optimistic.**
+     (2026-10-15)
+     - Answered (no code changed): AWS us-east-1 list prices, per camera
+       device per month once the bucket is in steady state (a year in),
+       with the lifecycle as it is now (Intelligent-Tiering, Deep Archive
+       after 67 days, erased at 365).
+       - **Optimistic, about $2:** 10 clips a day of 6 MB (scheduled plus
+         a little motion), one device, few recognized.
+       - **Expected, about $4:** 50 clips a day of 8 MB, one other
+         Android device prefetching every recording, 10 a day recognized.
+       - **Pessimistic, about $37:** motion at its 5-minute cooldown (296
+         clips a day) of 12.7 MB (web), two devices prefetching, every
+         clip identified and described.
+       - The fixed part is listing: about 11,500 `ListObjectsV2` a day
+         per device running the app, about $1.78 a month, whatever it
+         records. Past that, egress of prefetched recordings ($0.09/GB)
+         and recognition (about $0.0005-0.001 a clip on arm64 Lambda at
+         3008 MB) grow with clips; storage is about $1.48 a month per GB
+         uploaded a day. Live sync (IoT) and PUTs are cents.
+       - Replaces #138's storage-only figure, made before cold storage.
+
+456. **Set the Apple team ID (`LMX88986F3`), continue publishing the app,
+     and save all credentials to the credentials repo (setec astronomy),
+     cloned one directory up.** (2026-10-15)
+    - `APPLE_TEAM_ID` was already `LMX88986F3`, so it stays as it is.
+    - Credentials now live in `../setec-astronomy/presence.nu01/env.local/`
+      (git-ignored there, listed in its README). The Apple Distribution
+      private key and CSR were made there for the App Store signing setup.
+    - [scripts/android-upload-key.sh](../scripts/android-upload-key.sh)
+      now creates the Play upload keystore there by default, falling back to
+      `~/.config/presence/` without that clone.
+    - Specs: [Release](release.md) says where each signing file lives and
+      uses that path in the Play secret command.
+
+457. **Instead of flipping camera modes on the button, make it a menu on
+     the navbar, default being this camera, with a drop-down to select the
+     other modes.** (2026-10-15)
+    - The round mode button by Flip, which cycled Normal → All →
+      Unattended → Stopped, is gone. A **mode menu** (`CameraModeMenu`,
+      `lib/home/camera_mode_menu.dart`) sits in the app bar over the
+      camera, top left: the mode's icon and name with a drop-down arrow,
+      "This camera" at launch. Its menu lists This camera, All devices,
+      Unattended and Stopped, each with a line on what it does, the
+      current one checked, and switches straight to the one picked
+      (`HomeScreen._setMode`).
+    - Normal is now labelled "This camera" and All "All devices" (es, pt
+      too); the tooltips that said what the next tap did became the menu's
+      hints.
+    - Specs: [Navigation](navigation.md) and [Camera screen](camera.md)
+      describe the menu; [README](README.md), [Cloud sync](cloud-sync.md)
+      and [Configuration](configuration.md) name it.
+
+458. **Poll S3 often only while an event lacks copies on other devices.**
+     (2026-10-15)
+     - Asked: no need to sync S3 so often; if other devices respond with
+       enough copies of an event, check S3 about once an hour, and only
+       download what changed (hashes don't match). Poll at high frequency
+       only while an event lacks enough copies on other devices, the event
+       then being backed up on S3. Premium and Pro only (free has no S3).
+       A full copy still counts only with the recording (asked: kept as
+       today, not a lighter "received" ack nor background recording
+       downloads).
+     - Changed: while live sync works, cloud sync's backstop lists the
+       bucket every hour (`CloudSync.copiedInterval`) while the events this
+       device published have `enoughCopies` (1, or the profile's other
+       devices if fewer) other devices holding a full copy, and every
+       2 min (`liveInterval`) while one is short past `ackGrace` (2 min
+       plus two scheduled live connections), for at most an hour more.
+       Passes for saves and live messages skip the listing for as long.
+       `_CopyTracker` keeps the events published here (at most 500).
+       Downloads already happened only for missing objects or a changed
+       ETag, and free profiles never reach the bucket: unchanged.
+     - Listing per device drops from about $0.22 a month (with live sync)
+       to about $0.05 when copies are enough. Also corrects #455: with
+       live sync working, listing was $0.22, not $1.78.
+     - Tests: `live_sync_test` (an event published here lists nothing
+       within its grace, then every `liveInterval` while unacked, and
+       hourly once another device acks it). `flutter analyze` is clean,
+       `flutter test` passes (1050).
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Event copies](event-copies.md).
+
+459. **Do a barrel roll** (2026-10-15), with the pending edit to
+     [prompts/do-a-barrel-roll.md](../prompts/do-a-barrel-roll.md)
+     committed first.
+    - Its last step now says to update and relaunch the app on the
+      connected iPhone and Android phone, if available, rather than on
+      "connected usb devices".
+
+460. **Write the code that makes an HTML report of profiles, devices,
+     profiles per device and costs.** (2026-10-15)
+     - Asked: the number of profiles and devices, the average number of
+       profiles per device with its deviation beside it in smaller type,
+       the estimated cost per device per month and the total per month,
+       as accurately as possible.
+     - Added `scripts/cost-report.py` (Python, the AWS CLI only): profiles
+       and devices from each stage's ProfilesTable, costs from Cost
+       Explorer's usage charges over the last 30 full days (credits left
+       out), Presence's services only, split into per device and fixed,
+       scaled to a month. Tests: `scripts/cost_report_test.py` (7 pass).
+     - First run: 5 profiles, 4 devices, 1.00 ± 0.00 profiles per device,
+       $0.24 per device, $7.51 a month (Route 53 $6.28).
+     - Specs: [Cost report](cost-report.md) (new), [README](README.md).
+
+461. **(From a barrel roll) The RC and GA releases failed on the streamer
+     test `TestLoginWithAPINFromTheApp`.** (2026-10-15)
+    - The test was a time bomb: its fake Blink clips are dated 2026-10-14
+      12:00 UTC, and the first fetch starts at now minus the 24-hour
+      backfill, so from a day later the clips fell outside it and `Since`
+      no longer matched. It failed on every run.
+    - The blink tests now set the `Now` clock: it starts at 2026-10-14
+      13:00 UTC and runs at real speed, so the PIN wait still times out
+      normally.
+    - Specs: [Blink cameras](blink.md) (Tests).
+
+462. **Create cost-allocation tags to separate RC and GA, and apply them.**
+     (2026-10-15)
+     - Found: every Presence stack already carries the stack tags
+       `project=presence` and `tenancy=GA`/`RC`/`shared` (deploy.sh,
+       deploy-sh.sh, the samconfigs), copied to 174 resources, but neither
+       key was active in Billing, so Cost Explorer couldn't split by them.
+       Other projects in the account use the same keys.
+     - Done in AWS: activated `project` and `tenancy` as cost-allocation
+       tags, and asked for a backfill from 2025-11-01 (processing).
+     - Changed: `scripts/cost-report.py` reads only costs tagged
+       `project=presence` or untagged, splits them by `tenancy` (GA, RC,
+       both stages), shows a table by stage and one by service, each
+       stage's cost per device, and warns while no cost carries the tag.
+       Route 53 (a zone shared with other projects; Presence has no health
+       check) and Secrets Manager (other projects' secrets only) are no
+       longer counted: $0.97 a month rather than $7.51. Tests: 9 pass.
+     - Specs: [Cost report](cost-report.md), [Production deploy](deploy.md).
+
+463. **Release the app to the App Store; do it all yourself (the app name
+     PresenceCam if "Presence" isn't accepted).** (2026-10-16)
+    - App Store Connect's app, removed by mistake, was restored in the
+      browser (its bundle ID can't be used by a new app) and renamed
+      PresenceCam: "Presence" is taken.
+    - New: the product page in `store/app-store/` (English) and
+      [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs),
+      which pushes it through the App Store Connect API: name, subtitle,
+      description, keywords, URLs, categories, copyright, content rights
+      and age rating (16+). Pushed once.
+    - Left to the account holder: the Paid Apps agreement, banking and
+      tax, the EU trader status, the price, App Privacy and the review
+      contact.
+    - Specs: [App Store listing](app-store-listing.md) (new), [Store
+      readiness](store-readiness.md), the index.
+
+464. **Apple's ITMS-90683 for build 1792069744: the Info.plist has no
+     `NSLocationAlwaysAndWhenInUseUsageDescription`.** (2026-10-16)
+    - Added it, with the same text as the when-in-use one plus that the
+      location is only used while the app is open. The app still asks
+      only for when-in-use; the plugin's code references the other API.
+    - Specs: [iOS](ios.md).
+
+465. **Upgrade Y to 7 on the version.** (2026-10-16)
+    - `version.Y.txt` is now `7`: releases are `0.7.<UTC timestamp>`.
+    - Specs: [Release](release.md) (also: App Store Connect accepted the
+      12-digit Z, so that open question is closed).
+
+466. **The App Store version has no screenshots, which blocks
+     submission: make and upload them.** (2026-10-16)
+    - New: [scripts/app-store-screenshots.sh](../scripts/app-store-screenshots.sh)
+      runs `integration_test/store_screenshots_test.dart` on the iPhone 18
+      Pro Max simulator: the real app with fakes (a made-up free account,
+      demo clips from Suerte's photos in `test/data/`, a public place, the
+      App Store plans at their US prices), screenshotted at 1320x2868 and
+      flattened to RGB. Five screenshots in
+      `store/app-store/en-US/screenshots/` (camera, events, Setup, Premium
+      plans, consent) and `store/app-store/subscription-review.png`.
+    - [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs)
+      now uploads them: the 6.9" set (`APP_IPHONE_67`) of the editable
+      version's localization, and each Premium subscription's review
+      screenshot, by reservation, upload operations and commit (MD5),
+      skipping what's already there (`SCREENSHOTS_ONLY=1` for just these).
+      Run for real: all five and both review screenshots `COMPLETE`; the
+      subscriptions went from "missing metadata" to "ready to submit".
+    - Specs: [App Store listing](app-store-listing.md), [Store
+      readiness](store-readiness.md).
+
+467. **Release the app on the app stores and the web; register on both
+     stores in parallel.** (2026-10-16)
+    - Web: already live, presence.nu01.com and rc.presence.nu01.com at
+      0.7.202610161741.
+    - Both store accounts already existed: Apple's paid team, and the
+      Play account `nu01.com`, which is waiting for Google's identity
+      verification (no app can be made until then).
+    - Made the Android upload key (in the private credentials repo) and
+      set the `ANDROID_UPLOAD_KEY*` secrets.
+    - [scripts/app-store-listing.mjs](../scripts/app-store-listing.mjs)
+      now also attaches the version's newest processed build and sets
+      App Review's details: notes from `store/app-store/review_notes.txt`,
+      the contact from the private `review.json`.
+    - Found a review blocker: a signed-in user without membership could
+      only subscribe at nu01.com; an in-app Join free is its own change.
+    - Specs: [App Store listing](app-store-listing.md), [Store
+      readiness](store-readiness.md).
+
+468. **App Store review blocker (3.1.1, 5.1.1; Play's payments policy):
+     a signed-in user without membership only sees the camera and a
+     sheet sending them to subscribe at nu01.com. Offer an in-app Join
+     free on iOS and Android instead.** (2026-10-16)
+    - Payments API: new `POST /api/payments/free` (2 requests/s, burst
+      10): grants the caller's verified email rbacr's `free` in the
+      `presence` system for good, with the deploy's `RBACR_GRANT_TOKEN`
+      (`RbacrGrants.joinFree`); only that role, only to the caller;
+      asks `POST /api/check` first, so a member already gets 200
+      `{"member": true, "granted": false}` and nothing changes. 403
+      without a verified email, 502 when rbacr fails, 503 without the
+      grant token. Tests: `JoinFreeTest`.
+    - App: on iOS and Android (where `StoreBilling` exists) the sign-up
+      sheet is "Join Presence" with **Join free**, no Premium, price or
+      nu01.com; it calls the route (`StoreClient.joinFree`) and checks
+      the roles at once and again 2 s later, as a voucher does. The
+      voucher field stays. Web and Linux keep "Subscribe at nu01.com".
+      New strings in English, Spanish and Portuguese. Tests:
+      `join_free_test.dart`, `store_billing_test.dart`.
+    - `store/app-store/review_notes.txt` step 3 names the Sign up icon
+      and Join free.
+    - Specs: [Membership](membership.md), [Sign-in](sign-in.md),
+      [Payments API](payments-api.md#join-free), [Upgrade](upgrade.md),
+      [Store readiness](store-readiness.md).
+
+469. **My phone is +34…; set the review contact, then continue.**
+     (2026-10-16)
+    - The App Review contact is in the private `review.json`; the listing
+      script attached build 1792175686 to version 0.7.202610161834 and
+      set the review details.
+    - App Privacy filled in and published in the browser; the version
+      is in a draft review submission. The Paid Apps agreement is still
+      to sign, so the subscriptions aren't in it yet and it isn't sent.
+    - Specs: [Store readiness](store-readiness.md).
+
+470. **The Paid Apps agreement is submitted; continue.** (2026-10-16)
+    - The agreement, bank account and tax forms are active. Added both
+      Premium subscriptions and their group to the draft review
+      submission in the browser (the first subscription must go with a
+      version; the API refuses it) and submitted all four items.
+    - Specs: [Store readiness](store-readiness.md).
+
+471. **Set up Sign in with Apple for Presence.** (2026-10-18)
+    - Made the Sign in with Apple key "Presence Sign in with Apple"
+      (`YUVZ8W59A4`, primary App ID `com.nu01.presence`) in Apple
+      Developer, kept its `.p8` in the private credentials repo, and put
+      it in SSM as SecureStrings `/presence/apple-signin-key` and
+      `/presence-rc/apple-signin-key`.
+    - Repository variables: `APPLE_SIGNIN_KEY_ID`,
+      `APPLE_SIGNIN_KEY_PARAMETER` and the new
+      `APPLE_SIGNIN_KEY_PARAMETER_RC`.
+    - Fixed: the RC deploy passed the GA's parameter, which `deploy.sh`
+      refuses for the RC (it must be under `/presence-rc/`); it now reads
+      `APPLE_SIGNIN_KEY_PARAMETER_RC`.
+    - Specs: [Store readiness](store-readiness.md), [Deploy](deploy.md),
+      [Sessions](sessions.md).
+
+472. **Streamer management: one leader streams.** (2026-10-18)
+    - At most one of a profile's streamers, the leader, pushes to the
+      cloud; a streamer streams only once the auth API grants it the
+      leadership. The auth API keeps the leader on the profile
+      (`streamLeader`, `streamLeaderSeenAt`), grants it with one
+      conditional write, gives stream credentials only to the leader
+      (409 `notLeader` otherwise), and has two lease routes, `POST
+      /api/auth/stream/lease` (the stream key) and `POST
+      /api/auth/profile/stream-lease` (Google sign-in).
+    - A leader silent for more than an hour is replaced by the next
+      waiting streamer to ask; deleting the leader frees its place.
+    - presence-streamer waits (records nothing) until it leads, asking
+      every 5 minutes; leading, it renews every 5 minutes and goes back to
+      waiting when replaced, refused, or unable to renew for 55 minutes.
+    - The app's profile view labels the leader "leader" in the device
+      list (en, es, pt); Blink's streamer list puts it first.
+    - Specs: [Streamer leadership](streamer-leader.md) (new),
+      [Streamer](streamer.md), [Auth API](auth-api.md),
+      [Sign-in](sign-in.md), [Blink cameras](blink.md).
+
+473. **Stop rotating the Apple refresh-token data key.** (2026-10-18)
+    - `SessionDataKey` now has `EnableKeyRotation: false`: each yearly
+      rotation would add $1/month per stage. CloudFormation changes
+      that property in place (no replacement), and KMS keeps old key
+      material, so sealed tokens still decrypt. Takes effect at the
+      next auth API deploy.
+    - Specs: [Sessions](sessions.md).
+
+474. **Ingest: delete processed chunks for good.** (2026-10-18)
+    - Asked: the cloud detector deletes the streamer's `<id>/ingest/*`
+      jobs and chunks without a version ID, so on the versioned user-data
+      bucket each lingers 30 days as an old version (one profile had about
+      2,490, 11.7 GB, 80 % of the bucket). Delete them for good, with no
+      user-visible change.
+    - Changed: presence_ingest deletes the version it read (or, for a chunk
+      it didn't read, the current one's, from a HEAD); its role may
+      `s3:DeleteObjectVersion` on `*/ingest/*` only. If that's refused
+      (AccessDenied) it deletes as before and logs `version kept`.
+    - Not done: the stage's permissions boundary (`<prefix>-app-boundary`
+      in `github-deploy.yaml`, applied by hand) doesn't allow
+      `s3:DeleteObjectVersion` yet, so the versions are still kept until
+      it's added (scoped to `*/ingest/*`). No lifecycle backstop: its
+      filters are key prefixes, and ingest's keys are `<identity>/ingest/…`.
+    - Specs: [Streamer](streamer.md), [Cloud sync](cloud-sync.md).
+
+475. **Cut free live sync's AWS IoT requests, without changing what it
+     does.** (2026-10-18)
+    - A free device's failed scheduled connection now tries again at the
+      schedule's next slot (the interval plus jitter from the failed
+      attempt), or after the back-off when that's longer, instead of
+      after the 1 s … 2 min back-off: never more often than every 15 min.
+      Members' retries are unchanged.
+    - A free device's scheduled connection no longer re-sends its 3
+      SUBSCRIBEs when the broker resumed its persistent session
+      (CONNACK session-present, now `LiveConnection.sessionPresent`):
+      only a new session, or a topic refused before, subscribes. Checked
+      in `mqtt_client` 10.11.11 that the flag is read (3.1.1) and that
+      every received PUBLISH reaches the updates stream whether or not
+      the connection subscribed. Free scheduled connections: ~11,500 →
+      ~2,900 billed messages per device and month.
+    - Not done: sending the heartbeat over each scheduled connection and
+      restarting its 5-min timer from there. With beats at least every
+      5 min and connections more than 15 min apart (the wait starts when
+      the last one closes, plus jitter), three beats of their own are
+      still needed between connections, so it would only add a beat
+      (2 billed messages) per connection.
+    - Specs: [Live sync](live-sync.md), [Premium and free](premium.md).
+
+476. **Fix: a free profile's streamer restarts forever.** (2026-10-18)
+    - The auth API answers a free profile's stream key with HTTP 403
+      `"streamers are Premium only"`, and a device past the plan's limit
+      with 403 `"reason": "deviceLimit"`; presence-streamer read only a
+      401 as a refusal, so it exited 1 and systemd restarted it every 10
+      seconds (about 8,600 auth calls a day per Pi), and mid-run renewals
+      retried every 2 minutes.
+    - Fixed to match the spec: the Premium-only 403 is a free profile
+      (exit 3), the device-limit 403 a refusal (exit 2), at the start and
+      at a renewal (which ends the run); the service restarts neither.
+      Other 403s and 5xx are retried as before. Unit tests for both 403s,
+      at a renewal, and for the exit codes.
+    - Specs: [Streamer](streamer.md).
+
+477. **Keep AWS credentials across the session token's refresh.**
+     (2026-10-18)
+    - `CognitoCredentials` reused credentials only for the same session
+      token, which rotates about hourly, so the auth API (and rbacr) and
+      Cognito were asked again more often than the credentials needed.
+      They're now kept per account (the token's `iss` and `sub`) until
+      five minutes before they expire, or until `CloudBackend.reset()`:
+      a sign-out, another profile, a link or unlink, rejected
+      credentials, or a change of plan (which changes their `tier` tag;
+      `CloudSync` already resets on it). Another account's token never
+      gets them; credentials without an expiry (the local stack) stay per
+      token.
+    - Specs: [Cloud sync](cloud-sync.md).
+
+478. **GoPro cameras through a streamer.** (2026-10-18)
+    - Asked: add GoPro support to the streamer, like Blink cameras: the
+      configuration in the app, read by the streamer. (GoPro has no
+      cloud API; chosen: the Open GoPro HTTP API on the streamer's
+      network: home network with the camera's password, USB, or the
+      camera's Wi-Fi.)
+    - Changed: Settings' last section, GoPro cameras: pick the Linux
+      streamer, add a camera (name, address, password), list and remove
+      them; sealed to that streamer through the profile's folder
+      (`gopro.json`, answered in `gopro-status.json`). The streamer (the
+      new `gopro` package) reaches the camera, pins its certificate,
+      keeps it, deletes the request, gives it a device ID, registers it
+      with its stream key, and every 2 minutes fetches its new videos
+      (the low-resolution `.LRV` copy by default) into the camera's own
+      pipeline (`os: GoPro`). Blink's per-camera pipelines are shared
+      with GoPro's (`main_cameras.go`). Specs: [GoPro cameras](gopro.md)
+      (new), [Streamer](streamer.md), [Settings](settings.md).
+
+479. **Fix the cost findings that don't change the experience or the
+     features.** (2026-10-18)
+    - Done in their own PRs: the streamer's exit on a free profile or the
+      device limit (#416), free live sync's retries and resumed
+      subscriptions (#418), AWS credentials kept across the session
+      token's refresh (#419), no rotation of the Apple token key (#415),
+      ingest chunks deleted for good (#417, which waits on the deploy
+      role's boundary), and 30-day retention on 26 old log groups.
+    - Left as they are: the recognition gate (the 403s would change),
+      the heartbeat on scheduled connections (it saves nothing within the
+      5-min rule), the recognition warm-ups, rbacr's memory (slower), the
+      orphaned tables (empty, $0) and SnapStart (needs the deploy role's
+      alias permissions).
+    - The release of these fixes (0.7.202610181514) failed its GA iOS
+      upload: the RC and GA runs had the same build number, and App Store
+      Connect refused the second as a duplicate, so the GA release wasn't
+      published. The upload now takes that duplicate as done.
+    - Specs: [Release](release.md).
+
+480. **The leading streamer: the one with the most memory.** (2026-10-18)
+    - Asked: when electing the leader streamer, prefer the one with more
+      memory.
+    - Changed: `presence-streamer` sends its total memory (`MemTotal`,
+      bytes) as `X-Presence-Memory` with its stream credentials and
+      leases. The auth API keeps the leader's (`streamLeaderMemory`) and
+      grants the leadership to a streamer with more memory than the
+      leader, at once; the old leader hears "another leads" at its next
+      lease and waits. Equal memory keeps the leader (no taking turns);
+      a streamer that says no memory (older ones) takes no leader's place
+      by it, and a leader with none gives way to any that says its own.
+      Specs: [Streamer leadership](streamer-leader.md),
+      [Streamer](streamer.md), [Auth API](auth-api.md).
+
+481. **The Blink PIN test no longer flakes on a busy machine.** (2026-10-18)
+    - Found while adding Reolink cameras: `TestLoginWithAPINFromTheApp`
+      failed ("bad PIN") under a loaded full test run.
+    - Fixed: its fake app stopped watching for the PIN prompt after 2 s,
+      before the fake helper asked on a slow machine; it now watches as
+      long as the streamer waits for the PIN. Test only; no behaviour
+      changed. Specs: none.
+
+482. **Streamer: delete videos from the device once verified in S3.**
+    (2026-10-18)
+    - Asked: make sure that when streamer videos are verified to be
+      uploaded to S3, they're deleted from the local device.
+    - Changed: rclone (1.60, Debian's, and later; read in its source)
+      already verifies each upload by MD5 (`Content-MD5` on the PUT, and
+      the PUT's ETag against the file's) and each move by size and MD5
+      (a HEAD of the copy) before it succeeds; `--checksum` now makes an
+      object already there count only with the same size and MD5, and a
+      mismatch is `ErrNotVerified`. No request more per chunk. The
+      `stream` package deletes each local file once what it was for is
+      verified: the thumbnail and its sealed copy and each JSON record at
+      once, the sealed copy once the recording is in `media/` (in the
+      cloud's mode, in ingest), the chunk and its progress after the
+      event (or job), now noted in its progress, so a stop before the
+      delete deletes it at the next start without uploading the event or
+      job again. A failed verification keeps the files and is tried again.
+      Blink clips and GoPro videos left in their incoming folders (a stop
+      between download and hand-over, a hand-over that failed) are handed
+      over at the next fetch; cut-off downloads are deleted. Specs:
+      [Streamer](streamer.md), [Blink cameras](blink.md),
+      [GoPro cameras](gopro.md).
+
+483. **Reolink cameras through a streamer.** (2026-10-18)
+    - Asked: also support Reolink cameras on the streamer, configured in
+      the app, like GoPro's.
+    - Changed: Settings' last section, Reolink cameras: pick the Linux
+      streamer, add a camera (name, address, user, password, an NVR's
+      channel), list and remove them; sealed to that streamer
+      (`reolink.json`, answered in `reolink-status.json`). The streamer
+      logs in to the camera's HTTP API over HTTPS (certificate pinned),
+      keeps the login, deletes the request, gives the camera a device
+      ID, and every 2 minutes searches a day at a time for its new motion
+      recordings (the sub stream's by default) and fetches them into the
+      camera's own pipeline (`os: Reolink`), logging out after.
+      GoPro's request, status and fetching code (with its hand-over of
+      leftover downloads) became the shared `netcam` package, with GoPro and Reolink as its kinds
+      (`main_netcams.go`); the app's GoPro section became
+      `NetCameraSettings`, shared by both, its common strings `netcam*`.
+      Specs: [Reolink cameras](reolink.md) (new), [GoPro
+      cameras](gopro.md), [Streamer](streamer.md), [Settings](settings.md).
+
+484. **A script that makes device IDs.** (2026-10-18)
+     - Asked: generate a new device name with the app's own function, then
+       a script that does it.
+     - Changed: `scripts/device-id.sh [count]` runs the app's
+       `DeviceId.generate()` with `dart` and prints `count` IDs (default 1).
+       Specs: [Devices, users and places](devices-users-places.md).
+
+485. **A new Raspberry Pi 4 streams to the profile.** (2026-10-18)
+     - Asked: install the streamer on a new Pi at 192.168.1.116, reboot it,
+       and make sure it stays healthy and its clips come through.
+     - Changed: no code. Installed with the app's stream-key command; it
+       records from its USB C920 with the hardware encoder, detects on the
+       device, came back by itself after a reboot, and stored a clip with a
+       person as an event. Specs: [Streamer](streamer.md) (verified on a Pi 4
+       with a USB camera and at boot).
+
+486. **A new device shows in the Profile tab at once.** (2026-10-18)
+     - Asked: why the new Pi didn't show on the profile; then to fix it
+       (with live sync for the streamer, a separate change).
+     - Found: the auth API listed the Pi and its event was in the bucket,
+       but the app reads the device list only with new credentials
+       (hourly), and with live sync up lists the bucket only hourly; the
+       streamer isn't on live sync, so nothing asked sooner.
+     - Changed: opening the Profile tab and the Sync button ask for the
+       profile's devices again (`CloudSync.refreshDevices`, at most every
+       30 s). Specs: [Premium](premium.md#devices).
+
+487. **The Pi streamer joins live sync.** (2026-10-18)
+     - Asked: can the Pi use live sync? yes (whether the streamer could be on
+       live sync like a phone, then yes to building it).
+     - Changed: the streamer connects to live sync while it leads its
+       profile, with a standard-library MQTT 3.1.1 client over a SigV4
+       presigned WebSocket (new `internal/sigv4`, `ws`, `mqtt` and
+       `livesync` packages): always connected with a clean session, it
+       publishes each event it stores once it's in the bucket (the app's
+       message, with the uploaded JSON's key and ETag, no clip), answers
+       presence pings with pongs, reconnects with back-off and renews before
+       its credentials expire; its queue never holds up recording, and off
+       or failing, events still go through the bucket. Its endpoint is built
+       in from `IOT_ENDPOINT` (the Release workflow's repository variable),
+       overridable with `PRESENCE_STREAMER_IOT_ENDPOINT`; its stage is `rc`
+       for the RC's site (`PRESENCE_STREAMER_STAGE`). Specs:
+       [Streamer](streamer.md), [Live sync](live-sync.md), [Device
+       presence](device-presence.md), [Release builds](release.md).
+
+488. **Labels say "streamer", not "Raspberry Pi".** (2026-10-18)
+     - Asked: don't say "Raspberry Pi" on labels, "streamer" is enough;
+       the app's description can say "any device with a camera".
+     - Changed (en, es, pt): the account sheet's box is **Streamer**; its
+       copy note says to paste the command "on the streamer"; its body
+       says a Linux device with a camera (Raspberry Pi OS or Debian, ARM),
+       naming the OS it needs. Blink, GoPro and Reolink say "a streamer of
+       yours" and "Set up a streamer first (Profile › Streamer)". The About
+       paragraph: Presence turns any device with a camera into an
+       always-on camera. The streamer labels a camera module's events
+       "Streamer camera". Specs: [About](about.md), [Install
+       script](install-script.md), [Streamer](streamer.md).
+
+489. **The streamer's live sync test no longer races on CI.** (2026-10-18)
+     - Found: the GA release's streamer job failed in `TestEndToEnd`
+       ("sent 1"): the fake broker had the second event before the client
+       counted it, which it does once the broker's PUBACK is in.
+     - Changed: the test waits (up to 5 s) for the count. Passed 30 runs,
+       and 10 with `-race`. No change to the streamer.
+
+490. **The Profile tab lists the profile's devices while Stopped.** (2026-10-18)
+     - Asked: the new streamer still didn't show in the Profile tab's
+       device list.
+     - Found: the browser was in Stopped mode, which halts cloud sync, so
+       it never asked the auth API for the profile's devices and showed
+       only those from events it had before.
+     - Changed: opening the Profile tab (or the app reopening on it) asks
+       for the list even while Stopped: only the credentials, no pass,
+       live sync or downloads (`CloudSync.refreshDevices`). Specs:
+       [Premium](premium.md#devices), [Cloud sync](cloud-sync.md).
+
+491. **Stopped stops only the camera; events keep syncing.** (2026-10-18)
+     - Asked: in Stopped mode, stop only the camera and keep events
+       rolling.
+     - Changed: Stopped no longer halts cloud sync or live sync
+       (`CloudSync.setHalted` and its halted state are gone): other
+       devices' events, the profile's devices and presence keep coming,
+       so a device can watch without recording. The mode's hint is
+       "Camera off, still syncing" (es, pt too). The Profile tab's
+       Stopped-only device read (#490) went with it: it now asks with a
+       pass, as in the other modes. Specs: [Camera screen](camera.md),
+       [Navigation](navigation.md), [Cloud sync](cloud-sync.md),
+       [Configuration](configuration.md), [Premium](premium.md#devices).
+
+492. **The device list puts the most recently active first.** (2026-10-18)
+     - Asked: sort the device list by most recently active first.
+     - Changed: the Profile tab's list keeps this device first, then
+       orders the others by their latest activity, the newer of their
+       latest event and their latest live sync answer (`recentFirst`);
+       devices never active come last, by ID. Specs:
+       [Sign-in](sign-in.md).
+
+493. **Presence colors by the sync timeout.** (2026-10-18)
+     - Asked: recently active devices green; yellow after 5 times the sync
+       timeout without hearing from a device, red after 10 times; the
+       timeout set from how often devices sync.
+     - Changed: the timeout T is `LiveSync.presenceTimeout`: 5 min for a
+       free profile (its heartbeat), else the live sync schedule, a
+       minute at least. A device is green when its newer of last answer
+       and latest event is within 5 T, yellow within 10 T, red past that
+       or never (was: green on an answer within 90 s, yellow within
+       24 h). An event now counts toward green, also without live sync.
+       Specs: [Device presence](device-presence.md), [Camera
+       screen](camera.md), [Sign-in](sign-in.md), [README](README.md).
+
+494. **Presence green and yellow told apart.** (2026-10-18)
+     - Asked: "this device" showed yellow though it should be green; make
+       yellow and green more distinct. (The Pi was red because it was
+       shut down.)
+     - Found: the dot was green (its tooltip "Online · live sync
+       connected"), but Gruvbox's green, `#B8BB26`, is olive and reads as
+       yellow.
+     - Changed: the green dot is Gruvbox's aqua, `#8EC07C`. Specs:
+       [Device presence](device-presence.md).
+
+495. **"Create command" is "Get command".** (2026-10-18)
+     - Asked: change "create command" to "get command".
+     - Changed: the Streamer box's button reads **Get command** (es
+       "Obtener comando", pt "Obter comando"), and its error "Couldn't get
+       the command". Specs: [Streamer](streamer.md), [Install
+       script](install-script.md), [README](README.md).
+
+496. **Setup: the map first, related sections together.** (2026-10-18)
+     - Asked: reorder the Setup view with the map first and related items
+       grouped; rename "Subjects" to "Events"; the QR code last, with the
+       health check and the version.
+     - Changed: the order is Location; Camera, Motion, Clips, Scheduled
+       clips; Recognition, Events, History; Blink, GoPro and Reolink
+       cameras; Live sync; Language, Advanced; then the IDs, and last the
+       version, the health line and Add a device (its QR code). The
+       Subjects section is **Events** (es, pt "Eventos"). Specs:
+       [Settings screen](settings.md).
+
+497. **Camera integrations: the leading streamer by default.** (2026-10-18)
+     - Asked: on the cameras integrations, let the leader streamer be the
+       default if nothing is selected; only if the user sets one streamer
+       specifically, use that one.
+     - Changed: the Blink, GoPro and Reolink sections' streamer dropdown
+       starts with **Leader (<device>)**, the default: whichever streamer
+       leads at each refresh (the first while none is known). Picking a
+       streamer keeps it for that section alone, in the device's config
+       (`integrations.streamers`), and it's used even when another leads;
+       Leader again clears it; a picked one that's gone gives way to the
+       leader. The old pick (the streamer with the integration already,
+       else the first) is gone. es, pt translated. Specs: [Blink
+       cameras](blink.md), [GoPro cameras](gopro.md), [Reolink
+       cameras](reolink.md), [Configuration](configuration.md), [Settings
+       screen](settings.md).
+
+498. **A Blink clip is no longer fetched again at every fetch.** (2026-10-18)
+     - Asked: Blink was set up but its videos didn't show; check the logs.
+     - Found: the login waited for Blink's PIN, which came on the second
+       try; then the only clip of the last 24 hours (no one in it) was
+       deleted, as the Pi's own are, and fetched again every 2 minutes:
+       Blink's `since` is when a clip last changed, not when it was made.
+     - Changed: `presence-blink.py` skips the clips made before where
+       fetching got to. Tried on the Pi 4 with the real Blink account.
+       Specs: [Blink cameras](blink.md).
+
+499. **Every Blink, GoPro and Reolink clip is kept.** (2026-10-18)
+     - Asked: new Blink events didn't show up on the web.
+     - Found: the Pi fetched them (a second camera, "Inside", too), but
+       the detector found no one in them, so they were deleted, as the
+       Pi's own chunks with no one are.
+     - Changed: the camera pipelines keep every clip as an event
+       (`stream.Streamer.KeepAll`), tagged with whoever's found, `[]`
+       when no one is; the Pi's own camera still keeps only the clips
+       with someone. Locally searched only: a Pi detecting in the cloud
+       still keeps only those. Specs: [Blink cameras](blink.md), [GoPro
+       cameras](gopro.md), [Reolink cameras](reolink.md).
+
+500. **Events with no one in them are hidden by default.** (2026-10-18)
+     - Asked: in the events view, hide by default every event without an
+       animal (a person or pet), with a clickable filter beside the
+       search, like the system events one.
+     - Changed: a second toggle in the Monitoring tab's top row, right
+       after the system events one (`ShowEventsWithNoOne`, a paw icon,
+       tooltip "Show / Hide events with no one in them"), off at launch:
+       only the grabs with a person or pet on them show
+       (`EventTimeline.hasSomeone`: an object tag `human`, `cat` or
+       `dog`, the unidentified flag's `personLabels` and `petLabels`, or
+       someone tagged; a clip not searched for objects yet still shows).
+       It applies to grabs only: system events follow their own toggle.
+       It composes with the search and the system events toggle (a new
+       `withSomeone` step in `EventFilters.viewOf`), isn't saved across
+       restarts, says "No one seen yet: events with no one are hidden"
+       when that's all there is, and opening a hidden clip with no one
+       turns it on. es, pt translated. Specs: [Events](events.md),
+       [Monitoring](monitoring.md).
+
+501. **Every animal counts in the events filter.** (2026-10-18)
+     - Asked: make all animals count.
+     - Changed: the Events view's "events with no one" filter counts a
+       clip with any animal the detector knows (`animalLabels`: bird, cat,
+       dog, horse, sheep, cow, elephant, bear, zebra, giraffe), not only
+       cats and dogs. The unidentified flag still looks for people and
+       pets only. Specs: [Events](events.md),
+       [Monitoring](monitoring.md).
+
+502. **A browser refresh keeps the events' search and filters.** (2026-10-18)
+     - Asked: on a browser refresh, keep the search and filters.
+     - Changed: the Monitoring tab's search and its system events and
+       events with no one toggles are kept in the browser tab's
+       `sessionStorage` (`presence.eventFilters`) and restored on a
+       refresh, as the open tab is (`EventFilters.remembered`,
+       `SessionMemory`). Also, the Pi 4's Blink clips deleted before #499
+       were fetched again and kept (its Blink position rewound). Specs:
+       [Monitoring](monitoring.md).
+
+503. **Camera clips go through recognition; "Camera | device"; the card's buttons together.** (2026-10-18)
+     - Asked: "Ensure that the videos captured from cameras (blink, gopro,
+       reolink, etc) go through the same recognition pipeline as others.
+       Let there be a 'camera name' property as well as the device name.
+       In the event, if there is a camera name set, show '$camera_name |
+       $device_name' instead of only $device_name. Let all buttons be
+       together on top right of event card."
+     - Found: the cameras' clips were already synced clips with no
+       `subjectSearch`, recognized by one elected device like the
+       streamer's own, but two gaps left some out: the app took only
+       clips **recorded** within a day, while a camera's clip may be
+       fetched days later (a GoPro back on the network, a Reolink's
+       backlog, a streamer offline); and in the cloud detector's mode
+       (a Pi under 2 GB) the cloud detector deleted a camera's clip with
+       no one in it, which the streamer keeps when it searches itself.
+     - Changed: the streamer's events say when they were stored
+       (`storedAt`), and the app counts a synced clip's day from the later
+       of that and its recording; a camera's cloud job says `keepAll`, and
+       the cloud detector (presence_ingest) then stores the clip with no
+       one in it too (no thumbnail, its object tags). A fetched camera's
+       events carry **`cameraName`** (its name, as in Settings), the
+       Pi's own camera none; the app reads it (`AppEvent.cameraName`; on
+       older Blink, GoPro and Reolink events, their `detail`) and keeps it
+       in the record. The card's device tag and the event's details show
+       "Garden | pungent_orbital_canal" when there's a camera name, the
+       device alone otherwise; tapping it still filters by the device.
+       The card's buttons (recognition, cloud, copies, delete) sit
+       together at its top right in one row (`event-actions-<id>`), the
+       device at the left; before, the header spread them apart. It fits
+       320 dp at 2x text. The cloud detector needs a deploy for
+       `keepAll`, and the streamer a release for `cameraName` and
+       `storedAt`. Specs: [Subject recognition](recognition.md),
+       [Streamer](streamer.md), [Blink cameras](blink.md), [GoPro
+       cameras](gopro.md), [Reolink cameras](reolink.md),
+       [Events](events.md), [Monitoring](monitoring.md), [Event
+       copies](event-copies.md), [Data formats](data-formats.md).
+504. **Cameras can be removed.** (2026-10-18)
+     - Asked: "Let cameras be removed as well."
+     - Changed: Blink's Settings section lists each camera with a
+       **Remove** button, as GoPro's and Reolink's do (`{remove: <device
+       ID>, requestedAt}` sealed to the streamer). The streamer stops
+       fetching it, takes it from the cameras it registers with its
+       credentials requests (its pipeline stops: Blink's pipelines now
+       follow the camera list exactly, as the netcams' do) and from
+       `blink-status.json`, and keeps it as removed in `blink-state.json`,
+       so neither a fetch nor a new login makes it a device again; the
+       helper skips it (`presence-blink.py fetch --skip <ids>`) and a clip
+       of it that comes anyway is deleted. Disconnect forgets the removed
+       cameras, so a new Connect brings each back as a new device.
+       Deleting a Blink, GoPro or Reolink camera's device from the Profile
+       tab's device list now also sends that integration's remove to each
+       streamer whose `<kind>-status.json` lists it (the integration from
+       the device's events' `os`), so the camera isn't added again; when
+       no streamer can be told (cloud sync off, its key not here yet), the
+       device is still deleted and the snack bar says the camera may come
+       back. `DeleteDevice` returns the events deleted and whether a
+       camera may come back. New strings in en, es, pt. The streamer needs
+       a release for Blink's Remove. Specs: [Blink cameras](blink.md),
+       [GoPro cameras](gopro.md), [Reolink cameras](reolink.md), [Device
+       deletion](device-deletion.md).
+
+505. **USB cameras, added without an address.** (2026-10-18)
+     - Asked: "let usb cameras like that be added, if possible without
+       IP" (a GoPro HERO6 Black plugged into the Pi streamer by USB).
+     - Found: a HERO6 has no Open GoPro HTTP API (HERO9+), and by USB it
+       shows up only as a PTP/MTP camera (`gphoto2 --auto-detect` lists
+       it), with no network; the desktop's gvfs had mounted it, so
+       gphoto2 couldn't claim it ("Could not claim the USB device").
+     - Changed: a new **USB cameras** integration for still-image
+       cameras (USB class 6: PTP/MTP; a GoPro HERO5–8, most digital
+       cameras). The streamer (`usbcam` package, `main_usbcams.go`)
+       detects them cheaply (the kernel's USB list; `gphoto2
+       --auto-detect` only when it changes), reports them in
+       `usbcam-status.json` (`detected: [{model, serial, port}]`), and
+       Settings' new **USB cameras** section (after Reolink, the same
+       streamer picker) adds one with a name (its model at first): `{add:
+       {name, serial}}`, known by its **USB serial**, never an IP. Each
+       becomes a device of its own; its new `.MP4`/`.MOV` videos (not
+       photos, `.LRV`, `.THM`) are fetched with gphoto2 every 2 minutes
+       and when it's plugged in, the last 24 hours on the first fetch,
+       none twice, a cut-off download retried, nothing deleted on the
+       camera, through its own pipeline (`os: USB camera`, every video
+       kept). Unplugged cameras show "Not plugged in"; a camera the
+       desktop holds says "the camera is busy: …". The `.deb` depends on
+       `gphoto2`, adds the user to `plugdev`, and ships
+       `85-presence-streamer-usbcam.rules`: plugdev may open still-image
+       cameras, and their `ID_GPHOTO2`/`ID_MTP_DEVICE` are unset so gvfs
+       leaves them alone (replug once after installing). The GoPro section
+       points HERO5–8 owners to it. es, pt translated. Specs: [USB
+       cameras](usb-cameras.md), [Streamer](streamer.md),
+       [Settings](settings.md), [GoPro cameras](gopro.md).
+
+506. **Setup: "This device" and "All devices".** (2026-10-18)
+     - Asked: in the Setup view, group the settings in "this device" and
+       "all devices", with separators.
+     - Changed: two headings (`SettingsGroupHeader`): **This device**
+       first, over the Location, capturing, events, syncing and app
+       sections; **All devices**, after a divider, over the camera
+       integrations (Blink, GoPro, Reolink, USB cameras), which the
+       profile's streamers fetch for every device, shown when one of them
+       is. Then the IDs, the version, the health line and the QR code. In
+       en, es ("Este dispositivo", "Todos los dispositivos") and pt
+       ("Este dispositivo", "Todos os dispositivos"). Specs:
+       [Settings screen](settings.md).
+
+507. **USB cameras: unattended, only what moves, deleted from the camera.** (2026-10-19)
+     - Asked: "I will have to leave the cam recording; make sure only
+       videos with movement are uploaded and delete the rest so that the
+       camera won't fill up."
+     - Changed: a USB camera is **unattended** by default (new cameras,
+       and those added before, none stored off): the app's switch
+       "Unattended: keep only the parts with movement and delete videos
+       from the camera once fetched", on the add form (`{add: {…,
+       unattended}}`) and per camera (`{set: {deviceId, unattended}}`),
+       shown from the status's `unattended`. Each video fetched is cut
+       into 30 s chunks by ffmpeg (copied, at keyframes, video and audio
+       only), named by their start (`rec-usbcam-<UTC start>.mp4`), and
+       the whole video deleted from the streamer once split; unattended,
+       each chunk goes through the streamer's motion filter
+       (`--motion-min`): without movement, deleted unsent; with it, kept
+       as an event, someone in it or not. Unattended, a video is deleted
+       from the camera (`gphoto2 --delete-file <path>`, its own
+       `.LRV`/`.THM` first) once downloaded and its size checked, never
+       before, nor anything else; a failed delete is said in the camera's
+       error and retried at each fetch. A video whose size changes between
+       two listings (still written) waits. No more "bigger than half the
+       spool" skip: a video is fetched when twice its size leaves 512 MB
+       on the disk ("waiting for room on the streamer" meanwhile), and
+       chunks are handed to the pipeline while its spool holds under half
+       of `--spool-max-mb`, so none is dropped unsent. Turned off, every
+       chunk is kept and nothing on the camera deleted. es, pt
+       translated. Specs: [USB cameras](usb-cameras.md),
+       [Streamer](streamer.md).
+508. **The web app's CloudFront path is exact.** (2026-10-21) Found while
+     fixing the same in TabCam: the site's web app behavior was the prefix
+     `/app*`, which also takes `/apple-touch-icon.png`, `/apps…` and the
+     like from the index (and locally sends them to the Flutter dev
+     server). It's now `/app/*` plus `/app` (which the function redirects
+     to `/app/`), in `presence_infra/site.yaml` and the local Floci
+     CloudFront alike. See [deploy](deploy.md) and
+     [local CDN](local-cdn.md).
+509. **Spec corrections from TabCam's store fixes.** (2026-10-21) Google
+     sign-in needs one Android OAuth client per signing key (a client
+     takes one SHA-1), in presence-492410 ([release](release.md),
+     [sign-in](sign-in.md), [store readiness](store-readiness.md)); and
+     store readiness's intro no longer says Presence is in neither store:
+     it was submitted to App Review on 2026-10-16.
+
+511. **"Who is this?": ask the user to tag an unnamed person or pet.** (2026-10-15)
      - Asked: when a person or pet is detected but no subject tag is
        found, request the user to tag it ("Who is this?").
      - Changed:

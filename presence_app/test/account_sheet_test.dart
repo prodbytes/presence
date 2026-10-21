@@ -132,6 +132,51 @@ void main() {
         isNull,
       );
     });
+
+    test('recentFirst: this device, then the most recently active (event '
+        'or live answer), then those never active, by ID', () {
+      ProfileDevice device(String id, [DateTime? lastEvent]) =>
+          (id: id, os: null, lastEvent: lastEvent, memoryMb: null);
+      final noon = DateTime.utc(2026, 10, 18, 12);
+      final devices = [
+        device('happy_tidy_gadget'),
+        device('able_old_phone', noon.subtract(const Duration(days: 3))),
+        device('brave_quiet_lamp', noon.subtract(const Duration(hours: 2))),
+        device('calm_new_streamer'),
+        device('dark_idle_tablet'),
+        device('eager_fresh_camera', noon.subtract(const Duration(hours: 1))),
+      ];
+      expect(
+        recentFirst(
+          devices,
+          thisDevice: 'happy_tidy_gadget',
+          // The streamer answered a ping a minute ago; the lamp's answer is
+          // older than its event.
+          seenOf: (id) => switch (id) {
+            'calm_new_streamer' => noon.subtract(const Duration(minutes: 1)),
+            'brave_quiet_lamp' => noon.subtract(const Duration(days: 1)),
+            _ => null,
+          },
+        ).map((d) => d.id),
+        [
+          'happy_tidy_gadget',
+          'calm_new_streamer',
+          'eager_fresh_camera',
+          'brave_quiet_lamp',
+          'able_old_phone',
+          'dark_idle_tablet',
+        ],
+      );
+      // Without live sync: by event only.
+      expect(recentFirst(devices).map((d) => d.id), [
+        'eager_fresh_camera',
+        'brave_quiet_lamp',
+        'able_old_phone',
+        'calm_new_streamer',
+        'dark_idle_tablet',
+        'happy_tidy_gadget',
+      ]);
+    });
   });
 
   testWidgets("the device list shows each device's OS icon and latest event, "

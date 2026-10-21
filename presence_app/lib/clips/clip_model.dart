@@ -20,7 +20,7 @@ class VideoClip extends ChangeNotifier {
     required this.after,
     required ClipCapture this.capture,
     this.past,
-    this.thumbnail,
+    this._thumbnail,
     this.supported = true,
     String? id,
   }) : id = id ?? AppEvent.newId(),
@@ -67,7 +67,8 @@ class VideoClip extends ChangeNotifier {
     required this.after,
     required this.past,
     required this.full,
-    this.thumbnail,
+    this._thumbnail,
+    this.thumbnailPlaceholder = false,
     this.supported = true,
     this.error,
   }) : capture = null,
@@ -87,7 +88,7 @@ class VideoClip extends ChangeNotifier {
   }) : before = Duration.zero,
        after = Duration.zero,
        capture = null,
-       thumbnail = null,
+       _thumbnail = null,
        supported = true,
        pastDone = true,
        fullDone = true,
@@ -103,8 +104,21 @@ class VideoClip extends ChangeNotifier {
   /// The recordings still in progress; null for a restored clip.
   final ClipCapture? capture;
 
-  /// The camera frame at the moment of the press.
-  final Uint8List? thumbnail;
+  /// The camera frame at the moment of the press (sealed), or a later frame
+  /// of the recording when that one was black ([replaceThumbnail]).
+  Uint8List? get thumbnail => _thumbnail;
+  Uint8List? _thumbnail;
+
+  /// The thumbnail is missing or black (`ThumbnailCheck.placeholder`): the
+  /// card shows a placeholder instead.
+  bool thumbnailPlaceholder = false;
+
+  /// A new [thumbnail] (or none), shown as [placeholder] or not.
+  void replaceThumbnail(Uint8List? thumbnail, {required bool placeholder}) {
+    _thumbnail = thumbnail;
+    thumbnailPlaceholder = placeholder;
+    notifyListeners();
+  }
 
   /// False when the camera can't record video on this platform.
   final bool supported;

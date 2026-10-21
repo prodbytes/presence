@@ -21,6 +21,57 @@ class _CopyTracker {
     }
   }
 
+  /// The most events [_published] keeps; the oldest go first.
+  static const int _maxPublished = 500;
+
+  /// Events this device published over live sync, with the device that
+  /// recorded them and when they were first published here: each one
+  /// waits for [CloudSync.enoughCopies] other devices to hold a full copy
+  /// ([short]).
+  final Map<String, ({String? origin, DateTime at})> _published = {};
+
+  /// Event [id] (recorded on device [origin]) was published over live
+  /// sync.
+  void published(String id, String? origin) {
+    _published.putIfAbsent(id, () => (origin: origin, at: _sync._now()));
+    while (_published.length > _maxPublished) {
+      _published.remove(_published.keys.first);
+    }
+  }
+
+  /// Whether an event published here is short of copies by [now]: past
+  /// [CloudSync.ackGrace] without [CloudSync.enoughCopies] other devices
+  /// holding a full copy (their `copied` acks; the device that recorded it
+  /// holds one). It's in the bucket meanwhile (it was published as it went
+  /// up). One that has them is forgotten; so is one still short after
+  /// [CloudSync.copiedInterval] more: it doesn't keep the bucket polled
+  /// often for good.
+  bool short(DateTime now) {
+    final need = _sync._copiesNeeded;
+    if (need == 0) {
+      _published.clear();
+      return false;
+    }
+    final grace = _sync.ackGrace;
+    var short = false;
+    _published.removeWhere((id, p) {
+      final held = _sync.copies
+          .summaryOf(id, origin: p.origin)
+          .devices
+          .where((d) => d != EventCopies.thisDevice)
+          .length;
+      if (held >= need) return true;
+      final age = now.difference(p.at);
+      if (age >= grace + _sync.copiedInterval) return true;
+      if (age >= grace) short = true;
+      return false;
+    });
+    return short;
+  }
+
+  /// Forgets what was published (syncing starts over).
+  void reset() => _published.clear();
+
   /// Finds out again whether this device and the cloud hold the events
   /// [ids] ([_check]; all of the window's with null), after the ones
   /// asked before.

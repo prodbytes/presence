@@ -17,7 +17,11 @@ import 'auth/payments_client.dart';
 import 'auth/store_billing.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
+import 'auth/account_sheet.dart' show profileDeviceDetails;
+import 'blink_settings.dart' show BlinkSettings;
 import 'camera_feeds.dart';
+import 'camera_removal.dart';
+import 'delete_device.dart' show DeviceDeleted;
 import 'copies_badge.dart';
 import 'cloud/cloud_config.dart';
 import 'cloud/cloud_sync.dart';
@@ -30,6 +34,7 @@ import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'event_details.dart';
 import 'cameras/cameras.dart';
+import 'clips/clip_thumbnail.dart';
 import 'device_memory.dart';
 import 'events.dart';
 import 'home/home_screen.dart';
@@ -48,7 +53,7 @@ import 'storage/persistence.dart';
 import 'storage/retention.dart';
 import 'theme.dart';
 
-export 'home/camera_buttons.dart' show CameraMode;
+export 'home/camera_mode_menu.dart' show CameraMode;
 export 'home/camera_messages.dart' show CameraMessage, CameraMessagePill;
 export 'home/clip_button.dart'
     show ClipButton, ClipButtonColors, ClipButtonStatus, ClipTone;
@@ -256,6 +261,10 @@ class _PresenceAppState extends State<PresenceApp> {
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
     );
+    // Missing or black thumbnails made again from the recordings, where
+    // this platform can read them.
+    final thumbnails = ThumbnailMaker();
+    if (thumbnails.supported) _persistence.thumbnails = thumbnails;
     _location = LocationController(
       locator: widget.locator ?? DeviceLocator(),
       load: _persistence.loadLocation,
@@ -434,14 +443,6 @@ class _PresenceAppState extends State<PresenceApp> {
       sync.addListener(_applyDeviceSlots);
       _log.addListener(_noticeDevices);
     }
-    // The camera's Stopped mode (its pause, kept in the settings) stops
-    // syncing too: no passes and no live sync until it's left. Now (a
-    // device restarted Stopped stays quiet), and whenever it changes.
-    if (_sync case final sync?) {
-      void applyHalt() => sync.setHalted(_config.config.camera.paused);
-      applyHalt();
-      _config.addListener(applyHalt);
-    }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;
@@ -508,10 +509,25 @@ class _PresenceAppState extends State<PresenceApp> {
 
   /// Deletes another of the signed-in profile's devices: off the devices
   /// list, and with [events] its events too (`Persistence.deleteDevice`);
-  /// nothing without a profile. Returns how many events went.
-  Future<int> _deleteDevice(String deviceId, {required bool events}) async {
+  /// nothing without a profile. A camera a streamer fetches is removed
+  /// from it too ([removeCamera]). Returns how many events went, and
+  /// whether a camera's streamer couldn't be told (it may come back).
+  Future<DeviceDeleted> _deleteDevice(
+    String deviceId, {
+    required bool events,
+  }) async {
     final profile = _roles.profile;
-    if (profile == null) return 0;
+    if (profile == null) return (events: 0, cameraMayReturn: false);
+    // A camera a streamer fetches: which, found before its events go.
+    final os = profileDeviceDetails(
+      _log.events,
+      profileId: profile,
+      thisDevice: _deviceId,
+    ).where((d) => d.id == deviceId).firstOrNull?.os;
+    final streamers = switch (_sync) {
+      final sync? => BlinkSettings.streamersOf(_log, sync, profile, _deviceId),
+      null => const <String>[],
+    };
     var deleted = 0;
     if (events) {
       deleted = await _persistence.deleteDevice(deviceId, profileId: profile);
@@ -530,7 +546,20 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.live?.forget(deviceId);
     // And the next device takes its place among those that show.
     _sync?.releaseDevice(deviceId).ignore();
-    return deleted;
+    // A camera stops being fetched, or its streamer would add it again.
+    final camera = switch (_sync) {
+      final sync? => await removeCamera(
+        deviceId,
+        os: os,
+        streamers: streamers,
+        putFile: sync.putDeviceFile,
+        getFile: sync.getDeviceFile,
+        now: (widget.now ?? DateTime.now)(),
+      ),
+      null when cameraIntegrations.containsKey(os) => CameraRemoval.notSent,
+      null => CameraRemoval.none,
+    };
+    return (events: deleted, cameraMayReturn: camera == CameraRemoval.notSent);
   }
 
   /// Whether the sign-out under way is an account deletion's: its event

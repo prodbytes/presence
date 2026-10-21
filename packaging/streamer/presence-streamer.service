@@ -26,7 +26,8 @@ Nice=5
 
 # Hardening. Not PrivateDevices=, DeviceAllow= or ProtectClock= (which
 # implies a DeviceAllow= list): any of them would shut out the camera, the
-# encoder and the DMA heaps. The clock is protected by the syscall filter
+# encoder, the DMA heaps and USB cameras (/dev/bus/usb, through gphoto2:
+# the plugdev group, by 85-presence-streamer-usbcam.rules). The clock is protected by the syscall filter
 # and an empty capability set instead.
 NoNewPrivileges=yes
 ProtectSystem=strict

@@ -44,6 +44,15 @@ type Event struct {
 	ClipState  string      `json:"clipState"`
 	Trigger    string      `json:"trigger"`
 	ObjectTags []ObjectTag `json:"objectTags"`
+	// CameraName is the camera's own name ("Garden"), for a camera the
+	// streamer fetches clips from (Blink, GoPro, Reolink), each its own
+	// device: the app shows it beside the device ("Garden | <device>").
+	// Absent for the Pi's own camera.
+	CameraName string `json:"cameraName,omitempty"`
+	// StoredAt is when the streamer stored the event (ms since the
+	// epoch): a camera's clip may be fetched long after it was recorded
+	// (Time), and the app recognizes synced clips stored lately.
+	StoredAt int64 `json:"storedAt,omitempty"`
 }
 
 // MediaRef is a recording's reference in a clip record.
@@ -81,11 +90,14 @@ type Settings struct {
 
 // Camera is what an event says of the camera that recorded it. OS is the
 // device's operating system on the event: "Linux" when empty (the Pi's
-// own camera), "Blink" for a Blink camera.
+// own camera), "Blink" for a Blink camera, "GoPro" for a GoPro, "Reolink" for a Reolink.
+// Name is a fetched camera's own name (the event's cameraName), empty for
+// the Pi's own camera.
 type Camera struct {
 	ID    string
 	Label string
 	OS    string
+	Name  string
 }
 
 // Chunk is a recorded chunk with a subject in it, to be stored as a clip.
@@ -93,6 +105,8 @@ type Chunk struct {
 	Start    time.Time
 	Duration time.Duration
 	Tags     []ObjectTag
+	// StoredAt is when it's stored (the event's storedAt); zero: not said.
+	StoredAt time.Time
 }
 
 // ClipOf makes the event and clip record of a chunk, as a phone makes for
@@ -124,6 +138,10 @@ func ClipOf(chunk Chunk, eventID, clipID string, camera Camera, deviceID, userID
 		ClipState:  "complete",
 		Trigger:    "motion",
 		ObjectTags: tags,
+		CameraName: camera.Name,
+	}
+	if !chunk.StoredAt.IsZero() {
+		event.StoredAt = chunk.StoredAt.UnixMilli()
 	}
 	clip := Clip{
 		ID:          clipID,
@@ -188,6 +206,9 @@ type Job struct {
 	V     int   `json:"v"`
 	Event Event `json:"event"`
 	Clip  Clip  `json:"clip"`
+	// KeepAll stores the chunk with no one in it too (a fetched camera's
+	// clip: stream.Streamer.KeepAll), tagged with what's found.
+	KeepAll bool `json:"keepAll,omitempty"`
 }
 
 // IngestKey is where a chunk lands, sealed, before it's searched: a

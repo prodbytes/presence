@@ -404,6 +404,7 @@ class AccountSheet extends StatelessWidget {
                                 d,
                           ],
                           thisDevice: deviceId,
+                          leader: sync?.deviceSlots?.leader,
                           hidden: switch (log) {
                             final log? => hiddenDevices(
                               log,
@@ -452,11 +453,14 @@ class AccountSheet extends StatelessWidget {
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
-                      const SizedBox(height: 12),
-                      PlanNotice(
+                      // What the plan hides, in one quiet line under the
+                      // list, with a discreet Upgrade link on the web.
+                      HiddenDevicesLine(
                         plan: roles.plan,
-                        slots: sync?.deviceSlots,
-                        thisDevice: deviceId,
+                        pastLimit: switch ((sync?.deviceSlots, deviceId)) {
+                          (final slots?, final device?) => !slots.shows(device),
+                          _ => false,
+                        },
                         hidden: switch ((log, roles.profile)) {
                           (final log?, final profile?) => hiddenDevices(
                             log,
@@ -465,6 +469,14 @@ class AccountSheet extends StatelessWidget {
                           ).length,
                           _ => 0,
                         },
+                        email: auth.user?.email,
+                        profileId: roles.profile,
+                        links: payments?.links,
+                        openLink: openLink,
+                      ),
+                      const SizedBox(height: 12),
+                      PlanNotice(
+                        plan: roles.plan,
                         email: auth.user?.email,
                         links: payments?.links,
                         store: store,
@@ -596,6 +608,41 @@ List<String> profileDevices(
   return [?thisDevice, ...others.toList()..sort()];
 }
 
+/// [devices] with [thisDevice] first, then the most recently active: the
+/// newer of a device's latest event and its latest answer over live sync
+/// ([seenOf]). Devices never active come last; ties go by ID.
+List<ProfileDevice> recentFirst(
+  List<ProfileDevice> devices, {
+  String? thisDevice,
+  DateTime? Function(String device)? seenOf,
+}) {
+  DateTime? activeAt(ProfileDevice d) {
+    final seen = seenOf?.call(d.id);
+    final event = d.lastEvent;
+    if (seen == null) return event;
+    if (event == null) return seen;
+    return seen.isAfter(event) ? seen : event;
+  }
+
+  final active = {for (final d in devices) d.id: activeAt(d)};
+  int rank(ProfileDevice d) => d.id == thisDevice ? 0 : 1;
+  int byActivity(ProfileDevice a, ProfileDevice b) {
+    final (x, y) = (active[a.id], active[b.id]);
+    if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+    return y.compareTo(x);
+  }
+
+  return [...devices]..sort(
+    (a, b) => switch (rank(a).compareTo(rank(b))) {
+      0 => switch (byActivity(a, b)) {
+        0 => a.id.compareTo(b.id),
+        final c => c,
+      },
+      final c => c,
+    },
+  );
+}
+
 /// One of the profile's devices, as the account sheet lists it: its ID,
 /// its operating system ([AppEvent.os] of its latest event that has one;
 /// [DeviceOs.current] for this device when none does) and the time of its
@@ -679,7 +726,12 @@ class ProfileDevices extends StatelessWidget {
     this.live,
     this.thisPresence,
     this.hidden = const {},
+    this.leader,
   });
+
+  /// The profile's leading streamer, labelled "leader": the one streamer
+  /// that streams to the cloud ([DeviceSlots.leader]).
+  final String? leader;
 
   /// The devices whose events are hidden here (past the plan's limit),
   /// labelled "hidden".
@@ -740,7 +792,11 @@ class ProfileDevices extends StatelessWidget {
       spacing: 4,
       children: [
         Text(l10n.authDeviceCount(devices.length), style: muted),
-        for (final device in devices)
+        for (final device in recentFirst(
+          devices,
+          thisDevice: thisDevice,
+          seenOf: (id) => live?.seenOf(id),
+        ))
           Row(
             key: Key('profile-device-${device.id}'),
             spacing: 8,
@@ -777,8 +833,9 @@ class ProfileDevices extends StatelessWidget {
                               liveAvailable: available,
                               thisDevice: device.id == thisDevice,
                               connected: live?.showsLive ?? false,
-                              within:
-                                  live?.liveWithin ?? DevicePresence.liveWithin,
+                              timeout:
+                                  live?.presenceTimeout ??
+                                  DevicePresence.timeout,
                             ),
                           },
                         ),
@@ -805,12 +862,25 @@ class ProfileDevices extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (device.id == thisDevice || hidden.contains(device.id))
+                    if (device.id == thisDevice ||
+                        device.id == leader ||
+                        hidden.contains(device.id))
                       Wrap(
                         spacing: 8,
                         children: [
                           if (device.id == thisDevice)
                             Text(l10n.authThisDevice, style: label),
+                          if (device.id == leader)
+                            Tooltip(
+                              message: l10n.authLeaderTooltip,
+                              child: Text(
+                                l10n.authLeader,
+                                key: Key('profile-device-leader-${device.id}'),
+                                style: label.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
                           if (hidden.contains(device.id))
                             Tooltip(
                               message: l10n.authHiddenTooltip,
@@ -1076,8 +1146,9 @@ class AccountRoles extends StatelessWidget {
   }
 }
 
-/// Signed in without access: the sign-up icon. Its sheet sends the user to
-/// subscribe at nu01.com, lets them redeem a voucher code, and check again.
+/// Signed in without access: the sign-up icon. Its sheet lets the user
+/// join free (iOS and Android) or subscribe at nu01.com (elsewhere), redeem
+/// a voucher code, and check again.
 class SignUpButton extends StatelessWidget {
   const SignUpButton({
     super.key,
@@ -1086,12 +1157,17 @@ class SignUpButton extends StatelessWidget {
     required this.rbacr,
     this.profiles,
     this.openLink,
+    this.joinFree,
   });
 
   final AuthService auth;
   final RolesService roles;
   final RbacrClient rbacr;
   final ProfileClient? profiles;
+
+  /// Join free ([SignUpSheet.joinFree]); null where the sheet links to
+  /// nu01.com instead.
+  final Future<void> Function()? joinFree;
 
   /// Opens the subscription page; [launchLink] by default.
   final LinkOpener? openLink;
@@ -1112,14 +1188,18 @@ class SignUpButton extends StatelessWidget {
         rbacr: rbacr,
         profiles: profiles,
         openLink: openLink,
+        joinFree: joinFree,
       ),
     ),
   );
 }
 
-/// What a signed-in user without access sees: subscribe at nu01.com (where
-/// plans, Free and Premium, are taken), redeem a voucher code, link an
-/// account that has access, or check again.
+/// What a signed-in user without access sees: join free in the app (iOS
+/// and Android, where the stores' rules (App Store 3.1.1, Play's payments
+/// policy) rule out sending users to subscribe on the web) or subscribe at
+/// nu01.com (the web and desktop, where plans, Free and Premium, are
+/// taken), redeem a voucher code, link an account that has access, or
+/// check again.
 class SignUpSheet extends StatefulWidget {
   const SignUpSheet({
     super.key,
@@ -1128,6 +1208,7 @@ class SignUpSheet extends StatefulWidget {
     required this.rbacr,
     this.profiles,
     LinkOpener? openLink,
+    this.joinFree,
   }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
@@ -1140,16 +1221,51 @@ class SignUpSheet extends StatefulWidget {
   /// Opens the subscription page.
   final LinkOpener openLink;
 
+  /// Join free: the payments API gives the account the free membership
+  /// (`POST /api/payments/free`, [StoreBilling.joinFree]). Given on iOS and
+  /// Android only: the sheet then offers Join free in nu01.com's place, and
+  /// never mentions Premium's prices or subscribing on the web.
+  final Future<void> Function()? joinFree;
+
   @override
   State<SignUpSheet> createState() => _SignUpSheetState();
 }
 
-/// How long after a redeemed code the roles are checked once more.
+/// How long after a redeemed code (or joining free) the roles are checked
+/// once more.
 const _redeemSettle = Duration(seconds: 2);
 
 class _SignUpSheetState extends State<SignUpSheet> {
   final _code = TextEditingController();
   bool _redeeming = false;
+  bool _joining = false;
+
+  /// Joining free failed.
+  bool _joinFailed = false;
+
+  /// Join free, then re-asks the roles as a redeemed code does: at once,
+  /// and once more [_redeemSettle] later while still without access.
+  Future<void> _joinFree() async {
+    final join = widget.joinFree;
+    if (join == null || _joining) return;
+    setState(() {
+      _joining = true;
+      _joinFailed = false;
+    });
+    try {
+      await join();
+      await widget.roles.refresh();
+      if (!widget.roles.hasAccess) {
+        await Future<void>.delayed(_redeemSettle);
+        await widget.roles.refresh();
+      }
+    } catch (e) {
+      debugPrint('Presence: joining free failed: $e');
+      if (mounted) setState(() => _joinFailed = true);
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
 
   /// Why the code wasn't redeemed, in the language shown.
   String Function(AppLocalizations l10n)? _codeError;
@@ -1231,23 +1347,49 @@ class _SignUpSheetState extends State<SignUpSheet> {
             spacing: 12,
             children: [
               Icon(Icons.person_add_alt_1, size: 40, color: scheme.primary),
-              Text(l10n.authSubscribe, style: theme.textTheme.titleLarge),
-              Text(
-                l10n.authSubscribeText(email),
-                key: const Key('subscribe-text'),
-                textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-              FilledButton.icon(
-                key: const Key('subscribe'),
-                icon: const Icon(Icons.open_in_new),
-                label: Text(l10n.authSubscribeButton),
-                onPressed: () => openOrCopyLink(
-                  context,
-                  DeviceSlots.signUp,
-                  widget.openLink,
+              if (widget.joinFree != null) ...[
+                // iOS and Android: joining is in the app, never on the web.
+                Text(l10n.authJoin, style: theme.textTheme.titleLarge),
+                Text(
+                  l10n.authJoinFreeText(email),
+                  key: const Key('subscribe-text'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
-              ),
+                _joining
+                    ? const CircularProgressIndicator(key: Key('joining-free'))
+                    : FilledButton.icon(
+                        key: const Key('join-free'),
+                        icon: const Icon(Icons.how_to_reg),
+                        label: Text(l10n.authJoinFree),
+                        onPressed: _joinFree,
+                      ),
+                if (_joinFailed)
+                  Text(
+                    l10n.authJoinFreeFailed,
+                    key: const Key('join-free-error'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.error),
+                  ),
+              ] else ...[
+                Text(l10n.authSubscribe, style: theme.textTheme.titleLarge),
+                Text(
+                  l10n.authSubscribeText(email),
+                  key: const Key('subscribe-text'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+                FilledButton.icon(
+                  key: const Key('subscribe'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(l10n.authSubscribeButton),
+                  onPressed: () => openOrCopyLink(
+                    context,
+                    DeviceSlots.signUp,
+                    widget.openLink,
+                  ),
+                ),
+              ],
               const Divider(),
               Text(
                 l10n.authVoucherPrompt,

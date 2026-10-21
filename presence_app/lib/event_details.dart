@@ -260,7 +260,8 @@ class EventMap extends StatelessWidget {
 }
 
 /// The device that recorded the event: its operating system's icon
-/// ([DeviceOs.iconOf]), its ID (selectable; tapped, it shows the device's
+/// ([DeviceOs.iconOf]), a fetched camera's name ([AppEvent.cameraName],
+/// "Garden |"), its ID (selectable; tapped, it shows the device's
 /// events: [DeviceEventsLink]), "this device" for this one,
 /// and its operating system's name; signed in, its presence dot
 /// ([DevicePresence]) before the ID.
@@ -322,9 +323,18 @@ class EventDevice extends StatelessWidget {
                           liveAvailable: liveAvailable(live),
                           thisDevice: device == thisDevice,
                           connected: live?.showsLive ?? false,
-                          within: live?.liveWithin ?? DevicePresence.liveWithin,
+                          timeout:
+                              live?.presenceTimeout ?? DevicePresence.timeout,
                         ),
                       ),
+                    ),
+                  // A fetched camera's name before its device:
+                  // "Garden | <device>".
+                  if (event.cameraName case final name?)
+                    Text(
+                      '$name |',
+                      key: const Key('event-device-camera-name'),
+                      style: theme.textTheme.bodySmall,
                     ),
                   DeviceEventsLink(
                     device: device,

@@ -145,6 +145,9 @@ void main() {
       expect(DeviceOs.iconOf('Windows'), Icons.desktop_windows);
       expect(DeviceOs.iconOf('Linux'), Icons.computer);
       expect(DeviceOs.iconOf('Blink'), Icons.videocam_outlined);
+      expect(DeviceOs.iconOf('GoPro'), Icons.videocam_outlined);
+      expect(DeviceOs.iconOf('Reolink'), Icons.videocam_outlined);
+      expect(DeviceOs.iconOf('USB camera'), Icons.videocam_outlined);
       expect(DeviceOs.iconOf('Web (Chrome, macOS)'), Icons.language);
       expect(DeviceOs.iconOf('Plan 9'), Icons.devices_other);
       expect(DeviceOs.iconOf(null), Icons.devices_other);

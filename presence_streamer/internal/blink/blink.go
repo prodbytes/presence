@@ -9,15 +9,16 @@
 // this streamer's media key (only the profile's devices hold it):
 //
 //   - devices/<streamer>/blink.json, the app's request: {"email",
-//     "password", "pin", "disconnect", "requestedAt"}. Deleted once
-//     handled, so the password doesn't stay in the cloud.
+//     "password", "pin", "disconnect", "remove" (a camera's device ID),
+//     "requestedAt"}. Deleted once handled, so the password doesn't stay
+//     in the cloud.
 //   - devices/<streamer>/blink-status.json, this streamer's answer:
 //     {"state", "error", "account", "cameras": [{"name", "deviceId"}],
 //     "lastFetch", "requestedAt", "updatedAt"}.
 //
 // Here, in the state folder: blink-token.json (blinkpy's token, mode 600:
-// never the password) and blink-state.json (the cameras' device IDs, and
-// where fetching got to).
+// never the password) and blink-state.json (the cameras' device IDs, the
+// cameras removed, and where fetching got to).
 package blink
 
 import (
@@ -57,10 +58,13 @@ type Store interface {
 
 // Request is the app's (devices/<streamer>/blink.json).
 type Request struct {
-	Email       string `json:"email,omitempty"`
-	Password    string `json:"password,omitempty"`
-	PIN         string `json:"pin,omitempty"`
-	Disconnect  bool   `json:"disconnect,omitempty"`
+	Email      string `json:"email,omitempty"`
+	Password   string `json:"password,omitempty"`
+	PIN        string `json:"pin,omitempty"`
+	Disconnect bool   `json:"disconnect,omitempty"`
+	// Remove is a camera's device ID: it's no longer fetched, nor one of
+	// the profile's devices.
+	Remove      string `json:"remove,omitempty"`
 	RequestedAt int64  `json:"requestedAt"`
 }
 
@@ -92,6 +96,10 @@ type StatusCamera struct {
 type saved struct {
 	Account string            `json:"account,omitempty"`
 	Cameras map[string]Camera `json:"cameras,omitempty"`
+	// Removed are the cameras the app removed, by their Blink ID: not
+	// fetched, nor made devices again, till a disconnect forgets them (a
+	// new connect then makes each a new device).
+	Removed map[string]Camera `json:"removed,omitempty"`
 	// Since is where fetching got to, in epoch seconds.
 	Since int64 `json:"since,omitempty"`
 	// Handled is the requestedAt of the last request handled.
@@ -154,6 +162,9 @@ func (b *Blink) load() {
 	}
 	if b.state.Cameras == nil {
 		b.state.Cameras = map[string]Camera{}
+	}
+	if b.state.Removed == nil {
+		b.state.Removed = map[string]Camera{}
 	}
 }
 
@@ -252,7 +263,7 @@ func (b *Blink) request(ctx context.Context) (*Request, error) {
 	return req, nil
 }
 
-// handle answers one request: a disconnect, or a login.
+// handle answers one request: a disconnect, a camera removed, or a login.
 func (b *Blink) handle(ctx context.Context, req *Request) {
 	defer func() {
 		b.state.Handled = req.RequestedAt
@@ -267,11 +278,46 @@ func (b *Blink) handle(ctx context.Context, req *Request) {
 	if req.Disconnect {
 		os.Remove(b.TokenPath())
 		b.state.Account, b.state.Refused = "", false
+		// The cameras removed are forgotten: a new connect makes them
+		// devices again (new ones).
+		b.state.Removed = map[string]Camera{}
 		b.Logf("blink: disconnected; its cameras' devices stay")
 		b.setStatus(ctx, Status{State: StateOff, RequestedAt: req.RequestedAt})
 		return
 	}
+	if req.Remove != "" {
+		b.remove(ctx, req)
+		return
+	}
 	b.login(ctx, req)
+}
+
+// remove stops fetching the camera whose device is req.Remove, and takes
+// it from the cameras registered (its pipeline stops); it's remembered as
+// removed, so neither a fetch nor a login makes it a device again. Its
+// device's events stay.
+func (b *Blink) remove(ctx context.Context, req *Request) {
+	for id, c := range b.state.Cameras {
+		if c.DeviceID != req.Remove {
+			continue
+		}
+		delete(b.state.Cameras, id)
+		b.state.Removed[id] = c
+		b.Logf("blink: camera %q (%s) removed; its device's events stay", c.Name, c.DeviceID)
+		if err := b.save(); err != nil {
+			b.Logf("blink: saving: %v", err)
+		}
+		b.announce(ctx)
+		os.RemoveAll(filepath.Join(b.Dir, "blink-incoming", id))
+	}
+	s := Status{State: b.status.State, Error: b.status.Error, RequestedAt: req.RequestedAt}
+	if s.State == "" || s.State == StateInstalling || s.State == StateLoggingIn || s.State == StatePIN {
+		s.State = StateOff
+		if b.connected() {
+			s.State = StateConnected
+		}
+	}
+	b.setStatus(ctx, s)
 }
 
 func (b *Blink) login(ctx context.Context, req *Request) {
@@ -317,7 +363,10 @@ func (b *Blink) login(ctx context.Context, req *Request) {
 				b.state.Since = b.now().Add(-b.Backfill).Unix()
 			}
 			for _, c := range answer.Cameras {
-				b.camera(c.ID, c.Name)
+				// One removed stays so: a login doesn't add it again.
+				if _, removed := b.state.Removed[c.ID]; !removed {
+					b.camera(c.ID, c.Name)
+				}
 			}
 			b.save()
 			b.announce(ctx)
@@ -394,11 +443,22 @@ func (b *Blink) fetch(ctx context.Context) {
 	}
 	out := filepath.Join(b.Dir, "blink-incoming")
 	os.MkdirAll(out, 0o700)
-	cmd := b.Helper(ctx, "fetch", "--token", b.TokenPath(), "--since", fmt.Sprint(b.state.Since), "--out", out)
+	args := []string{"fetch", "--token", b.TokenPath(), "--since", fmt.Sprint(b.state.Since), "--out", out}
+	if len(b.state.Removed) > 0 {
+		// The cameras removed aren't downloaded.
+		skip := make([]string, 0, len(b.state.Removed))
+		for id := range b.state.Removed {
+			skip = append(skip, id)
+		}
+		sort.Strings(skip)
+		args = append(args, "--skip", strings.Join(skip, ","))
+	}
+	cmd := b.Helper(ctx, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	added := false
+	handed := map[string]bool{}
 	for _, line := range strings.Split(stdout.String(), "\n") {
 		var answer struct {
 			State  string `json:"state"`
@@ -414,6 +474,11 @@ func (b *Blink) fetch(ctx context.Context) {
 			continue
 		}
 		if c := answer.Clip; c != nil {
+			if _, removed := b.state.Removed[c.Camera]; removed {
+				// Removed: not handed over (the helper skips it).
+				os.Remove(c.File)
+				continue
+			}
 			camera, isNew := b.camera(c.Camera, c.Name)
 			added = added || isNew
 			if added {
@@ -421,6 +486,7 @@ func (b *Blink) fetch(ctx context.Context) {
 				b.announce(ctx)
 				added = false
 			}
+			handed[c.File] = true
 			if err := b.Clip(ctx, camera, c.File); err != nil {
 				b.Logf("blink: clip %s: %v", c.File, err)
 			}
@@ -433,6 +499,7 @@ func (b *Blink) fetch(ctx context.Context) {
 			b.Logf("blink: fetching: %s", answer.Error)
 		}
 	}
+	b.leftovers(ctx, out, handed)
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && exit.ExitCode() == 2 {
 		// The token's no good: wait for a new login from the app.
@@ -445,6 +512,39 @@ func (b *Blink) fetch(ctx context.Context) {
 	}
 	if err := b.save(); err != nil {
 		b.Logf("blink: saving: %v", err)
+	}
+}
+
+// leftovers hands over the clips a fetch left in out without handing them
+// (the streamer stopped before it read the helper's answer, which then
+// skips a clip it finds downloaded already; a hand-over that failed), so
+// none stays here unsent; handed are this fetch's, handed already. A
+// download cut off (`.part`) is deleted: the helper fetches it again while
+// Blink still lists it, since where fetching got to moves on only after a
+// whole fetch.
+func (b *Blink) leftovers(ctx context.Context, out string, handed map[string]bool) {
+	dirs, _ := os.ReadDir(out)
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		if _, removed := b.state.Removed[d.Name()]; removed {
+			os.RemoveAll(filepath.Join(out, d.Name()))
+			continue
+		}
+		camera, known := b.state.Cameras[d.Name()]
+		files, _ := os.ReadDir(filepath.Join(out, d.Name()))
+		for _, f := range files {
+			file := filepath.Join(out, d.Name(), f.Name())
+			switch {
+			case strings.HasSuffix(f.Name(), ".part"):
+				os.Remove(file)
+			case known && !handed[file] && strings.HasPrefix(f.Name(), "rec-") && strings.HasSuffix(f.Name(), ".mp4"):
+				if err := b.Clip(ctx, camera, file); err != nil {
+					b.Logf("blink: clip %s: %v", file, err)
+				}
+			}
+		}
 	}
 }
 

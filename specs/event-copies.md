@@ -118,6 +118,16 @@ each of those would be taken as a change elsewhere: update churn, and
 loops between devices. A device without live sync knows only this device,
 the cloud and the recording device.
 
+**How often the bucket is polled:** cloud sync lists the bucket only
+every hour while the events this device published have enough copies on
+other devices (1 other device with a full copy, or fewer when the profile
+has fewer), and every 2 min while one is short of copies past its grace,
+the bucket being its backup meanwhile (see [Cloud sync](cloud-sync.md)).
+Peers hold a full copy only once they have the recording, which they
+download when it's played or a copy is asked for (**Share copies**), so a
+clip nobody has played elsewhere keeps the bucket polled every 2 min for
+up to an hour past its grace.
+
 ## On screen
 
 Each event has **indicators**, small icons with a tooltip each
@@ -139,12 +149,22 @@ that size on a narrow card: the device's name beside them gives way
     color (Gruvbox aqua) when the cloud holds a copy and this device
     doesn't, or not in full, e.g. another device's clip whose recording
     isn't downloaded here ("Archived in the cloud (not on this device)").
+  - **Cold storage:** for a clip recorded more than **67 days** ago
+    (`EventCopies.coldStorageAfter`, `inColdStorage`) that the cloud
+    holds, the tooltip adds "Its recording is in cold storage: it can't
+    be played from the cloud": the bucket's lifecycle moved its
+    recording to S3 Glacier Deep Archive, and restoring isn't supported
+    yet (see [Cloud sync](cloud-sync.md), "Archived recordings"). It's
+    judged by the clip's time (its recording goes up soon after), at
+    display (`CopiesSummary.coldStorage`, from `summaryOf(clipTime:)`);
+    `copyOf` still counts it as a cloud copy.
 - **Copies:** an icon and **just the number of devices** holding a copy,
   this device and others; the cloud isn't counted, since it has its own
   indicator (`EventCopiesBadge`, `CopiesSummary.devices`). The tooltip and
   the screen-reader label say it ("On 2 devices") and list every holder,
   this device first, then the cloud, then devices ("This device, Cloud,
-  loud_shy_kettle"). One icon for one device, another for more.
+  loud_shy_kettle"). One icon for one device, another for more. The
+  cloud is "Cloud (cold storage)" there for a clip in cold storage.
 
 ### Tapped
 
@@ -193,7 +213,9 @@ it they aren't buttons.
 They show:
 
 - **On event cards** (the Monitoring timeline): in each card's header row,
-  at the right of the device tag. They fit a 320 dp phone.
+  at its top right, together with the card's delete button, in one row
+  (`event-actions-<id>`; see [Events](events.md)), the device tag at the
+  left. They fit a 320 dp phone, at 2x text too.
 - **In the event's details** (the clip player): under the title.
 - **With live sync off** (no endpoint, Never, signed out): the count is
   what's known (this device, the cloud, the recording device, and acks
@@ -236,6 +258,10 @@ They show:
   in the cloud, "2 copies" for one received from its device and not
   uploaded from here, "Not synced" for one held only here or not known); the holders survive
   a restart, bounded to the newest;
+- a clip older than 67 days held by the cloud is in cold storage ("This
+  device, Cloud (cold storage)"), one of 66 days isn't, nor an event
+  without a clip or one not in the cloud; its cloud indicator's and copies'
+  tooltips say so;
 - `copyOf`: an event without media, another device's clip (held here only
   with its recording downloaded), a clip recorded here (in the cloud once
   its recording is), tagged frames;

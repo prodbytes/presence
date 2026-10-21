@@ -1,0 +1,7 @@
+Presence (PresenceCam) turns an iPhone into a security camera. It records video and sound only while the app is open and on screen; nothing records in the background.
+
+1. On first launch, the recording consent screen asks the user to confirm they may record where the camera is and that faces are biometric data. Agree at the bottom. It is asked once per device.
+2. Tap Sign in (top right) and use Sign in with Apple (any Apple ID) or Google. No demo account is needed.
+3. A new account then taps the Sign up icon (top right, a person with a plus) and Join free to become a member, in the app; it is free and asks for nothing more. Members get the tabs: Cams (live camera, Clip, modes), Events (clips and motion events), Setup and Profile.
+4. Premium (Profile tab) is sold only as the auto-renewable subscriptions presence.premium.monthly (1-week free trial) and presence.premium.yearly. Our server accepts sandbox purchases during review. Restore purchases and Manage subscription are next to the plans, with the Terms of Use and Privacy Policy links.
+5. Account deletion: Profile tab, Delete account.

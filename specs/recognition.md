@@ -34,13 +34,26 @@ confidence is the higher of the two:
   shows them and the recognition indicator turns on. It happens only
   while a device that can recognize (the web app, an Android phone, an
   iPhone) is running.
+- **The cameras a streamer fetches clips from** ([Blink](blink.md),
+  [GoPro](gopro.md), [Reolink](reolink.md)) go through the same
+  pipeline: each is a device of its own whose clips the streamer searches
+  (its detector, or the cloud detector's, which keeps every camera clip
+  too: the job's `keepAll`), so they arrive like the streamer's own, no
+  `subjectSearch`, and one device that can recognize searches them for
+  subjects and objects (the cloud's subjects and breeds and coats too,
+  premium). As such a clip may be fetched long after it was recorded (a
+  GoPro back on the network, a Reolink's backlog, a streamer offline),
+  "under a day old" counts from when the streamer **stored** it
+  (`storedAt`, [Data formats](data-formats.md)) when that's later than
+  when it was recorded: one stored lately is recognized, history stored
+  long ago isn't.
 - **One device recognizes each synced clip** (`electionRank`), not every
   one that can: each would download the whole recording and pay for
   cloud identify and breeds and coats again. Every device that can
   recognize ranks itself among the **candidates**: the profile's devices
   that can recognize (from their latest event's OS and memory: `Web …`,
   `Android` or `iOS`, with 1800 MB or more or unknown; not a Pi streamer's
-  `Linux` nor `Blink`) and were heard from within a day (an event in the
+  `Linux` nor the cameras it fetches, `Blink`, `GoPro`, `Reolink`) and were heard from within a day (an event in the
   log, or over live sync, `LiveSync.seenOf`), itself always among them.
   This list is chosen because every device already has it (the events
   that sync) without a new API call. The clip's own device goes first
@@ -457,6 +470,14 @@ recognizer, or a platform without it).
   player's Auto tags a sure match and the objects, and says so; Auto
   disabled where recognition can't run, and fitting a 320 dp phone's
   dialog.
+- Camera clips (`recognition_test.dart`): a Blink camera's synced clip
+  is searched here; a GoPro's recorded 3 days ago but stored 5 minutes
+  ago is too; a Reolink's stored 2 days ago is left; Blink, GoPro,
+  Reolink and Linux devices never count as candidates. The records'
+  `cameraName` and `storedAt` (`camera_name_test.dart`,
+  `persistence_test.dart`), and the streamer's (`records_test.go`,
+  `stream_test.go`, `main_cameras_test.go`) and cloud detector's
+  (`test_app.py`) side.
 - `recognition_worker_test.dart`: the worker isolate (with fake models)
   gets a frame's pixels and the analysis options and sends back only the
   analysis; released, it stops and the next frame starts it again; idle,

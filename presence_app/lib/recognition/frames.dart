@@ -33,18 +33,21 @@ abstract class ClipFrameSampler {
 
   bool get supported;
 
-  /// A frame of [media] [every] so long, from its start to its end, at most
-  /// [maxWidth] wide. Frames that can't be read are skipped. On Android
-  /// each is the keyframe nearest to its time (and at its own time).
+  /// A frame of [media] [every] so long, from its start (or [from]) to its
+  /// end, at most [maxWidth] wide. Frames that can't be read are skipped.
+  /// On Android each is the keyframe nearest to its time (and at its own
+  /// time).
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
+    Duration? from,
     int maxWidth = defaultMaxWidth,
   });
 }
 
-/// The times (ms) to sample [media] at: from its start, [every] so long,
-/// before its end.
-List<int> sampleTimes(ClipMedia media, Duration every) => [
-  for (var at = media.start; at < media.end; at += every) at.inMilliseconds,
+/// The times (ms) to sample [media] at: from its start (or [from]),
+/// [every] so long, before its end.
+List<int> sampleTimes(ClipMedia media, Duration every, {Duration? from}) => [
+  for (var at = from ?? media.start; at < media.end; at += every)
+    at.inMilliseconds,
 ];

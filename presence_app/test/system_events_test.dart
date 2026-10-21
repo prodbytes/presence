@@ -49,6 +49,13 @@ void main() {
 
     expect(find.byTooltip('Show system events'), findsOneWidget);
     expect(checked(tester), isFalse);
+    // The clips with no one are hidden too; this one isn't searched yet.
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('show-events-with-no-one')))
+          .isSelected,
+      isFalse,
+    );
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Application started')), findsNothing);
     expect(inEvents(find.text('Signed in')), findsNothing);

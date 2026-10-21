@@ -150,6 +150,43 @@ void main() {
     },
   );
 
+  test('a thumbnail made again goes up again; checking one alone sends '
+      'nothing', () async {
+    const prefix = 'us-east-1:identity';
+    await auth.signIn();
+    await sync.idle();
+    backend.uploads.clear();
+
+    final clip = (await store.getClip('c1'))!;
+    // Checked here and found fine: this device's business only.
+    await store.putClip({...clip, 'thumbnailCheck': 'ok'});
+    changes.add({'e2'});
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+
+    // Black, made again from the recording.
+    await store.putClip({
+      ...clip,
+      'thumbnail': sealed([7, 7]),
+      'thumbnailCheck': 'ok',
+      'thumbnailRedone': 1000,
+    });
+    changes.add({'e2'});
+    await sync.idle();
+    expect(backend.uploads.keys, {
+      '$prefix/media/c1.jpg',
+      '$prefix/clips/year=1970/day=001/c1.json',
+    });
+    expect(opened(backend.uploads['$prefix/media/c1.jpg']!.bytes), [7, 7]);
+    final details = jsonDecode(
+      utf8.decode(
+        backend.uploads['$prefix/clips/year=1970/day=001/c1.json']!.bytes,
+      ),
+    );
+    expect(details['thumbnailRedone'], 1000);
+    expect(details.containsKey('thumbnailCheck'), isFalse);
+  });
+
   test('a new event while signed in is uploaded when saved', () async {
     await auth.signIn();
     await sync.idle();
@@ -168,43 +205,6 @@ void main() {
     expect(backend.uploads.keys, {
       'us-east-1:identity/events/year=1970/day=001/e3.json',
     });
-  });
-
-  test('halted (the camera Stopped), nothing syncs until it resumes', () async {
-    await auth.signIn();
-    await sync.idle();
-    backend.uploads.clear();
-
-    sync.setHalted(true);
-    expect(sync.halted, isTrue);
-    await store.putEvent({
-      'userId': '1',
-      'profileId': '1',
-      'id': 'e4',
-      'type': 'x',
-      'title': 'While stopped',
-      'time': 4,
-    });
-    changes.add(null);
-    await sync.idle();
-    expect(backend.uploads, isEmpty);
-
-    // Resumed: a pass at once takes it.
-    sync.setHalted(false);
-    await sync.idle();
-    expect(backend.uploads.keys, {
-      'us-east-1:identity/events/year=1970/day=001/e4.json',
-    });
-  });
-
-  test('signing in while halted waits for the resume', () async {
-    sync.setHalted(true);
-    await auth.signIn();
-    await sync.idle();
-    expect(backend.uploads, isEmpty);
-    sync.setHalted(false);
-    await sync.idle();
-    expect(backend.uploads, isNotEmpty);
   });
 
   test('a pass uploads only the events named as changed, with their '
@@ -712,7 +712,10 @@ void main() {
 
       expect(remote.single.events.map((e) => e['id']), ['new']);
       expect(remote.single.clips.map((c) => c['id']), ['c-new']);
-      expect(await sync.fetchRecording('c-new', 'c-new-full'), isTrue);
+      expect(
+        await sync.fetchRecording('c-new', 'c-new-full'),
+        RecordingFetch.stored,
+      );
       expect(opened((await store.getMedia('c-new-full'))!), [1]);
       expect(await store.getMedia('c-old-full'), isNull);
       expect(
@@ -1352,7 +1355,10 @@ void main() {
         remoteClip('r1', 1);
         await start();
 
-        expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.stored,
+        );
         expect(backend.downloads.where(isRecording), ['media/r1.mp4']);
         expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
         final synced = await store.syncedKeys();
@@ -1369,10 +1375,16 @@ void main() {
         expect(backend.downloads.where(isRecording), isEmpty);
 
         // Not in the cloud, or signed out: nothing to play.
-        expect(await sync.fetchRecording('nope', 'nope-full'), isFalse);
+        expect(
+          await sync.fetchRecording('nope', 'nope-full'),
+          RecordingFetch.missing,
+        );
         await auth.signOut();
         await sync.idle();
-        expect(await sync.fetchRecording('r1', 'r1-full'), isFalse);
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.missing,
+        );
       });
 
       test('a recording that fails to download is tried again when played '
@@ -1380,13 +1392,76 @@ void main() {
         remoteClip('r1', 1);
         await start();
         backend.failGets.add('media/r1.mp4');
-        expect(await sync.fetchRecording('r1', 'r1-full'), isFalse);
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.missing,
+        );
         expect(await store.getMedia('r1-full'), isNull);
         expect(sync.state, CloudSyncState.synced);
 
         backend.failGets.clear();
-        expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.stored,
+        );
         expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
+      });
+
+      test('an archived recording (403 InvalidObjectState) says so, is not '
+          'asked for again, and neither renews the credentials nor stops '
+          'sync', () async {
+        remoteClip('r1', 1);
+        await start();
+        backend.archived.add('media/r1.mp4');
+        final resets = backend.resets;
+
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.archived,
+        );
+        expect(backend.resets, resets);
+        expect(sync.state, CloudSyncState.synced);
+        expect(await store.getMedia('r1-full'), isNull);
+        // Still pending: it may be restored some day.
+        expect(
+          (await store.syncedKeys())['fetch:$prefix/media/r1.mp4'],
+          isNotNull,
+        );
+
+        // Played again: archived, without asking S3 again.
+        backend.downloads.clear();
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.archived,
+        );
+        expect(backend.downloads, isEmpty);
+
+        // Passes, and a full fetch, go on as before.
+        changes.add(null);
+        await sync.idle();
+        clock = clock.add(const Duration(days: 1));
+        changes.add({});
+        await sync.idle();
+        expect(sync.state, CloudSyncState.synced);
+        expect(backend.resets, resets);
+      });
+
+      test('a pass skips archived objects: sync goes on, the credentials '
+          'kept', () async {
+        remoteClip('r1', 1);
+        remoteClip('r2', 2);
+        backend.archived.addAll(['media/r1.jpg', 'media/r1.mp4']);
+        await start();
+
+        expect(sync.state, CloudSyncState.synced);
+        // The sign-in's only: none for rejected credentials.
+        expect(backend.resets, 1);
+        final clips = {
+          for (final c in remote.expand((r) => r.clips)) c['id']: c,
+        };
+        expect(clips.keys, unorderedEquals(['r1', 'r2']));
+        expect(clips['r1']!['thumbnail'], isNull);
+        expect(clips['r2']!['thumbnail'], isNotNull);
       });
 
       test('a recording whose download meets expired credentials comes down '
@@ -1397,7 +1472,10 @@ void main() {
           403,
           '<Code>ExpiredToken</Code>',
         );
-        expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
+        expect(
+          await sync.fetchRecording('r1', 'r1-full'),
+          RecordingFetch.stored,
+        );
         expect(backend.resets, greaterThan(0));
         expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
         expect(

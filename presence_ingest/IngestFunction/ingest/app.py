@@ -14,6 +14,9 @@ animals:
   object tags) to their day partitions, and then ingest's copies are
   deleted.
 
+Ingest's objects are deleted for good (the version read), not kept as
+old versions for the bucket's 30-day undo window.
+
 Everything is checked against the job's key, which says whose folder and
 device it is: a job can only touch its own folder. Each step can be done
 again, so a retry (Lambda's, for an error) starts over safely; the job is
@@ -62,12 +65,14 @@ class Folder:
 
     def __init__(self, s3, bucket: str, identity: str):
         self.s3, self.bucket, self.root = s3, bucket, identity + "/"
+        self.versions = {}  # key: the version read, to delete for good
 
     def get(self, key: str, limit: int) -> bytes | None:
         try:
             obj = self.s3.get_object(Bucket=self.bucket, Key=self.root + key)
         except self.s3.exceptions.NoSuchKey:
             return None
+        self.versions[key] = obj.get("VersionId")
         if obj["ContentLength"] > limit:
             raise ValueError(f"{key} is too big ({obj['ContentLength']} bytes)")
         return obj["Body"].read()
@@ -77,6 +82,7 @@ class Folder:
             head = self.s3.get_object(Bucket=self.bucket, Key=self.root + key)
         except self.s3.exceptions.NoSuchKey:
             return False
+        self.versions[key] = head.get("VersionId")
         if head["ContentLength"] > MAX_VIDEO:
             raise ValueError(f"{key} is too big ({head['ContentLength']} bytes)")
         with open(path, "wb") as f:
@@ -98,7 +104,31 @@ class Folder:
         )
 
     def delete(self, key: str):
-        self.s3.delete_object(Bucket=self.bucket, Key=self.root + key)
+        """Deletes ingest's object for good. The bucket is versioned, so a
+        plain delete would keep it 30 days as an old version (the undo
+        window for users' data, not for ingest's passing copies): this
+        deletes the version it read, or, for one it didn't, the current
+        one. A newer upload of the same key, made since, is left."""
+        if key in self.versions:
+            version = self.versions.pop(key)
+        else:
+            try:
+                version = self.s3.head_object(Bucket=self.bucket, Key=self.root + key).get("VersionId")
+            except self.s3.exceptions.ClientError as e:
+                if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                    return  # gone already: nothing to delete
+                raise
+        if version:
+            try:
+                self.s3.delete_object(Bucket=self.bucket, Key=self.root + key, VersionId=version)
+                return
+            except self.s3.exceptions.ClientError as e:
+                if e.response.get("Error", {}).get("Code") != "AccessDenied":
+                    raise
+                # The stage's permissions boundary doesn't allow
+                # DeleteObjectVersion yet: deleted as before, kept 30 days.
+                log(at="ingest", key=self.root + key, outcome="version kept", why="AccessDenied")
+        self.s3.delete_object(Bucket=self.bucket, Key=self.root + key)  # or an unversioned bucket (local)
 
 
 def day_prefix(root: str, ms: int) -> str:
@@ -174,7 +204,8 @@ def process(s3, bucket: str, key: str, tmp: str, deadline: float | None = None) 
     if data is None:
         return "gone"  # done already (S3 may call twice)
     try:
-        event, clip = check(json.loads(data), device, clip_id)
+        job = json.loads(data)
+        event, clip = check(job, device, clip_id)
     except (BadJob, ValueError) as e:
         log(at="ingest", key=key, outcome="bad job", why=str(e))
         folder.delete(video_key)
@@ -213,19 +244,26 @@ def process(s3, bucket: str, key: str, tmp: str, deadline: float | None = None) 
         folder.delete(job_key)
         return "broken"
 
-    if subject is None:
+    # A fetched camera's clip (Blink, GoPro, Reolink: the job's keepAll) is
+    # kept with no one in it too, as the streamer keeps it when it searches
+    # it itself.
+    keep_all = job.get("keepAll") is True
+    if subject is None and not keep_all:
         folder.delete(video_key)
         folder.delete(job_key)
         log(at="ingest", key=key, outcome="no one", searchedMs=searched_ms)
         return "no one"
 
     tags = [o for o in objects if o["score"] >= OBJECT_SCORE]
-    if not any(t["label"] == subject["label"] for t in tags):
+    if subject is not None and not any(t["label"] == subject["label"] for t in tags):
         tags.append(subject)
     event = dict(event, objectTags=sorted(tags, key=lambda t: t["label"]))
 
-    with open(thumb, "rb") as f:
-        folder.put(f"media/{clip_id}.jpg", seal.seal_bytes(f.read(), key_bytes, device), "application/octet-stream")
+    # No one there (keepAll): no subject's frame, no thumbnail (the app
+    # makes one from the recording).
+    if os.path.exists(thumb):
+        with open(thumb, "rb") as f:
+            folder.put(f"media/{clip_id}.jpg", seal.seal_bytes(f.read(), key_bytes, device), "application/octet-stream")
     folder.copy(video_key, f"media/{clip_id}.mp4")
     folder.put(day_prefix("clips", clip["requestedAt"]) + f"{clip_id}.json", to_json(clip), "application/json")
     # Last of the records, so the event shows once its media is there.

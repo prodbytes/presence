@@ -9,6 +9,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 
+import 'camera_pause_test.dart' show pickMode;
 import 'fakes.dart';
 
 /// A clip recorded on [device] [minutesAgo] minutes before noon.
@@ -301,7 +302,7 @@ void main() {
     });
   });
 
-  testWidgets('the All button toggles the grid on the Camera tab', (
+  testWidgets('the mode menu: All devices toggles the grid on the Camera tab', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -321,19 +322,14 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
 
-    // Left of Clip; the status pills are at the top, clear of it.
-    final all = tester.getRect(find.byTooltip('Show all devices'));
+    // In the app bar; the status pills are under it, clear of it.
+    final menu = tester.getRect(find.byKey(const Key('camera-mode')));
     expect(
-      all.right,
-      lessThan(tester.getRect(find.byKey(const Key('clip'))).left),
-    );
-    expect(
-      tester.getRect(find.byKey(const Key('camera-status'))).bottom,
-      lessThan(all.top),
+      tester.getRect(find.byKey(const Key('camera-status'))).top,
+      greaterThan(menu.bottom),
     );
 
-    await tester.tap(find.byTooltip('Show all devices'));
-    await tester.pump();
+    await pickMode(tester, CameraMode.all);
     expect(find.text('live'), findsOneWidget);
     final live = tester.getRect(find.byKey(const Key('preview-Main')));
     expect(live.width, lessThan(1280));
@@ -345,21 +341,15 @@ void main() {
       ),
     );
 
-    // All → Unattended (woken) → Stopped (the camera off) → Normal.
-    await tester.tap(
-      find.byTooltip('Go unattended: screen off, still capturing'),
-    );
-    await tester.pump();
+    // All → Unattended (woken) → Stopped (the camera off) → This camera.
+    await pickMode(tester, CameraMode.unattended);
     await tester.tap(find.byKey(const Key('screen-off-cover')));
     await tester.pump();
-    await tester.tap(find.byTooltip('Stop: no capturing or syncing'));
-    await tester.pump();
+    await pickMode(tester, CameraMode.stopped);
     expect(find.text('live'), findsNothing);
     expect(find.byKey(const Key('camera-paused')), findsOneWidget);
-    await tester.tap(find.byTooltip('Back to normal: this camera'));
-    await tester.pump();
+    await pickMode(tester, CameraMode.normal);
     expect(find.byKey(const Key('camera-paused')), findsNothing);
-    expect(find.byTooltip('Show all devices'), findsOneWidget);
-    expect(find.text('Normal'), findsNothing);
+    expect(find.text('This camera'), findsOneWidget);
   });
 }

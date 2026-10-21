@@ -767,6 +767,10 @@ void main() {
         'clipId': 'remote-clip',
         'clipState': 'complete',
         'trigger': 'manual',
+        // A camera a streamer fetches clips from: its name, and when the
+        // streamer stored it.
+        'cameraName': 'Garage',
+        'storedAt': requested + 60000,
       }),
       contentType: 'application/json',
     );
@@ -778,6 +782,12 @@ void main() {
     await showEvents(tester);
 
     expect(inEvents(find.text('Garage')), findsOneWidget);
+    expect(clipEvent(tester).cameraName, 'Garage');
+    expect(
+      clipEvent(tester).storedAt,
+      DateTime.fromMillisecondsSinceEpoch(requested + 60000),
+    );
+    expect(inEvents(find.textContaining('Garage | ')), findsOneWidget);
     // The downloaded recording plays from local storage.
     final restored = clipEvent(tester).clip;
     expect(restored.id, 'remote-clip');
@@ -857,6 +867,96 @@ void main() {
       opened((await run(tester, store.getMedia('remote-clip-full')))!),
       'remote-video'.codeUnits,
     );
+  });
+
+  testWidgets('a cloud clip whose recording is archived (in cold storage) '
+      'says so when played, without renewing the credentials', (tester) async {
+    final cloud = FakeCloudBackend();
+    const prefix = 'us-east-1:identity';
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    final requested = DateTime(2026, 9, 24, 8).millisecondsSinceEpoch;
+    cloud.uploads['$prefix/${CloudSync.clipRecordKey('remote-clip', requested)}'] =
+        (
+          bytes: json({
+            'id': 'remote-clip',
+            'eventId': 'remote-event',
+            'cameraId': 'garage-cam',
+            'cameraLabel': 'Garage',
+            'requestedAt': requested,
+            'beforeMs': 15000,
+            'afterMs': 15000,
+            'supported': true,
+            'state': 'complete',
+            'full': {
+              'mediaId': 'remote-clip-full',
+              'startMs': 0,
+              'endMs': 30000,
+              'mimeType': 'video/webm',
+            },
+          }),
+          contentType: 'application/json',
+        );
+    cloud.uploads['$prefix/media/remote-clip.webm'] = (
+      bytes: sealed('remote-video'.codeUnits),
+      contentType: CloudSync.sealedType,
+    );
+    cloud.uploads['$prefix/events/remote-event.json'] = (
+      bytes: json({
+        'id': 'remote-event',
+        'type': ClipRequested.clipRequestedType,
+        'title': 'Clip requested',
+        'time': requested,
+        'cameraId': 'garage-cam',
+        'clipId': 'remote-clip',
+        'clipState': 'complete',
+        'trigger': 'manual',
+      }),
+      contentType: 'application/json',
+    );
+    // Moved to S3 Glacier Deep Archive: a GET answers 403
+    // InvalidObjectState.
+    cloud.archived.add('media/remote-clip.webm');
+
+    await launch(tester, cloud: cloud);
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+    expect(inEvents(find.text('Garage')), findsOneWidget);
+    final resets = cloud.resets;
+
+    // Played: the player says it's archived, not that it couldn't load.
+    await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+    for (var i = 0; i < 5; i++) {
+      await settleStorage(tester);
+      await tester.pump();
+    }
+    expect(find.byKey(const Key('clip-archived')), findsOneWidget);
+    expect(
+      find.text('Archived: this video is in cold storage'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('clip-load-failed')), findsNothing);
+    expect(find.byKey(const Key('clip-loading')), findsNothing);
+    expect(cloud.resets, resets);
+    expect(cloud.downloads.where((k) => k == 'media/remote-clip.webm'), [
+      'media/remote-clip.webm',
+    ]);
+
+    // Loading it again says the same, without asking S3 again.
+    final restored = clipEvent(tester).clip;
+    Object? error;
+    try {
+      await run(tester, restored.full!.acquireUrl());
+    } catch (e) {
+      error = e;
+    }
+    expect(error, isA<RecordingArchived>());
+    expect(cloud.downloads.where((k) => k == 'media/remote-clip.webm'), [
+      'media/remote-clip.webm',
+    ]);
+    expect(cloud.resets, resets);
   });
 
   testWidgets('a tag removed on another device goes at the next sync', (

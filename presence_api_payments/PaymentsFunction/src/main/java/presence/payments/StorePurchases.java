@@ -30,6 +30,8 @@ import static presence.payments.Http.response;
  *   <li>{@code POST /api/payments/store/apple-notifications}: App Store
  *       Server Notifications V2 (no JWT: Apple's signature authenticates
  *       it), which extend or end the grant of a bound purchase.</li>
+ *   <li>{@code POST /api/payments/free}: Join free, the caller gets rbacr's
+ *       {@code free} role ({@link #JOIN_FREE}).</li>
  * </ul>
  */
 final class StorePurchases {
@@ -37,6 +39,9 @@ final class StorePurchases {
     static final String GET_STORE = "GET /api/payments/store";
     static final String VERIFY = "POST /api/payments/store/verify";
     static final String APPLE_NOTIFICATIONS = "POST /api/payments/store/apple-notifications";
+
+    /** Join free: the caller gets rbacr's {@code free} role, as a nu01.com Free subscription gives. */
+    static final String JOIN_FREE = "POST /api/payments/free";
 
     /** The largest verify body taken (a signed transaction is about 4 KB). */
     static final int MAX_VERIFY = 16 * 1024;
@@ -82,6 +87,7 @@ final class StorePurchases {
             case GET_STORE -> status(event);
             case VERIFY -> verify(event);
             case APPLE_NOTIFICATIONS -> appleNotification(event);
+            case JOIN_FREE -> joinFree(event);
             default -> null;
         };
     }
@@ -94,6 +100,34 @@ final class StorePurchases {
         var any = iosEnabled() || androidEnabled();
         return response(200, "{\"ios\":" + iosEnabled() + ",\"android\":" + androidEnabled()
                 + ",\"accountToken\":" + (any ? Json.string(store.accountToken(email)) : "null") + "}");
+    }
+
+    /**
+     * Join free (the mobile apps' sign-up sheet, where App Store 3.1.1 and
+     * Play's payments policy rule out sending users to subscribe on the
+     * web): grants the caller's verified email {@link RbacrGrants#FREE} in
+     * the app's system, for good, and nothing else. Idempotent: a caller
+     * who holds it already (or a role implying it) gets 200 with {@code
+     * "granted": false} and nothing changes. 403 without a verified email,
+     * 502 when rbacr fails, 503 without a grant token.
+     */
+    private APIGatewayV2HTTPResponse joinFree(APIGatewayV2HTTPEvent event) {
+        var email = Identity.verifiedEmail(event);
+        if (email == null) {
+            return response(403, "{\"error\":\"sign in with a verified email\"}");
+        }
+        if (!grants.configured()) {
+            return response(503, "{\"error\":\"joining free is not configured\"}");
+        }
+        boolean granted;
+        try {
+            granted = grants.joinFree(email);
+        } catch (RbacrGrants.Failed e) {
+            System.err.println("presence: joining free failed: " + e.getMessage());
+            return response(502, "{\"error\":\"rbacr didn't answer; try again\"}");
+        }
+        System.out.println("presence: join free " + (granted ? "granted" : "already a member"));
+        return response(200, "{\"member\":true,\"granted\":" + granted + "}");
     }
 
     private APIGatewayV2HTTPResponse verify(APIGatewayV2HTTPEvent event) {

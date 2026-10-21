@@ -7,11 +7,15 @@ bucket. [Cloud sync](cloud-sync.md) still does everything it did: **S3 stays
 where events and all their media are kept**, and a device that misses a
 message gets the event from the bucket. Nothing is deleted. While live
 sync works (connected, or idle between scheduled connections) cloud
-sync's timer lists the bucket only every **2 min** instead of every
-15 s, as a backstop (`CloudSync.liveInterval`): listings are billed per
-request, and live sync brings new events first. The pass a received
-message starts lists nothing while the last listing is under 2 min old:
-it only gets the wanted clip, by its known keys (GETs, never a LIST).
+sync's timer lists the bucket only as a backstop: **every hour**
+(`CloudSync.copiedInterval`) while the events this device published have
+enough copies on other devices (their `copied` acks, below), and every
+**2 min** (`CloudSync.liveInterval`) while one is short of copies past
+its grace, instead of every 15 s (see [Cloud sync](cloud-sync.md)):
+listings are billed per request, and live sync brings new events first.
+The pass a received message starts lists nothing while the last listing
+is younger than that: it only gets the wanted clip, by its known keys
+(GETs, never a LIST).
 
 This is phase 1, plus **copy acknowledgements**: a device that has stored
 a full copy of another device's event (with its media) says so with a
@@ -128,6 +132,19 @@ owned by `CloudSync`:
     recording), the device acks it: a `copied` message on `acks`, batched
     (see [Event copies](event-copies.md)).
 
+### The streamer
+
+A [streamer](streamer.md#live-sync) (`presence-streamer`, a Raspberry Pi,
+Go) is on live sync too while it leads its profile, as an always-connected
+device: a clean session as `<identityId>-<deviceId>-<session>`, reconnecting
+and renewing as above. It **publishes** each event it stores, once it's in
+the bucket, in the format below (without `clip`: its profile is premium),
+and **answers pings** ([device presence](device-presence.md)). It
+subscribes to `requests` only: it takes no other device's events, sends no
+`copied` acks and ignores `sync` requests. Its endpoint is built in from
+`IOT_ENDPOINT` (or `PRESENCE_STREAMER_IOT_ENDPOINT`), and its stage is
+`rc` for the RC's site, else `prod` (`PRESENCE_STREAMER_STAGE`).
+
 ## When it connects
 
 The **Connect to live sync** setting ([Settings](settings.md), stored per
@@ -212,6 +229,21 @@ A free profile's devices (`LiveConfig.free`) cost almost nothing in AWS
   waited (cloud sync's `_LivePublisher`: each new event once, final, with
   a thumbnail of at most 12 KB), then it drains what the broker kept and
   closes.
+- **A failed connection** (refused, timed out, or no credentials) tries
+  again at the schedule's next slot, never sooner: the wait is the
+  interval plus the jitter from the failed attempt's start, or the
+  back-off (1 s, doubling, up to 2 min) when that's longer
+  (`_freeRetryDelay`). Only a stop, a sign-in or a change of the setting
+  (which start over) ends the wait early.
+- **Subscriptions are kept** by the persistent session: when the broker
+  still has it (the CONNACK's session-present flag,
+  `LiveConnection.sessionPresent`), a scheduled connection doesn't
+  subscribe again to the topics this run of the app already subscribed
+  on it; their messages, queued ones too, still come (`mqtt_client`
+  hands every PUBLISH it receives to its updates stream). A new session
+  (the first connection of each run, or one the broker let expire)
+  subscribes to all three; a topic refused before is tried again.
+  Members' scheduled connections still subscribe each time.
 - **The broker keeps** a persistent session's QoS 1 messages while the
   device is away, until the session expires: **1 h** after it
   disconnected (AWS IoT's default, adjustable up to 7 days in the
@@ -372,7 +404,9 @@ already keeps other profiles off the topic.
   checked to look like `<id>-ats.iot.<region>.amazonaws.com`) and passes it
   to the web build as `IOT_ENDPOINT` (a public dart-define, in
   `scripts/dart-defines.sh`'s allowlist). Android and local builds take it
-  from `.env` (`IOT_ENDPOINT`, see `.env.example`).
+  from `.env` (`IOT_ENDPOINT`, see `.env.example`). The streamer's builds
+  (`scripts/streamer.sh`) take it from `IOT_ENDPOINT` too: the Release
+  workflow's repository variable, or `.env`.
 - **The deploy roles** (`github-deploy.yaml`) may manage `presence-*` (RC:
   `presence-rc-*`) IoT policies and their versions, and call
   `iot:DescribeEndpoint`. An administrator updates that stack by hand (see
@@ -466,6 +500,10 @@ query holds the session token.
     random jitter, within `[interval, interval + 10 s]`, the same for the
     same seed, and the 60 min step within the session's hour; a change of
     the setting applies at once (Always keeps a clean session and stays);
+  - free: a failed connection waits for the schedule's next slot, not the
+    back-off; a resumed persistent session isn't subscribed again, a new
+    one is (all three), and a topic refused before is tried again; a
+    member's scheduled connection subscribes each time;
   - with `CloudSync`: a saved event goes up, then is published without its
     frames (which are in the bucket), with the uploaded ETag (and, in
     `free_sync_test.dart`, without a `clip` for a premium profile, upload
@@ -487,7 +525,10 @@ query holds the session token.
     listed to tell, without failing the pass or renewing credentials; while live sync is connected the timer's passes come only
     every `liveInterval` (a received event still starts one at once, which
     gets its clip's record by its key and lists nothing), and
-    while it fails (and retries) every `interval` again; signing out
+    while it fails (and retries) every `interval` again; an event
+    published here lists nothing within its grace, then every
+    `liveInterval` while no other device acks it, and once one does, only
+    every `copiedInterval`; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.
 - `event_copies_test.dart`: `copied` acks (validation, batching, own

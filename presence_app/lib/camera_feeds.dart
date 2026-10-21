@@ -147,7 +147,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                     profileId: widget.profileId,
                   ),
                   seenOf: live?.seenOf,
-                  within: live?.liveWithin ?? DevicePresence.liveWithin,
+                  timeout: live?.presenceTimeout ?? DevicePresence.timeout,
                   lastEvents: lastEvents,
                   now: now,
                   liveAvailable: available,
@@ -237,8 +237,9 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                               lastEvent: lastEvents[latest.deviceId],
                               now: now,
                               liveAvailable: available,
-                              within:
-                                  live?.liveWithin ?? DevicePresence.liveWithin,
+                              timeout:
+                                  live?.presenceTimeout ??
+                                  DevicePresence.timeout,
                             ),
                           ),
                           child: DeviceImage(latest: latest),

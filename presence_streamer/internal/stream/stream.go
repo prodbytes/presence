@@ -12,11 +12,21 @@
 // Each chunk's progress is kept beside it (`<chunk>.json`), so a chunk
 // interrupted by a restart or a network outage carries on where it was,
 // with the same IDs, and nothing is uploaded twice.
+//
+// Every upload and move is verified (size and MD5: the Store's nil error,
+// see the rclone package) before it's noted, and a local file is deleted
+// only once what it was for is verified in the bucket: the sealed
+// thumbnail and JSON records at once, the sealed copy once the recording
+// is in media/ (or, in the cloud's mode, in ingest), the chunk and its
+// progress once the chunk is done. A failed verification is a failed
+// upload: the files stay, and it's tried again.
 package stream
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,7 +48,8 @@ import (
 // is given up.
 const maxFailures = 3
 
-// Store is the profile's folder in the bucket.
+// Store is the profile's folder in the bucket. Put and Move succeed only
+// once the object is verified in the bucket, whole (its size and MD5).
 type Store interface {
 	Put(ctx context.Context, path, key, contentType string) error
 	Move(ctx context.Context, from, to string) error
@@ -66,6 +77,10 @@ type Streamer struct {
 	// least it must have to be uploaded (0: every chunk is).
 	Motion    func(ctx context.Context, chunk string) (float64, error)
 	MotionMin float64
+	// MotionFilter, when set, says whether the motion filter applies to
+	// the next chunk (a USB camera's unattended mode, which the app turns
+	// on and off); nil: it does.
+	MotionFilter func() bool
 
 	Key       []byte
 	DeviceID  string
@@ -75,12 +90,20 @@ type Streamer struct {
 	Location  *records.Location
 	// ObjectScore is the least score an object tag needs (the app's 0.6).
 	ObjectScore float64
+	// KeepAll keeps every chunk as an event, someone in it or not: a camera
+	// that records only on motion (Blink, GoPro, Reolink), whose clips are
+	// worth keeping already. The search still tags who's in it.
+	KeepAll bool
 	// MaxSpool is the most the spool may hold, in bytes; the oldest chunks
 	// go first beyond it (when the network is down for long).
 	MaxSpool int64
 	Logf     func(string, ...any)
 	// Stored is called with each event stored (tests).
 	Stored func(records.Event)
+	// Publish is called with each event stored, once it's verified in the
+	// bucket: its JSON as uploaded, its key and the upload's ETag (its MD5,
+	// hex), for live sync. It must not block.
+	Publish func(event []byte, key, etag string)
 	// Cloud sends chunks to the cloud detector instead of searching them
 	// here (a Pi with too little memory): each chunk is uploaded to ingest
 	// with its job, and deleted here.
@@ -106,6 +129,11 @@ type progress struct {
 	Moved    bool           `json:"moved,omitempty"`
 	Thumb    bool           `json:"thumb,omitempty"`
 	Clip     bool           `json:"clip,omitempty"`
+	// Event (here) or Job (the cloud's mode): the last upload done, so a
+	// restart before the chunk's deleted deletes it without uploading it
+	// again.
+	Event bool `json:"event,omitempty"`
+	Job   bool `json:"job,omitempty"`
 }
 
 func load(path string, start time.Time) (*progress, error) {
@@ -133,7 +161,7 @@ func save(path string, p *progress) error {
 
 // remove deletes a chunk and everything made from it.
 func remove(chunk string) {
-	for _, p := range []string{chunk, chunk + ".json", chunk + ".sealed", chunk + ".jpg", chunk + ".jpg.sealed",
+	for _, p := range []string{chunk, chunk + ".json", chunk + ".json.tmp", chunk + ".sealed", chunk + ".jpg", chunk + ".jpg.sealed",
 		chunk + ".clip.json", chunk + ".event.json", chunk + ".job.json"} {
 		os.Remove(p)
 	}
@@ -155,7 +183,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	ingest := records.IngestKey(s.DeviceID, p.ClipID)
 	// No motion, nothing to keep: deleted here, before it costs an upload
 	// (and S3's storage).
-	if s.MotionMin > 0 && !p.Ingested && p.Motion == nil {
+	if s.MotionMin > 0 && (s.MotionFilter == nil || s.MotionFilter()) && !p.Ingested && p.Motion == nil {
 		motion, err := s.Motion(ctx, chunk)
 		if errors.Is(err, detect.ErrBroken) {
 			s.Logf("%s: broken, deleted (%v)", name, err)
@@ -208,8 +236,8 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		if err := s.Store.Put(ctx, chunk+".sealed", ingest, "application/octet-stream"); err != nil {
 			return fmt.Errorf("uploading %s to ingest: %w", name, err)
 		}
-		// The sealed copy stays until the chunk is stored or deleted: a
-		// move to media/ that fails can upload it instead.
+		// Here, the sealed copy stays until the recording is in media/: a
+		// move there that fails can upload it instead.
 		p.Ingested = true
 		if err := save(chunk+".json", p); err != nil {
 			return err
@@ -217,15 +245,24 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	}
 
 	if s.Cloud {
+		// Verified in ingest, and the cloud's from here: the sealed copy
+		// isn't needed.
+		os.Remove(chunk + ".sealed")
 		// The cloud detector takes it from here: the job, uploaded after
 		// the chunk, is what it's called for.
-		event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length},
-			p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
-		job := records.Job{V: 1, Event: event, Clip: clip}
-		if err := s.putJSON(ctx, chunk+".job.json", records.JobKey(s.DeviceID, p.ClipID), job); err != nil {
-			return fmt.Errorf("uploading %s's job: %w", name, err)
+		if !p.Job {
+			event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, StoredAt: time.Now()},
+				p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
+			job := records.Job{V: 1, Event: event, Clip: clip, KeepAll: s.KeepAll}
+			if err := s.putJSON(ctx, chunk+".job.json", records.JobKey(s.DeviceID, p.ClipID), job); err != nil {
+				return fmt.Errorf("uploading %s's job: %w", name, err)
+			}
+			p.Job = true
+			if err := save(chunk+".json", p); err != nil {
+				return err
+			}
 		}
-		s.Logf("%s: uploaded for the cloud detector", name)
+		s.Logf("%s: uploaded for the cloud detector, deleted here", name)
 		remove(chunk)
 		return nil
 	}
@@ -268,10 +305,10 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		}
 	}
 
-	if p.Result.Subject == nil {
+	if p.Result.Subject == nil && !s.KeepAll {
 		if err := s.Store.Delete(ctx, ingest); err != nil {
 			// Already gone (an earlier try), or the network: the bucket's
-			// lifecycle expires what's left (90 days).
+			// lifecycle erases what's left (365 days).
 			s.Logf("%s: couldn't delete it from ingest: %v", name, err)
 		}
 		s.Logf("%s: no one there, deleted", name)
@@ -293,6 +330,9 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 			return err
 		}
 	}
+	// The thumbnail's verified in media/ (or there was none).
+	os.Remove(chunk + ".jpg")
+	os.Remove(chunk + ".jpg.sealed")
 	if !p.Moved {
 		if err := s.Store.Move(ctx, ingest, records.RecordingKey(p.ClipID)); err != nil {
 			// Moved already, before a crash kept it from being noted, or
@@ -312,8 +352,11 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 			return err
 		}
 	}
+	// The recording's verified in media/.
+	os.Remove(chunk + ".sealed")
 
-	var tags []records.ObjectTag
+	// [] when no one's there (KeepAll), as the app's events have.
+	tags := []records.ObjectTag{}
 	for _, o := range p.Result.Objects {
 		if o.Score >= s.ObjectScore {
 			tags = append(tags, records.ObjectTag{Label: o.Label, Ms: o.Ms, Score: o.Score})
@@ -322,11 +365,11 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	// The subject counts at its own (lower) threshold, so the event's
 	// tags always name who made it worth keeping.
 	sub := p.Result.Subject
-	if !hasLabel(tags, sub.Label) {
+	if sub != nil && !hasLabel(tags, sub.Label) {
 		tags = append(tags, records.ObjectTag{Label: sub.Label, Ms: sub.Ms, Score: sub.Score})
 	}
 	sort.Slice(tags, func(i, j int) bool { return tags[i].Label < tags[j].Label })
-	event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, Tags: tags},
+	event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length, Tags: tags, StoredAt: time.Now()},
 		p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
 
 	if !p.Clip {
@@ -338,12 +381,30 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 			return err
 		}
 	}
-	if err := s.putJSON(ctx, chunk+".event.json", records.EventKey(event), event); err != nil {
-		return fmt.Errorf("uploading %s's event: %w", name, err)
+	if !p.Event {
+		if err := s.putJSON(ctx, chunk+".event.json", records.EventKey(event), event); err != nil {
+			return fmt.Errorf("uploading %s's event: %w", name, err)
+		}
+		p.Event = true
+		if err := save(chunk+".json", p); err != nil {
+			return err
+		}
+		if s.Stored != nil {
+			s.Stored(event)
+		}
+		if s.Publish != nil {
+			// The JSON uploaded (records.JSON is deterministic), whose MD5 is
+			// the object's ETag (a single PUT, without KMS).
+			body := records.JSON(event)
+			sum := md5.Sum(body)
+			s.Publish(body, records.EventKey(event), hex.EncodeToString(sum[:]))
+		}
 	}
-	s.Logf("%s: %s (%.2f), stored as event %s", name, sub.Label, sub.Score, event.ID)
-	if s.Stored != nil {
-		s.Stored(event)
+	// Everything's verified in the bucket: nothing of it stays here.
+	if sub == nil {
+		s.Logf("%s: no one there, kept: stored as event %s, deleted here", name, event.ID)
+	} else {
+		s.Logf("%s: %s (%.2f), stored as event %s, deleted here", name, sub.Label, sub.Score, event.ID)
 	}
 	remove(chunk)
 	return nil
@@ -362,7 +423,12 @@ func (s *Streamer) putJSON(ctx context.Context, path, key string, record any) er
 	if err := os.WriteFile(path, records.JSON(record), 0o600); err != nil {
 		return err
 	}
-	return s.Store.Put(ctx, path, key, "application/json")
+	if err := s.Store.Put(ctx, path, key, "application/json"); err != nil {
+		return err
+	}
+	// Verified in the bucket.
+	os.Remove(path)
+	return nil
 }
 
 // Settings uploads the device's settings record, with its media key, so

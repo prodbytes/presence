@@ -18,7 +18,9 @@
 # secrets: they're compiled into the app). The streamer's Google device
 # sign-in client comes from the GOOGLE_DEVICE_CLIENT_ID variable and the
 # GOOGLE_DEVICE_CLIENT_SECRET secret (Google doesn't treat that kind of
-# client's secret as confidential: it ships in the binary).
+# client's secret as confidential: it ships in the binary). Its live sync
+# endpoint comes from the IOT_ENDPOINT variable (the account's AWS IoT
+# iot:Data-ATS endpoint, public; one for prod and the RC).
 #
 # Store builds, when their secrets are set (never on pull requests; see
 # specs/release.md for how to make each one):
@@ -491,8 +493,23 @@ jobs:
           keys="$HOME/.appstoreconnect/private_keys"
           mkdir -p "$keys"
           base64 --decode > "$keys/AuthKey_$API_KEY_ID.p8" <<< "$API_KEY_BASE64"
+          # RC and GA tags pushed together can get the same build number (the
+          # build time, in seconds) for the same version, so the second upload
+          # is a duplicate of the first: that build is already there.
+          set +e
           xcrun altool --upload-app --type ios --file "dist/presence-$TAG-ios.ipa" \
-            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if (( status != 0 )); then
+            if grep -q 'ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE' "$RUNNER_TEMP/altool.log" &&
+               grep -Eq "previousBundleVersion : $BUILD_NUMBER\$" "$RUNNER_TEMP/altool.log"; then
+              echo "::notice::Build $BUILD_NUMBER is already in App Store Connect (another tag's run of the same build uploaded it): not uploading it again"
+            else
+              exit "$status"
+            fi
+          fi
+          rm -f "$RUNNER_TEMP/altool.log"
 
       # Never leave a key on the runner, even after a failure.
       - if: always() && (matrix.target == 'android' || matrix.target == 'ios')
@@ -561,6 +578,7 @@ jobs:
         env:
           GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}
           GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.GOOGLE_DEVICE_CLIENT_SECRET }}
+          IOT_ENDPOINT: ${{ vars.IOT_ENDPOINT }}
         run: make streamer
 
       - name: Package

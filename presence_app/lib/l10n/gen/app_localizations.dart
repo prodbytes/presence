@@ -115,7 +115,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutParagraph.
   ///
   /// In en, this message translates to:
-  /// **'Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.'**
+  /// **'Presence turns any device with a camera into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you\'re allowed to.'**
   String get aboutParagraph;
 
   /// No description provided for @authAccessAdmin.
@@ -292,12 +292,6 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 device} other{{count} devices}}'**
   String authDeviceCount(int count);
 
-  /// No description provided for @authDevicesHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 device\'s events are hidden: {plan} shows your first {limit} devices.} other{{count} devices\' events are hidden: {plan} shows your first {limit} devices.}}'**
-  String authDevicesHidden(int count, String plan, int limit);
-
   /// No description provided for @authFeedback.
   ///
   /// In en, this message translates to:
@@ -328,6 +322,12 @@ abstract class AppLocalizations {
   /// **'hidden'**
   String get authHidden;
 
+  /// Under the Profile tab's device list: how many devices the plan hides.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 device hidden} other{{count} devices hidden}}'**
+  String authHiddenCount(int count);
+
   /// No description provided for @authHiddenTooltip.
   ///
   /// In en, this message translates to:
@@ -339,6 +339,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hide {device}\'s events'**
   String authHideDevice(String device);
+
+  /// No description provided for @authJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Join Presence'**
+  String get authJoin;
+
+  /// No description provided for @authJoinFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Join free'**
+  String get authJoinFree;
+
+  /// No description provided for @authJoinFreeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t join right now. Try again in a moment.'**
+  String get authJoinFreeFailed;
+
+  /// No description provided for @authJoinFreeText.
+  ///
+  /// In en, this message translates to:
+  /// **'{email} isn\'t a member of Presence yet. Join free to use it on this device.'**
+  String authJoinFreeText(String email);
+
+  /// The profile's leading streamer, in the device list
+  ///
+  /// In en, this message translates to:
+  /// **'leader'**
+  String get authLeader;
+
+  /// No description provided for @authLeaderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'The profile\'s leading streamer: the only one that streams to the cloud. The others wait, and one takes its place when it\'s been offline for an hour.'**
+  String get authLeaderTooltip;
 
   /// No description provided for @authLinkAnother.
   ///
@@ -418,12 +454,6 @@ abstract class AppLocalizations {
   /// **'Linked to the profile.'**
   String get authLinkedToProfile;
 
-  /// No description provided for @authMoreHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 more device doesn\'t sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don\'t sync, and their events are hidden: {plan} syncs your first {limit}.}}'**
-  String authMoreHidden(int count, String plan, int limit);
-
   /// No description provided for @authNoEvents.
   ///
   /// In en, this message translates to:
@@ -466,23 +496,11 @@ abstract class AppLocalizations {
   /// **'Operating system unknown'**
   String get authOsUnknown;
 
-  /// No description provided for @authOthersHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'This device doesn\'t sync, and your other devices\' events are hidden on it: {plan} syncs your first {limit} devices.'**
-  String authOthersHidden(String plan, int limit);
-
   /// The profile's owner account
   ///
   /// In en, this message translates to:
   /// **'Owner'**
   String get authOwner;
-
-  /// No description provided for @authPastLimit.
-  ///
-  /// In en, this message translates to:
-  /// **'This device is past your plan\'s first {limit}: it doesn\'t sync, so only its own events show here.'**
-  String authPastLimit(int limit);
 
   /// No description provided for @authPaymentsDefaults.
   ///
@@ -604,12 +622,6 @@ abstract class AppLocalizations {
   /// **'Premium monthly'**
   String get authPremiumMonthly;
 
-  /// No description provided for @authPremiumShowsUpTo.
-  ///
-  /// In en, this message translates to:
-  /// **'{text} Premium shows up to {limit}.'**
-  String authPremiumShowsUpTo(String text, int limit);
-
   /// No description provided for @authPremiumYearly.
   ///
   /// In en, this message translates to:
@@ -621,12 +633,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pro monthly'**
   String get authProMonthly;
-
-  /// No description provided for @authProShowsUpTo.
-  ///
-  /// In en, this message translates to:
-  /// **'{text} Pro shows up to {limit}.'**
-  String authProShowsUpTo(String text, int limit);
 
   /// No description provided for @authProYearly.
   ///
@@ -769,13 +775,13 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerBody.
   ///
   /// In en, this message translates to:
-  /// **'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.'**
+  /// **'Paste this in a terminal on a Linux device with a camera (Raspberry Pi OS or Debian, ARM, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on it.'**
   String get authStreamerBody;
 
   /// No description provided for @authStreamerCopied.
   ///
   /// In en, this message translates to:
-  /// **'Command copied: paste it on the Raspberry Pi'**
+  /// **'Command copied: paste it on the streamer'**
   String get authStreamerCopied;
 
   /// No description provided for @authStreamerCopy.
@@ -787,13 +793,13 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerCreate.
   ///
   /// In en, this message translates to:
-  /// **'Create command'**
+  /// **'Get command'**
   String get authStreamerCreate;
 
   /// No description provided for @authStreamerFailed.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t create the command ({error})'**
+  /// **'Couldn\'t get the command ({error})'**
   String authStreamerFailed(String error);
 
   /// No description provided for @authStreamerKeyOnce.
@@ -805,7 +811,7 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Stream from a Raspberry Pi'**
+  /// **'Streamer'**
   String get authStreamerTitle;
 
   /// No description provided for @authSubscribe.
@@ -843,6 +849,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'this device'**
   String get authThisDevice;
+
+  /// No description provided for @authThisDeviceHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t sync'**
+  String get authThisDeviceHidden;
 
   /// No description provided for @authUnavailable.
   ///
@@ -949,7 +961,7 @@ abstract class AppLocalizations {
   /// No description provided for @blinkAbout.
   ///
   /// In en, this message translates to:
-  /// **'A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.'**
+  /// **'A streamer of yours fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.'**
   String get blinkAbout;
 
   /// No description provided for @blinkConnect.
@@ -1009,7 +1021,7 @@ abstract class AppLocalizations {
   /// No description provided for @blinkNoStreamer.
   ///
   /// In en, this message translates to:
-  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras\' clips.'**
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the Blink cameras\' clips.'**
   String get blinkNoStreamer;
 
   /// No description provided for @blinkNotSent.
@@ -1048,6 +1060,18 @@ abstract class AppLocalizations {
   /// **'Blink sent a PIN to {account}\'s email or phone: enter it here.'**
   String blinkPinRequired(String account);
 
+  /// No description provided for @blinkRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get blinkRemove;
+
+  /// No description provided for @blinkRemoveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.'**
+  String get blinkRemoveNote;
+
   /// No description provided for @blinkSendPin.
   ///
   /// In en, this message translates to:
@@ -1065,30 +1089,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sent to {device}; it looks every 30 s…'**
   String blinkWaiting(String device);
-
-  /// No description provided for @cameraActionAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Show all devices'**
-  String get cameraActionAll;
-
-  /// No description provided for @cameraActionNormal.
-  ///
-  /// In en, this message translates to:
-  /// **'Back to normal: this camera'**
-  String get cameraActionNormal;
-
-  /// No description provided for @cameraActionStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop: no capturing or syncing'**
-  String get cameraActionStopped;
-
-  /// No description provided for @cameraActionUnattended.
-  ///
-  /// In en, this message translates to:
-  /// **'Go unattended: screen off, still capturing'**
-  String get cameraActionUnattended;
 
   /// No description provided for @cameraAgeDays.
   ///
@@ -1131,6 +1131,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clip'**
   String get cameraClip;
+
+  /// No description provided for @cameraClipArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived: this video is in cold storage'**
+  String get cameraClipArchived;
 
   /// No description provided for @cameraClipCameraOff.
   ///
@@ -1273,14 +1279,32 @@ abstract class AppLocalizations {
   /// Camera mode: every device in a grid
   ///
   /// In en, this message translates to:
-  /// **'All'**
+  /// **'All devices'**
   String get cameraModeAll;
+
+  /// No description provided for @cameraModeAllHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Every device in a grid'**
+  String get cameraModeAllHint;
+
+  /// No description provided for @cameraModeMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera mode'**
+  String get cameraModeMenu;
 
   /// Camera mode: this device's camera
   ///
   /// In en, this message translates to:
-  /// **'Normal'**
+  /// **'This camera'**
   String get cameraModeNormal;
+
+  /// No description provided for @cameraModeNormalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Full screen'**
+  String get cameraModeNormalHint;
 
   /// Camera mode: nothing captured or synced
   ///
@@ -1288,11 +1312,23 @@ abstract class AppLocalizations {
   /// **'Stopped'**
   String get cameraModeStopped;
 
+  /// No description provided for @cameraModeStoppedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera off, still syncing'**
+  String get cameraModeStoppedHint;
+
   /// Camera mode: screen off, still capturing
   ///
   /// In en, this message translates to:
   /// **'Unattended'**
   String get cameraModeUnattended;
+
+  /// No description provided for @cameraModeUnattendedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen off, still capturing'**
+  String get cameraModeUnattendedHint;
 
   /// No description provided for @cameraNight.
   ///
@@ -1924,6 +1960,12 @@ abstract class AppLocalizations {
   /// **'Archived in the cloud (not on this device)'**
   String get eventCloudArchived;
 
+  /// No description provided for @eventCloudColdStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Its recording is in cold storage: it can\'t be played from the cloud'**
+  String get eventCloudColdStorage;
+
   /// No description provided for @eventCloudDelete.
   ///
   /// In en, this message translates to:
@@ -2007,6 +2049,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cloud'**
   String get eventCopiesCloud;
+
+  /// No description provided for @eventCopiesCloudColdStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud (cold storage)'**
+  String get eventCopiesCloudColdStorage;
 
   /// No description provided for @eventCopiesLiveOff.
   ///
@@ -2452,6 +2500,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No events deleted} =1{1 event deleted on every device} other{{count} events deleted on every device}}'**
   String eventsDeletedEverywhere(int count);
 
+  /// No description provided for @eventsHideNoOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide events with no one in them'**
+  String get eventsHideNoOne;
+
   /// No description provided for @eventsHideSystem.
   ///
   /// In en, this message translates to:
@@ -2469,6 +2523,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No events match \"{query}\"'**
   String eventsNoMatch(String query);
+
+  /// No description provided for @eventsNoOneHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'No one seen yet: events with no one are hidden'**
+  String get eventsNoOneHidden;
 
   /// No description provided for @eventsNone.
   ///
@@ -2499,6 +2559,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show every device\'s events'**
   String get eventsShowEveryDevice;
+
+  /// No description provided for @eventsShowNoOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Show events with no one in them'**
+  String get eventsShowNoOne;
 
   /// No description provided for @eventsShowSystem.
   ///
@@ -2565,6 +2631,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You'**
   String get feedbackYou;
+
+  /// No description provided for @goproAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A streamer of yours fetches your GoPro cameras\' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.'**
+  String get goproAbout;
+
+  /// No description provided for @goproAddressHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera\'s Wi-Fi 10.5.5.9.'**
+  String get goproAddressHelp;
+
+  /// No description provided for @goproCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'Its GoPro cameras:'**
+  String get goproCameras;
+
+  /// No description provided for @goproError.
+  ///
+  /// In en, this message translates to:
+  /// **'GoPro: {error}'**
+  String goproError(String error);
+
+  /// No description provided for @goproNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras\' videos.'**
+  String get goproNoStreamer;
+
+  /// No description provided for @goproNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No GoPro cameras yet.'**
+  String get goproNone;
+
+  /// No description provided for @goproPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera password (home network only)'**
+  String get goproPassword;
 
   /// No description provided for @healthApiAnswered.
   ///
@@ -3244,6 +3352,138 @@ abstract class AppLocalizations {
   /// **'Signed in as {identity}'**
   String navSignedInAs(String identity);
 
+  /// No description provided for @netcamAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add camera'**
+  String get netcamAdd;
+
+  /// No description provided for @netcamAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera address'**
+  String get netcamAddress;
+
+  /// No description provided for @netcamCameraError.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t fetch: {error}'**
+  String netcamCameraError(String error);
+
+  /// No description provided for @netcamChannel.
+  ///
+  /// In en, this message translates to:
+  /// **'Channel (an NVR\'s camera)'**
+  String get netcamChannel;
+
+  /// No description provided for @netcamChannelHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'0 for a camera on its own, or an NVR\'s first camera.'**
+  String get netcamChannelHelp;
+
+  /// No description provided for @netcamChannelOf.
+  ///
+  /// In en, this message translates to:
+  /// **'channel {channel}'**
+  String netcamChannelOf(int channel);
+
+  /// No description provided for @netcamChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaching the camera…'**
+  String get netcamChecking;
+
+  /// No description provided for @netcamLastFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos last fetched at {time}.'**
+  String netcamLastFetch(String time);
+
+  /// No description provided for @netcamName.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera name'**
+  String get netcamName;
+
+  /// No description provided for @netcamNotSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send it: the streamer\'s key isn\'t here yet, or cloud sync is off. Try again in a minute.'**
+  String get netcamNotSent;
+
+  /// No description provided for @netcamPasswordNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sealed with the streamer\'s key (only your devices can open it) and deleted from the cloud once the streamer has it.'**
+  String get netcamPasswordNote;
+
+  /// No description provided for @netcamRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get netcamRemove;
+
+  /// No description provided for @netcamStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'The streamer that fetches them'**
+  String get netcamStreamer;
+
+  /// No description provided for @netcamUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get netcamUsername;
+
+  /// No description provided for @netcamWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent to {device}; it looks every 30 s…'**
+  String netcamWaiting(String device);
+
+  /// No description provided for @reolinkAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR\'s disk, with HTTPS on (its network settings).'**
+  String get reolinkAbout;
+
+  /// No description provided for @reolinkAddressHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Its IP address on your network, as the Reolink app shows it (Settings › Network information).'**
+  String get reolinkAddressHelp;
+
+  /// No description provided for @reolinkCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'Its Reolink cameras:'**
+  String get reolinkCameras;
+
+  /// No description provided for @reolinkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Reolink: {error}'**
+  String reolinkError(String error);
+
+  /// No description provided for @reolinkNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras\' recordings.'**
+  String get reolinkNoStreamer;
+
+  /// No description provided for @reolinkNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No Reolink cameras yet.'**
+  String get reolinkNone;
+
+  /// No description provided for @reolinkPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera password'**
+  String get reolinkPassword;
+
   /// No description provided for @settingsAddDeviceCopy.
   ///
   /// In en, this message translates to:
@@ -3454,6 +3694,12 @@ abstract class AppLocalizations {
   /// **'Minutes and seconds go up to 59'**
   String get settingsCoordinatesMinutes;
 
+  /// No description provided for @settingsDeleteDeviceCameraNotTold.
+  ///
+  /// In en, this message translates to:
+  /// **'Its streamer couldn\'t be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings\' camera section.'**
+  String get settingsDeleteDeviceCameraNotTold;
+
   /// No description provided for @settingsDeleteDeviceCancel.
   ///
   /// In en, this message translates to:
@@ -3519,6 +3765,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'loading…'**
   String get settingsDeviceLoading;
+
+  /// No description provided for @settingsGoProSection.
+  ///
+  /// In en, this message translates to:
+  /// **'GoPro cameras'**
+  String get settingsGoProSection;
+
+  /// Setup heading over the settings that affect all the profile's devices (its streamers' cameras)
+  ///
+  /// In en, this message translates to:
+  /// **'All devices'**
+  String get settingsGroupAllDevices;
+
+  /// Setup heading over the settings of this device only
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsGroupThisDevice;
 
   /// No description provided for @settingsHistoryNote.
   ///
@@ -3904,6 +4168,12 @@ abstract class AppLocalizations {
   /// **'Not available on this device yet'**
   String get settingsRecognitionUnavailable;
 
+  /// No description provided for @settingsReolinkSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Reolink cameras'**
+  String get settingsReolinkSection;
+
   /// No description provided for @settingsSameAsClip.
   ///
   /// In en, this message translates to:
@@ -3955,8 +4225,14 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSubjectsSection.
   ///
   /// In en, this message translates to:
-  /// **'Subjects'**
+  /// **'Events'**
   String get settingsSubjectsSection;
+
+  /// No description provided for @settingsUsbCamSection.
+  ///
+  /// In en, this message translates to:
+  /// **'USB cameras'**
+  String get settingsUsbCamSection;
 
   /// A free trial's length
   ///
@@ -4156,6 +4432,24 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 year} other{{count} years}}'**
   String storeYears(int count);
 
+  /// No description provided for @streamerLeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader ({device})'**
+  String streamerLeader(String device);
+
+  /// No description provided for @streamerLeaderUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader (none yet; {device} for now)'**
+  String streamerLeaderUnknown(String device);
+
+  /// No description provided for @streamerPickerHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.'**
+  String get streamerPickerHelp;
+
   /// No description provided for @subjectsEvents.
   ///
   /// In en, this message translates to:
@@ -4197,6 +4491,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recognized automatically'**
   String get subjectsRecognizedAuto;
+
+  /// No description provided for @usbcamAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.'**
+  String get usbcamAbout;
+
+  /// No description provided for @usbcamAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usbcamAdd;
+
+  /// No description provided for @usbcamCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'Its USB cameras:'**
+  String get usbcamCameras;
+
+  /// No description provided for @usbcamDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Plugged into it, to add:'**
+  String get usbcamDetected;
+
+  /// No description provided for @usbcamError.
+  ///
+  /// In en, this message translates to:
+  /// **'USB cameras: {error}'**
+  String usbcamError(String error);
+
+  /// No description provided for @usbcamNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a streamer first (Profile › Streamer); the cameras are plugged into it.'**
+  String get usbcamNoStreamer;
+
+  /// No description provided for @usbcamNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No USB cameras added yet.'**
+  String get usbcamNone;
+
+  /// No description provided for @usbcamNoneDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.'**
+  String get usbcamNoneDetected;
+
+  /// No description provided for @usbcamStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'The streamer they\'re plugged into'**
+  String get usbcamStreamer;
+
+  /// No description provided for @usbcamUnattended.
+  ///
+  /// In en, this message translates to:
+  /// **'Unattended: keep only the parts with movement and delete videos from the camera once fetched'**
+  String get usbcamUnattended;
+
+  /// No description provided for @usbcamUnattendedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For a camera left recording, so its card doesn\'t fill up. Off: every video is kept and nothing on the camera is deleted.'**
+  String get usbcamUnattendedHint;
+
+  /// No description provided for @usbcamUnplugged.
+  ///
+  /// In en, this message translates to:
+  /// **'Not plugged in: its new videos are fetched once it\'s back.'**
+  String get usbcamUnplugged;
 }
 
 class _AppLocalizationsDelegate

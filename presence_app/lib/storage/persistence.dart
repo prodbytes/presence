@@ -8,7 +8,9 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
-import '../cloud/cloud_sync.dart' show CloudSync, DeviceSettings;
+import '../clips/clip_thumbnail.dart';
+import '../cloud/cloud_sync.dart'
+    show CloudSync, DeviceSettings, RecordingFetch;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
@@ -99,8 +101,24 @@ class Persistence implements DeviceSettings {
   /// Downloads the recording [mediaId] of clip [clipId] into the media
   /// store when a clip is played and it isn't there (a clip fetched from
   /// the cloud whose recording hasn't come down yet), and says whether it
-  /// did. Set by the app to `CloudSync.fetchRecording`.
-  Future<bool> Function(String clipId, String mediaId)? fetchMissingMedia;
+  /// did ([RecordingFetch]). Set by the app to `CloudSync.fetchRecording`.
+  /// An archived one (cold storage) fails the load with
+  /// [RecordingArchived], which the player says.
+  Future<RecordingFetch> Function(String clipId, String mediaId)?
+  fetchMissingMedia;
+
+  /// Checks clips' thumbnails, and makes a missing or black one again from
+  /// the recording when it's here ([ThumbnailMaker.check]): this device's
+  /// clips once recorded, every clip once restored or fetched (one at a
+  /// time, [thumbnailGap] apart), another device's once its recording
+  /// came down to be played. Recordings are never downloaded for it. A new
+  /// thumbnail is stored and names its event changed, so cloud sync
+  /// uploads it. Null (the default): thumbnails are left as they are. Set
+  /// by the app where recordings can be read ([ThumbnailMaker.supported]).
+  ThumbnailMaker? thumbnails;
+
+  /// The pause between two clips' thumbnail checks.
+  static const Duration thumbnailGap = Duration(milliseconds: 250);
 
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
@@ -665,6 +683,8 @@ class Persistence implements DeviceSettings {
     final store = await _store;
     for (final raw in clips) {
       final clip = Records.tryParseClip(raw, safeIds: true);
+      // How its thumbnail looks is checked here ([thumbnails]).
+      clip?.remove('thumbnailCheck');
       if (clip != null) await store.putClip(clip);
     }
     final valid = [
@@ -972,6 +992,7 @@ class Persistence implements DeviceSettings {
       if (event is ClipRequested && event.clip.capture != null) {
         await _ClipWriter(store, await _media, event, _writing).run();
         _changed({event.id});
+        _queueThumbnail(event, local: true);
       }
     }());
   }
@@ -1196,7 +1217,116 @@ class Persistence implements DeviceSettings {
     for (final e in events.whereType<SubjectRequest>()) {
       e.clip ??= clipEvents[e.clipEventId];
     }
+    for (final e in events.whereType<ClipRequested>()) {
+      if (!e.clip.awaitingRemote) _queueThumbnail(e);
+    }
     return events;
+  }
+
+  /// Clip events whose thumbnails are to be checked ([thumbnails]), with
+  /// whether their recording is known to be here.
+  final _thumbnailQueue = <(ClipRequested, bool)>[];
+  final _thumbnailQueued = <String>{};
+  bool _checkingThumbnails = false;
+
+  /// The recordings stored here, read once per run of the queue.
+  Set<String>? _localMedia;
+
+  void _queueThumbnail(ClipRequested event, {bool local = false}) {
+    if (thumbnails == null || _disposed) return;
+    if (!_thumbnailQueued.add(event.id)) return;
+    _thumbnailQueue.add((event, local));
+    if (_checkingThumbnails) return;
+    _checkingThumbnails = true;
+    _localMedia = null;
+    _checkThumbnails().ignore();
+  }
+
+  /// Another device's clip [clipId], whose recording just came down.
+  void _queueThumbnailOfClip(String clipId) {
+    for (final e in _log?.events ?? const <AppEvent>[]) {
+      if (e is ClipRequested && e.clip.id == clipId) {
+        _queueThumbnail(e, local: true);
+        return;
+      }
+    }
+  }
+
+  Future<void> _checkThumbnails() async {
+    try {
+      while (_thumbnailQueue.isNotEmpty && !_disposed) {
+        final (event, local) = _thumbnailQueue.removeAt(0);
+        final check = _checkThumbnail(event, local: local);
+        _track(check);
+        try {
+          await check;
+        } catch (e) {
+          debugPrint('Presence: thumbnail of ${event.id} not checked: $e');
+        } finally {
+          _thumbnailQueued.remove(event.id);
+        }
+        await Future<void>.delayed(thumbnailGap);
+      }
+    } finally {
+      _checkingThumbnails = false;
+    }
+  }
+
+  /// Checks [event]'s clip's thumbnail, unless it was already (or the clip
+  /// isn't complete, or it's deleted), and stores what [thumbnails] found:
+  /// `thumbnailCheck` and, when it made one, the new thumbnail (and when,
+  /// `thumbnailRedone`). Its recording is only read when it's stored here
+  /// ([local], or among the stored recordings): never downloaded for it.
+  Future<void> _checkThumbnail(
+    ClipRequested event, {
+    required bool local,
+  }) async {
+    final maker = thumbnails;
+    if (maker == null || _disposed || !_watched.contains(event.id)) return;
+    final store = await _store;
+    final record = await store.getClip(event.clip.id);
+    if (record == null || record['state'] != _ClipWriter.complete) return;
+    final was = ThumbnailCheck.of(record['thumbnailCheck']);
+    if (was == ThumbnailCheck.ok || was == ThumbnailCheck.dark) return;
+    ClipMedia? recording;
+    if (Records.mediaRefOf(record['full'] ?? record['past']) case final ref?) {
+      final mediaId = ref['mediaId']! as String;
+      final media = await _media;
+      if (local ||
+          (_localMedia ??= (await media.ids()).toSet()).contains(mediaId)) {
+        final mimeType =
+            ref['mimeType'] as String? ?? ClipMedia.defaultMimeType;
+        recording = ClipMedia.stored(
+          // Only from here: not fetched from the cloud.
+          load: () => media.load(mediaId, mimeType),
+          start: Duration(milliseconds: ref['startMs']! as int),
+          end: Duration(milliseconds: ref['endMs']! as int),
+          mimeType: mimeType,
+        );
+      }
+    }
+    // Checked before, and still nothing to make another from.
+    if (recording == null && was == ThumbnailCheck.noRecording) return;
+    final thumbnail = _bytes(record['thumbnail']);
+    final found = await maker.check(thumbnail, recording);
+    if (found == null || _disposed || !_watched.contains(event.id)) return;
+    final now = await store.getClip(event.clip.id);
+    if (now == null) return;
+    final made = found.thumbnail;
+    await store.putClip({
+      ...now,
+      'thumbnailCheck': found.check.name,
+      'thumbnail': ?made,
+      if (made != null) 'thumbnailRedone': _now().millisecondsSinceEpoch,
+    });
+    event.clip.replaceThumbnail(
+      made ?? thumbnail,
+      placeholder: found.check.placeholder,
+    );
+    if (made != null) {
+      debugPrint('Presence: new thumbnail for clip ${event.clip.id}');
+      _changed({event.id});
+    }
   }
 
   /// Above this many clips, a restore reads all clip records at once
@@ -1211,6 +1341,8 @@ class Persistence implements DeviceSettings {
     ..profileId ??= AppEvent.profileOf(record)
     ..os ??= AppEvent.osOf(record)
     ..memoryMb ??= AppEvent.memoryOf(record)
+    ..cameraName ??= AppEvent.cameraNameOf(record)
+    ..storedAt ??= AppEvent.storedAtOf(record)
     ..deletedAt ??= AppEvent.deletedAtOf(record);
 
   AppEvent _restoreEventOnly(
@@ -1283,6 +1415,8 @@ class Persistence implements DeviceSettings {
       past: _restoreMedia(media, record['id']! as String, record['past']),
       full: _restoreMedia(media, record['id']! as String, record['full']),
       thumbnail: _bytes(record['thumbnail']),
+      thumbnailPlaceholder:
+          ThumbnailCheck.of(record['thumbnailCheck'])?.placeholder ?? false,
       supported: record['supported'] as bool? ?? true,
       error: record['state'] == _ClipWriter.failed ? 'Recording failed' : null,
     );
@@ -1299,8 +1433,18 @@ class Persistence implements DeviceSettings {
           return await media.load(mediaId, mimeType);
         } catch (_) {
           final fetch = fetchMissingMedia;
-          if (fetch == null || !await fetch(clipId, mediaId)) rethrow;
-          return media.load(mediaId, mimeType);
+          if (fetch == null) rethrow;
+          switch (await fetch(clipId, mediaId)) {
+            case RecordingFetch.stored:
+              final url = await media.load(mediaId, mimeType);
+              // Here now: its thumbnail can be made again, if need be.
+              _queueThumbnailOfClip(clipId);
+              return url;
+            case RecordingFetch.archived:
+              throw const RecordingArchived();
+            case RecordingFetch.missing:
+              rethrow;
+          }
         }
       },
       start: Duration(milliseconds: ref['startMs'] as int? ?? 0),

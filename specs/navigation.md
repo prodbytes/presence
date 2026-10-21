@@ -53,8 +53,9 @@ account.
   - **On the left, the open screen's name** (`HomeTab.title`), bold
     (22 sp, weight 700), left-aligned ("Events", "Setup",
     "Log", "Admin", "Profile"): the tab's label. **No name
-    over the camera.** In DEV the "dev" label follows it (alone over the
-    camera; see [Execution mode](execution-mode.md)).
+    over the camera:** with access, the **mode menu** is there instead
+    (below). In DEV the "dev" label follows it (see
+    [Execution mode](execution-mode.md)).
   - **On the right, on Setup and Profile:** a **?** button that opens
     [Feedback and Help](feedback.md) as its own page (members, not DEV).
   - **On the right, only without access:** signed out, **Sign in**;
@@ -129,27 +130,29 @@ account.
     a clip, and every press asks every other device of the profile for one
     too (unless a request went out in the last 5 s; see
     [Camera screen](camera.md#capture-all)); otherwise only this camera.
-  - **The mode button** sits left of Flip, shown with access whether or
-    not a camera is open. A round floating action button with only an
-    icon, no text label: its icon and colors say the mode, its tooltip
-    what a tap does, and a tap moves on, Normal → All → Unattended →
-    Stopped → Normal (see [Camera screen](camera.md)). There's no Screen
-    off button any more: it's the Unattended mode.
-    - **Normal** (a square; quiet): this camera, full screen. Tooltip
-      "Show all devices". It's the mode at launch, unless the device was
-      left Stopped.
-    - **All** (a grid; the secondary colors): this device's camera in the
-      top-left cell and every other device of the profile with its latest
-      image (see [Camera screen](camera.md#all-devices)) and a [presence
-      dot](device-presence.md) on each. Opening it asks every device for
-      a fresh grab (at most once a minute; see [Camera
-      screen](camera.md#capture-all)). Tooltip "Go unattended: screen
-      off, still capturing".
-    - **Unattended** (a moon; the tertiary colors): the screen dark,
-      capturing and syncing on; seen woken, after a tap on the dark
-      screen. Tooltip "Stop: no capturing or syncing".
-    - **Stopped** (a stop sign; the error colors): no capturing and no
-      syncing. Tooltip "Back to normal: this camera".
+  - **The mode menu** (`CameraModeMenu`,
+    `lib/home/camera_mode_menu.dart`) sits in the app bar, top left,
+    where other tabs show their name, shown with access whether or not a
+    camera is open. It shows the mode's icon and name, in white over the
+    scrim, with a drop-down arrow ("This camera ▾" at launch; tooltip
+    "Camera mode"). A tap drops a menu of the four modes, each with its
+    icon, name and what it does, the current one checked; picking one
+    switches straight to it (see [Camera screen](camera.md)). It used to
+    be a round button by Flip that cycled through the modes. There's no
+    Screen off button: it's the Unattended mode.
+    - **This camera** (Normal; a square; "Full screen"): this camera, full
+      screen. It's the mode at launch, unless the device was left Stopped.
+    - **All devices** (a grid; "Every device in a grid"): this device's
+      camera in the top-left cell and every other device of the profile
+      with its latest image (see [Camera screen](camera.md#all-devices))
+      and a [presence dot](device-presence.md) on each. Opening it asks
+      every device for a fresh grab (at most once a minute; see [Camera
+      screen](camera.md#capture-all)).
+    - **Unattended** (a moon; "Screen off, still capturing"): the screen
+      dark, capturing and syncing on; the menu is reached once woken,
+      after a tap on the dark screen.
+    - **Stopped** (a stop sign; "Camera off, still syncing"): no
+      capturing; events still sync.
   - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
     quieter secondary button. It's shown only when the device has more than
     one camera. It switches back ↔ front where the camera's facing is known
@@ -160,7 +163,7 @@ account.
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
   - **Status pills, top left**, just under the app bar, so they never
-    sit over the mode button, Flip or Clip at the bottom
+    sit over Flip or Clip at the bottom, and under the mode menu
     (`CameraStatus` in `lib/home/camera_status.dart`): a **health
     warning** while a health check fails, the **battery**, its
     **temperature** (Android) and, after them for 4 s, the latest

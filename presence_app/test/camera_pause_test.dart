@@ -212,7 +212,8 @@ void main() {
       expect(CameraConfig.fromJson({'brightnessEv': 0.5}).paused, isFalse);
     });
 
-    testWidgets('the view button cycles One, All, None', (tester) async {
+    testWidgets('the app bar\'s mode menu picks This camera, All, '
+        'Unattended or Stopped', (tester) async {
       final camera = FakeCameraSource('Main');
       final backend = openFakes([camera]);
       await pumpGate(
@@ -228,49 +229,57 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('google-sign-in')));
       await tester.pumpAndSettle();
-      final button = find.byKey(const Key('camera-mode'));
-      // Icon only: no text, the tooltip says what a tap does.
-      IconData? label() => tester
+      final menu = find.byKey(const Key('camera-mode'));
+      IconData? icon() => tester
           .widget<Icon>(
-            find.descendant(of: button, matching: find.byType(Icon)),
+            find.descendant(of: menu, matching: find.byType(Icon)).first,
           )
           .icon;
+      String? label() =>
+          tester.widget<Text>(find.byKey(const Key('camera-mode-label'))).data;
+      // In the app bar, top left; This camera at launch.
       expect(
-        find.descendant(of: button, matching: find.byType(Text)),
-        findsNothing,
-      );
-      for (final text in ['Normal', 'All', 'Unattended', 'Stopped']) {
-        expect(find.text(text), findsNothing);
-      }
-      expect(find.byTooltip('Show all devices'), findsOneWidget);
-
-      expect(label(), Icons.crop_square);
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(label(), Icons.grid_view);
-      expect(
-        find.byTooltip('Go unattended: screen off, still capturing'),
+        find.descendant(of: find.byType(AppBar), matching: menu),
         findsOneWidget,
       );
+      expect(label(), 'This camera');
+      expect(icon(), Icons.crop_square);
+      expect(find.byTooltip('Camera mode'), findsOneWidget);
+
+      // The menu lists every mode, with what it does.
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      for (final text in [
+        'All devices',
+        'Every device in a grid',
+        'Unattended',
+        'Screen off, still capturing',
+        'Stopped',
+        'Camera off, still syncing',
+      ]) {
+        expect(find.text(text), findsOneWidget);
+      }
+      await tester.tap(find.byKey(const Key('camera-mode-all')));
+      await tester.pumpAndSettle();
+      expect(label(), 'All devices');
+      expect(icon(), Icons.grid_view);
       expect(find.text('live'), findsOneWidget);
 
       // Unattended: the screen dark, the camera still on.
-      await tester.tap(button);
-      await tester.pumpAndSettle();
+      await pickMode(tester, CameraMode.unattended);
       expect(find.byKey(const Key('screen-off-cover')), findsOneWidget);
       expect(camera.disposed, isFalse);
       // A tap wakes it, still Unattended.
       await tester.tap(find.byKey(const Key('screen-off-cover')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('screen-off-cover')), findsNothing);
-      expect(label(), Icons.brightness_2_outlined);
-      expect(find.byTooltip('Stop: no capturing or syncing'), findsOneWidget);
+      expect(icon(), Icons.brightness_2_outlined);
+      expect(label(), 'Unattended');
 
       // Stopped: the camera off, the single view, Clip disabled.
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(label(), Icons.stop_circle_outlined);
-      expect(find.byTooltip('Back to normal: this camera'), findsOneWidget);
+      await pickMode(tester, CameraMode.stopped);
+      expect(icon(), Icons.stop_circle_outlined);
+      expect(label(), 'Stopped');
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
       expect(find.text('live'), findsNothing);
@@ -279,14 +288,32 @@ void main() {
       expect(find.byTooltip('Camera off'), findsOneWidget);
       expect(find.text('Off'), findsNothing);
 
-      // Back to Normal: the camera reopens.
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(label(), Icons.crop_square);
+      // Straight to All: the camera reopens, in the grid.
+      await pickMode(tester, CameraMode.all);
+      expect(label(), 'All devices');
       expect(find.byKey(const Key('camera-paused')), findsNothing);
+      expect(find.text('live'), findsOneWidget);
+      expect(backend.opened, hasLength(2));
+
+      // Back to This camera.
+      await pickMode(tester, CameraMode.normal);
+      expect(icon(), Icons.crop_square);
+      expect(find.text('live'), findsNothing);
       expect(tester.widget<FloatingActionButton>(clip).onPressed, isNotNull);
       expect(find.byTooltip('Ready'), findsOneWidget);
       expect(backend.opened, hasLength(2));
     });
   });
+}
+
+/// Picks [mode] from the Camera tab's mode menu, in the app bar, waiting
+/// out the menu's animations only (not settling: some screens never do).
+Future<void> pickMode(WidgetTester tester, CameraMode mode) async {
+  const menu = Duration(milliseconds: 400);
+  await tester.tap(find.byKey(const Key('camera-mode')));
+  await tester.pump();
+  await tester.pump(menu);
+  await tester.tap(find.byKey(Key('camera-mode-${mode.name}')));
+  await tester.pump();
+  await tester.pump(menu);
 }

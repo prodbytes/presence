@@ -5,14 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/prodbytes/presence/presence_streamer/internal/blink"
 	"github.com/prodbytes/presence/presence_streamer/internal/ids"
 	"github.com/prodbytes/presence/presence_streamer/internal/rclone"
-	"github.com/prodbytes/presence/presence_streamer/internal/records"
 	"github.com/prodbytes/presence/presence_streamer/internal/session"
 	"github.com/prodbytes/presence/presence_streamer/internal/stream"
 )
@@ -24,16 +22,26 @@ const blinkpyVersion = "0.25.9"
 // startBlink starts the Blink loop (unless --blink off): it looks for the
 // app's request in this streamer's folder, and once logged in fetches each
 // Blink camera's clips into a pipeline of its own, as a device of its own
-// (specs/streamer.md, "Blink cameras").
+// (specs/streamer.md, "Blink cameras"). It returns its cameras' device IDs,
+// which join the profile's devices at each renewal, and run, which starts
+// the loop (both nil when off).
 func startBlink(ctx context.Context, o *options, deviceID string, key []byte, sess *session.Session,
 	folder *rclone.Folder, base *stream.Streamer, wg *sync.WaitGroup, cancel context.CancelCauseFunc,
-	logf func(string, ...any)) {
+	logf func(string, ...any)) (cameras func() []string, run func()) {
 	if o.blink == "off" {
-		return
+		return nil, nil
 	}
 	venv := filepath.Join(o.stateDir, "blink-venv")
-	pipelines := &blinkPipelines{base: base, spool: filepath.Join(o.stateDir, "spool", "blink"),
-		ctx: ctx, wg: wg, cancel: cancel, logf: logf, running: map[string]*stream.Streamer{}}
+	pipelines := newCameraPipelines(ctx, base, filepath.Join(o.stateDir, "spool", "blink"), "blink", "Blink", wg, cancel, logf)
+	set := func(cameras []blink.Camera) {
+		refs := make([]cameraRef, len(cameras))
+		for i, c := range cameras {
+			refs[i] = cameraRef{DeviceID: c.DeviceID, Name: c.Name}
+		}
+		// Only these: a camera removed stops, and leaves the devices
+		// registered.
+		pipelines.set(refs, true)
+	}
 	b := &blink.Blink{
 		Dir: o.stateDir, DeviceID: deviceID, Key: key, Store: folder,
 		Helper: func(ctx context.Context, args ...string) *exec.Cmd {
@@ -45,23 +53,26 @@ func startBlink(ctx context.Context, o *options, deviceID string, key []byte, se
 		},
 		NewDevice: ids.NewDevice,
 		Cameras: func(ctx context.Context, cameras []blink.Camera) error {
-			pipelines.set(cameras)
+			set(cameras)
 			return sess.Register(ctx)
 		},
-		Clip:  pipelines.clip,
+		Clip: func(ctx context.Context, c blink.Camera, file string) error {
+			return pipelines.clip(ctx, cameraRef{DeviceID: c.DeviceID, Name: c.Name}, file)
+		},
 		Poll:  30 * time.Second,
 		Every: o.blinkEvery, Backfill: 24 * time.Hour, PINWait: 10 * time.Minute,
 		Logf: logf,
 	}
 	// The cameras known from before: pipelines now, and devices of the
 	// profile at the next renewal.
-	pipelines.set(b.Known())
-	sess.Cameras = pipelines.deviceIDs
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		b.Run(ctx)
-	}()
+	set(b.Known())
+	return pipelines.deviceIDs, func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			b.Run(ctx)
+		}()
+	}
 }
 
 // ensureBlinkpy installs blinkpy in its virtualenv the first time.
@@ -121,103 +132,4 @@ func splitLines(s string) []string {
 		}
 	}
 	return append(out, s[start:])
-}
-
-// blinkPipelines runs one chunk pipeline per Blink camera, each its own
-// device: the Pi's own settings, but the camera's device ID, name and
-// spool, and every clip kept (Blink records on motion already).
-type blinkPipelines struct {
-	base   *stream.Streamer
-	spool  string
-	ctx    context.Context
-	wg     *sync.WaitGroup
-	cancel context.CancelCauseFunc
-	logf   func(string, ...any)
-
-	mu      sync.Mutex
-	running map[string]*stream.Streamer
-	cameras map[string]blink.Camera
-}
-
-func (p *blinkPipelines) deviceIDs() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	out := make([]string, 0, len(p.running))
-	for id := range p.running {
-		out = append(out, id)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// set starts a pipeline for each camera that has none.
-func (p *blinkPipelines) set(cameras []blink.Camera) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cameras == nil {
-		p.cameras = map[string]blink.Camera{}
-	}
-	for _, c := range cameras {
-		p.cameras[c.DeviceID] = c
-		if p.running[c.DeviceID] != nil {
-			continue
-		}
-		dir := filepath.Join(p.spool, c.DeviceID)
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			p.logf("blink: %v", err)
-			continue
-		}
-		b := p.base
-		cam := &stream.Streamer{
-			Spool: dir, Store: b.Store, Searcher: b.Searcher, Cloud: b.Cloud,
-			Keyframes: b.Keyframes, Duration: b.Duration, Motion: b.Motion,
-			Key: b.Key, DeviceID: c.DeviceID, ProfileID: b.ProfileID, UserID: b.UserID,
-			Camera:      records.Camera{ID: "blink", Label: c.Name, OS: "Blink"},
-			Location:    b.Location,
-			ObjectScore: b.ObjectScore, MaxSpool: b.MaxSpool, Logf: b.Logf,
-		}
-		p.running[c.DeviceID] = cam
-		p.start(cam, dir)
-	}
-}
-
-func (p *blinkPipelines) start(st *stream.Streamer, dir string) {
-	p.wg.Add(2)
-	// Its settings (the media key) first, as for the Pi's own device.
-	go func() {
-		defer p.wg.Done()
-		for pause := 5 * time.Second; ; pause = min(2*pause, 2*time.Minute) {
-			err := st.Settings(p.ctx, time.Now())
-			if err == nil {
-				return
-			}
-			if session.Fatal(err) {
-				p.cancel(err)
-				return
-			}
-			p.logf("blink: %s's settings: %v; trying again in %s", st.DeviceID, err, pause)
-			select {
-			case <-p.ctx.Done():
-				return
-			case <-time.After(pause):
-			}
-		}
-	}()
-	go func() {
-		defer p.wg.Done()
-		finished := func() []string {
-			names, _ := filepath.Glob(filepath.Join(dir, "rec-*.mp4"))
-			sort.Strings(names)
-			return names
-		}
-		if err := st.Run(p.ctx, finished, session.Fatal); err != nil {
-			p.cancel(err)
-		}
-	}()
-}
-
-// clip moves a fetched clip into its camera's spool.
-func (p *blinkPipelines) clip(_ context.Context, c blink.Camera, file string) error {
-	p.set([]blink.Camera{c})
-	return os.Rename(file, filepath.Join(p.spool, c.DeviceID, filepath.Base(file)))
 }

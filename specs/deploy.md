@@ -15,7 +15,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/privacy`, `/tos`, `/delete-account` | S3 `privacy/index.html`, `tos/index.html` and `delete-account/index.html` (a CloudFront Function, `<stack>-pages`, maps them): the [legal pages](legal.md) |
-| `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/app/*`, `/app` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/payments/*` | The [payments API](payments-api.md)'s own HTTP API (`presence_api_payments`, stack `presence-payments`; origin `payments`), matched before `/api/*`. Not cached, every viewer header but `Host` forwarded |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
 | `/health` | The [health check](health-check.md)'s own HTTP API (`presence_health`, stack `presence-health`; origin `health`), public, not cached |
@@ -62,7 +62,13 @@ One CloudFront distribution serves the whole site, laid out like the local
     `presence-github-deploy`, which serves both: `tenancy=shared`), which
     CloudFormation copies to each taggable resource, so Cost Explorer
     splits costs by project and tenancy. They're in addition to
-    `presence:stage`.
+    `presence:stage`. Both keys are **active cost-allocation tags** (Billing,
+    activated 2026-10-15 with `aws ce update-cost-allocation-tags-status`,
+    and backfilled from 2025-11-01 with `aws ce
+    start-cost-allocation-tag-backfill`): Cost Explorer only splits by a tag
+    once it's active. Other projects in the account use the same keys, each
+    with its own `project`. Usage no resource carries (IoT messages, data
+    transfer, DNS queries) stays untagged. See [Cost report](cost-report.md).
   - **Log retention: 30 days.** Each Lambda function of the auth API
     (auth, session, profile, the three recognition ones), payments,
     health and ingest stacks logs to a log group its stack declares
@@ -104,7 +110,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   [Sessions](sessions.md#the-authorizers); and Sign in with Apple's
   `APPLE_CLIENT_IDS` and, when set, its key: `APPLE_TEAM_ID`,
   `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`, also repository
-  variables in CI) and the
+  variables in CI, where the RC's parameter is `APPLE_SIGNIN_KEY_PARAMETER_RC`,
+  since each stage's must be under its own `/<prefix>/`) and the
   [health check](health-check.md) (`presence_health`, stack
   `<prefix>-health`, with `AuthStackName`, the release as `Version`, the
   same OIDC client, pool and bucket, rbacr's URL but not its token, and
@@ -407,7 +414,7 @@ managed security-headers one. Both keep its headers (HSTS one year,
 strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
 `X-Frame-Options: DENY` instead of `SAMEORIGIN`:
 
-- **`<stack>-app`** (`/app*`): a Content Security Policy for what the web
+- **`<stack>-app`** (`/app/*`, `/app`): a Content Security Policy for what the web
   app loads, and `Permissions-Policy: camera=(self), microphone=(self),
   geolocation=(self)`:
   - `default-src 'self'`; `object-src 'none'`; `base-uri 'self'`;

@@ -118,7 +118,7 @@
   "settingsAdvancedSection": "Advanced",
   "settingsShowLog": "Show the Log tab",
   "settingsShowLogSubtitle": "The app's latest messages and health",
-  "settingsSubjectsSection": "Subjects",
+  "settingsSubjectsSection": "Events",
   "settingsSubjectEvents": "How many events to load at once",
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",
@@ -248,6 +248,7 @@
   "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
   "settingsDeleteDeviceCancel": "Cancel",
   "settingsDeleteDeviceKeep": "Keep videos",
+  "settingsDeleteDeviceCameraNotTold": "Its streamer couldn't be told to stop fetching this camera, so it may come back. Delete it again once the streamer is online, or remove it in Settings' camera section.",
   "settingsDeleteDeviceConfirm": "Delete videos",
   "settingsDeleteDeviceRemoved": "Removed {deviceId} from the list; its videos stay",
   "@settingsDeleteDeviceRemoved": {
@@ -279,8 +280,8 @@
   "settingsNightMode": "Night mode",
   "settingsNightModeSubtitle": "When it's dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)",
   "settingsBlinkSection": "Blink cameras",
-  "blinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
-  "blinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras' clips.",
+  "blinkAbout": "A streamer of yours fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
+  "blinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Blink cameras' clips.",
   "blinkStreamer": "The streamer that fetches them",
   "blinkEmail": "Blink account email",
   "blinkPassword": "Blink password",
@@ -289,6 +290,8 @@
   "blinkPin": "PIN",
   "blinkSendPin": "Send PIN",
   "blinkDisconnect": "Disconnect",
+  "blinkRemove": "Remove",
+  "blinkRemoveNote": "Remove stops fetching a camera, and it leaves your devices; its events stay. Disconnect and connect again to bring removed cameras back.",
   "blinkOff": "Not connected to Blink.",
   "blinkWaiting": "Sent to {device}; it looks every 30 s…",
   "@blinkWaiting": {
@@ -333,5 +336,119 @@
       }
     }
   },
-  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute."
+  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "settingsGoProSection": "GoPro cameras",
+  "goproAbout": "A streamer of yours fetches your GoPro cameras' new videos over its network: each camera becomes a device, and its videos with a person or an animal become events. A GoPro HERO9 or newer, on the home network (HERO12 or newer), plugged in by USB, or on its own Wi-Fi. A HERO5 to HERO8: plug it into the streamer and add it under USB cameras.",
+  "goproNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the GoPro cameras' videos.",
+  "netcamStreamer": "The streamer that fetches them",
+  "streamerLeader": "Leader ({device})",
+  "@streamerLeader": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerLeaderUnknown": "Leader (none yet; {device} for now)",
+  "@streamerLeaderUnknown": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "streamerPickerHelp": "Leader follows whichever streamer leads. Only the leading streamer fetches, so one picked here fetches while it leads.",
+  "netcamName": "Camera name",
+  "netcamAddress": "Camera address",
+  "goproAddressHelp": "Its IP address: on the home network as the GoPro Quik app shows it; by USB 172.2x.1yz.51; on the camera's Wi-Fi 10.5.5.9.",
+  "goproPassword": "Camera password (home network only)",
+  "netcamPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted from the cloud once the streamer has it.",
+  "netcamAdd": "Add camera",
+  "netcamRemove": "Remove",
+  "goproNone": "No GoPro cameras yet.",
+  "goproCameras": "Its GoPro cameras:",
+  "netcamWaiting": "Sent to {device}; it looks every 30 s…",
+  "@netcamWaiting": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamChecking": "Reaching the camera…",
+  "goproError": "GoPro: {error}",
+  "@goproError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamCameraError": "Can't fetch: {error}",
+  "@netcamCameraError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamLastFetch": "Videos last fetched at {time}.",
+  "@netcamLastFetch": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "netcamUsername": "User",
+  "netcamChannel": "Channel (an NVR's camera)",
+  "netcamChannelHelp": "0 for a camera on its own, or an NVR's first camera.",
+  "settingsReolinkSection": "Reolink cameras",
+  "reolinkAbout": "A streamer of yours fetches the recordings your Reolink cameras (or NVR) make on motion, over its network: each camera becomes a device, and its recordings with a person or an animal become events. The camera records to its SD card or the NVR's disk, with HTTPS on (its network settings).",
+  "reolinkNoStreamer": "Set up a streamer first (Profile › Streamer); it fetches the Reolink cameras' recordings.",
+  "reolinkAddressHelp": "Its IP address on your network, as the Reolink app shows it (Settings › Network information).",
+  "reolinkPassword": "Camera password",
+  "reolinkNone": "No Reolink cameras yet.",
+  "reolinkCameras": "Its Reolink cameras:",
+  "reolinkError": "Reolink: {error}",
+  "@reolinkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "netcamChannelOf": "channel {channel}",
+  "@netcamChannelOf": {
+    "placeholders": {
+      "channel": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsUsbCamSection": "USB cameras",
+  "usbcamAbout": "A streamer of yours fetches the new videos of cameras plugged into it by USB, with no network or address: each camera becomes a device, and its videos with a person or an animal become events. Cameras that show up as a camera or a media device (PTP or MTP), such as a GoPro HERO5 to HERO8 or most digital cameras; turned on, plugged into the streamer.",
+  "usbcamNoStreamer": "Set up a streamer first (Profile › Streamer); the cameras are plugged into it.",
+  "usbcamStreamer": "The streamer they're plugged into",
+  "usbcamCameras": "Its USB cameras:",
+  "usbcamNone": "No USB cameras added yet.",
+  "usbcamDetected": "Plugged into it, to add:",
+  "usbcamNoneDetected": "No other camera plugged into it. Plug one in and turn it on: it shows here within a minute.",
+  "usbcamAdd": "Add",
+  "usbcamUnplugged": "Not plugged in: its new videos are fetched once it's back.",
+  "usbcamUnattended": "Unattended: keep only the parts with movement and delete videos from the camera once fetched",
+  "usbcamUnattendedHint": "For a camera left recording, so its card doesn't fill up. Off: every video is kept and nothing on the camera is deleted.",
+  "usbcamError": "USB cameras: {error}",
+  "@usbcamError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsGroupThisDevice": "This device",
+  "settingsGroupAllDevices": "All devices",
+  "@settingsGroupThisDevice": {"description": "Setup heading over the settings of this device only"},
+  "@settingsGroupAllDevices": {"description": "Setup heading over the settings that affect all the profile's devices (its streamers' cameras)"}
 }

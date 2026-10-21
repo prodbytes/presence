@@ -232,11 +232,16 @@ class _Fetcher {
   }
 
   /// Downloads [key], or null when it's gone (deleted since it was
-  /// listed): skipped, not a failed pass.
+  /// listed), or archived (in Glacier Deep Archive, unreadable until
+  /// restored): skipped, not a failed pass.
   static Future<Uint8List?> _getOrSkip(CloudSession session, String key) async {
     try {
       return await session.get(key);
     } on S3Exception catch (e) {
+      if (e.archived) {
+        debugPrint('Presence: $key is archived in the cloud; skipped');
+        return null;
+      }
       if (e.statusCode != 404) rethrow;
       debugPrint('Presence: $key is gone from the cloud; skipped');
       return null;
@@ -247,7 +252,9 @@ class _Fetcher {
   /// null when it isn't there (yet). Got rather than listed first, as a
   /// LIST costs 12 times a GET: the role may list the folder, so a missing
   /// key answers 404. Should S3 answer AccessDenied instead, the key is
-  /// listed, to tell a missing one from credentials refused.
+  /// listed, to tell a missing one from credentials refused. An archived
+  /// one (403 `InvalidObjectState`, [S3Exception.archived]) is skipped
+  /// too: it can't be read, and its credentials are fine.
   static Future<Uint8List?> _getIfThere(
     CloudSession session,
     String key,
@@ -256,7 +263,11 @@ class _Fetcher {
       return await session.get(key);
     } on S3Exception catch (e) {
       if (e.statusCode == 404) return null;
-      if (e.statusCode != 403 || !e.body.contains('AccessDenied')) rethrow;
+      if (e.archived) {
+        debugPrint('Presence: $key is archived in the cloud; skipped');
+        return null;
+      }
+      if (e.statusCode != 403 || e.code != 'AccessDenied') rethrow;
       if ((await session.list(key)).contains(key)) rethrow;
       return null;
     }

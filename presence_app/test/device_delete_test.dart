@@ -276,6 +276,73 @@ void main() {
     });
   }
 
+  testWidgets("in the app: deleting a Blink camera's device without cloud "
+      "sync: it's deleted, and said it may come back (its streamer can't be "
+      'told)', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final storage = newIdbFactoryMemory();
+    final noon = DateTime(2026, 10, 6, 12);
+    final seed = await tester.runAsync(() => EventStore.open(storage));
+    await tester.runAsync(
+      () => seed!.putEvent({
+        'id': 'porch-0',
+        'type': AppEvent.genericType,
+        'title': 'Porch motion',
+        'time': noon
+            .subtract(const Duration(minutes: 1))
+            .millisecondsSinceEpoch,
+        'deviceId': 'brave_porch_cam',
+        'os': 'Blink',
+        'userId': '1',
+        'profileId': 'automatic_paranoid_axolotl',
+      }),
+    );
+    seed!.close();
+    await tester.pumpWidget(
+      PresenceApp(
+        consentGiven: true,
+        cameras: openFakes(const []),
+        storage: storage,
+        mediaIo: fakeMediaIo,
+        now: () => noon,
+        auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('account-button')));
+    await tester.pumpAndSettle();
+    final delete = find.byKey(
+      const Key('profile-device-delete-brave_porch_cam'),
+    );
+    await tester.ensureVisible(delete);
+    await tester.pumpAndSettle();
+    await tester.tap(delete);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('delete-device-keep')));
+    await tester.pump();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('profile-device-brave_porch_cam')),
+      findsNothing,
+    );
+    expect(
+      find.text('Removed brave_porch_cam from the list; its videos stay'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('delete-device-camera-not-told')),
+      findsOneWidget,
+    );
+  });
+
   test('a device deleted keeping its videos is listed again once it has a '
       'newer event', () {
     final log = EventLog(const Stream.empty());

@@ -16,20 +16,42 @@ class S3Exception implements Exception {
   /// answer said (the clock is corrected by it, [AwsClock.correct]).
   final Duration? clockOffset;
 
+  /// The error code S3 answered with (`<Code>…</Code>` in its XML body:
+  /// `AccessDenied`, `InvalidObjectState`, …), or null when the body says
+  /// none (a HEAD's answer has no body).
+  String? get code => _code.firstMatch(body)?[1]?.trim();
+  static final _code = RegExp(r'<Code>([^<]{1,64})</Code>');
+
+  /// The object is archived (a recording moved to S3 Glacier Deep Archive
+  /// by the bucket's lifecycle, 67 days after upload): S3 answers a GET
+  /// 403 `InvalidObjectState`. Not a refusal of the credentials: the
+  /// object can't be read until restored (not supported yet).
+  bool get archived => statusCode == 403 && code == 'InvalidObjectState';
+
   /// AWS refused the credentials (expired or revoked): get new ones.
   /// Also AccessDenied: credentials issued before the profile became
   /// premium (or before the bucket required the tier tag) lack the tag the
-  /// bucket asks for; new ones have it. A pass renews them once.
-  bool get credentialsRejected =>
-      statusCode == 403 &&
-      (body.contains('ExpiredToken') ||
-          body.contains('InvalidToken') ||
-          body.contains('AccessDenied'));
+  /// bucket asks for; new ones have it. A pass renews them once. Judged by
+  /// the error's code when it has one (never [archived]); by the body's
+  /// words when it has none.
+  bool get credentialsRejected {
+    if (statusCode != 403) return false;
+    return switch (code) {
+      'ExpiredToken' || 'InvalidToken' || 'AccessDenied' => true,
+      null =>
+        body.contains('ExpiredToken') ||
+            body.contains('InvalidToken') ||
+            body.contains('AccessDenied'),
+      _ => false,
+    };
+  }
 
   /// AWS refused the request as signed too far from its time (more than
   /// 15 min): the device's clock is off.
   bool get clockSkewed =>
-      statusCode == 403 && body.contains('RequestTimeTooSkewed');
+      statusCode == 403 &&
+      (code == 'RequestTimeTooSkewed' ||
+          (code == null && body.contains('RequestTimeTooSkewed')));
 
   @override
   String toString() => 'S3 HTTP $statusCode: $body';

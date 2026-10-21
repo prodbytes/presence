@@ -211,6 +211,21 @@ class ProfileTest {
         return event;
     }
 
+    /** The streamer's lease: its stream key as the bearer, like {@link #streamerCall}. */
+    private static APIGatewayV2HTTPEvent leaseCall(String key, String body) {
+        var event = streamerCall(key, body);
+        event.setRouteKey(ProfileHandler.STREAM_LEASE);
+        return event;
+    }
+
+    /** {@code call} as a streamer with {@code memory}: {@code X-Presence-Memory}, as API Gateway passes it. */
+    private static APIGatewayV2HTTPEvent withMemory(APIGatewayV2HTTPEvent call, String memory) {
+        var headers = new HashMap<String, String>(call.getHeaders() == null ? Map.of() : call.getHeaders());
+        headers.put("x-presence-memory", memory);
+        call.setHeaders(headers);
+        return call;
+    }
+
     /**
      * A member makes a stream key for {@code device} of their profile while
      * premium (streamers are Premium's); the key. Their roles are as before
@@ -249,6 +264,7 @@ class ProfileTest {
         assertEquals(200, response.getStatusCode(), response.getBody());
         assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
                 + "\"deviceLimit\":25,\"devices\":[\"calm_quiet_otter\"],\"tier\":\"premium\","
+                + "\"streamLeader\":{\"device\":\"calm_quiet_otter\",\"seenAt\":" + NOW.toEpochMilli() + "},"
                 + "\"userId\":\"work\"}", response.getBody());
         assertEquals("premium", tiers.getLast());
         assertEquals(false, admins.getLast());
@@ -348,6 +364,175 @@ class ProfileTest {
         profiles.handleRequest(call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com",
                 "calm_quiet_otter"), null);
         assertEquals(401, profiles.handleRequest(streamerCall(newer, "profile_1 calm_quiet_otter"), null).getStatusCode());
+    }
+
+    @Test
+    void onlyOneStreamerLeadsAndOnlyTheLeaderGetsCredentials() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var first = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var second = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+
+        // The first to ask leads.
+        assertEquals(200, profiles.handleRequest(streamerCall(first, "profile_1 calm_quiet_otter"), null)
+                .getStatusCode());
+        var issued = tokensIssued.size();
+        var standby = profiles.handleRequest(streamerCall(second, "profile_1 brave_little_lamp"), null);
+        assertEquals(409, standby.getStatusCode(), standby.getBody());
+        assertEquals("{\"error\":\"another streamer leads this profile\",\"reason\":\"notLeader\","
+                + "\"streamLeader\":{\"device\":\"calm_quiet_otter\",\"seenAt\":" + NOW.toEpochMilli() + "}}",
+                standby.getBody());
+        assertEquals(issued, tokensIssued.size());
+        // It's a device of the profile all the same, waiting.
+        assertTrue(store.devices("profile_1").contains("brave_little_lamp"));
+
+        // The lease says the same, to each.
+        var lease = profiles.handleRequest(leaseCall(second, "profile_1 brave_little_lamp"), null);
+        assertEquals(200, lease.getStatusCode(), lease.getBody());
+        assertEquals("{\"leader\":false,\"streamLeader\":{\"device\":\"calm_quiet_otter\",\"seenAt\":"
+                + NOW.toEpochMilli() + "},\"silenceMs\":3600000}", lease.getBody());
+        var leading = profiles.handleRequest(leaseCall(first, "profile_1 calm_quiet_otter"), null);
+        assertTrue(leading.getBody().startsWith("{\"leader\":true,"), leading.getBody());
+
+        // The phones' credentials name the leader, for the device list.
+        var phone = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                "swift_gentle_fox"), null);
+        assertTrue(phone.getBody().contains("\"streamLeader\":{\"device\":\"calm_quiet_otter\","),
+                phone.getBody());
+        // Phones never lead.
+        assertEquals("calm_quiet_otter", store.leader("profile_1").device());
+        // A lease takes the stream key, as the credentials do.
+        assertEquals(401, profiles.handleRequest(leaseCall(first, "profile_1 brave_little_lamp"), null)
+                .getStatusCode());
+    }
+
+    @Test
+    void aLeaderSilentForAnHourIsReplaced() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var first = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var second = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        profiles.handleRequest(streamerCall(first, "profile_1 calm_quiet_otter"), null);
+        profiles.handleRequest(streamerCall(second, "profile_1 brave_little_lamp"), null);
+
+        // Silent for an hour, it still leads.
+        clock = Clock.fixed(NOW.plus(ProfileHandler.LEADER_SILENCE), ZoneOffset.UTC);
+        var later = handler(true);
+        assertTrue(later.handleRequest(leaseCall(second, "profile_1 brave_little_lamp"), null).getBody()
+                .startsWith("{\"leader\":false,"));
+        // Longer: the waiting streamer takes its place.
+        clock = Clock.fixed(NOW.plus(ProfileHandler.LEADER_SILENCE).plusSeconds(1), ZoneOffset.UTC);
+        later = handler(true);
+        var takeover = later.handleRequest(leaseCall(second, "profile_1 brave_little_lamp"), null);
+        assertTrue(takeover.getBody().startsWith("{\"leader\":true,"), takeover.getBody());
+        assertEquals(200, later.handleRequest(streamerCall(second, "profile_1 brave_little_lamp"), null)
+                .getStatusCode());
+        // The old leader, back, waits.
+        assertEquals(409, later.handleRequest(streamerCall(first, "profile_1 calm_quiet_otter"), null)
+                .getStatusCode());
+        assertTrue(later.handleRequest(leaseCall(first, "profile_1 calm_quiet_otter"), null).getBody()
+                .startsWith("{\"leader\":false,"));
+    }
+
+    @Test
+    void theStreamerWithMoreMemoryLeads() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var small = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var big = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        var alike = streamKeyFor("work", "julio@nu01.com", "swift_gentle_fox");
+        var old = streamKeyFor("work", "julio@nu01.com", "quiet_little_owl");
+        // An older streamer, saying no memory, leads first.
+        assertEquals(200, profiles.handleRequest(streamerCall(old, "profile_1 quiet_little_owl"), null)
+                .getStatusCode());
+        // Any streamer that says its memory takes its place.
+        assertEquals(200, profiles.handleRequest(withMemory(streamerCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null).getStatusCode());
+        assertTrue(profiles.handleRequest(leaseCall(old, "profile_1 quiet_little_owl"), null).getBody()
+                .startsWith("{\"leader\":false,"));
+        assertEquals(512_000_000L, store.leader("profile_1").memory());
+
+        // More memory takes the lead; the smaller one, back, waits.
+        var takeover = profiles.handleRequest(withMemory(streamerCall(big, "profile_1 brave_little_lamp"),
+                "4000000000"), null);
+        assertEquals(200, takeover.getStatusCode(), takeover.getBody());
+        var replaced = profiles.handleRequest(withMemory(leaseCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null);
+        assertTrue(replaced.getBody().startsWith("{\"leader\":false,\"streamLeader\":{\"device\":"
+                + "\"brave_little_lamp\","), replaced.getBody());
+        assertEquals(409, profiles.handleRequest(withMemory(streamerCall(small, "profile_1 calm_quiet_otter"),
+                "512000000"), null).getStatusCode());
+
+        // As much memory keeps the leader: no taking turns.
+        assertEquals(409, profiles.handleRequest(withMemory(streamerCall(alike, "profile_1 swift_gentle_fox"),
+                "4000000000"), null).getStatusCode());
+        // Neither does saying none, or junk.
+        for (var junk : List.of("", "lots", "-1", "9".repeat(17), Long.toString(Http.MAX_MEMORY + 1))) {
+            assertTrue(profiles.handleRequest(withMemory(leaseCall(alike, "profile_1 swift_gentle_fox"), junk),
+                    null).getBody().startsWith("{\"leader\":false,"), junk);
+        }
+        // The leader renews with its memory, and keeps the lead.
+        assertTrue(profiles.handleRequest(withMemory(leaseCall(big, "profile_1 brave_little_lamp"),
+                "4000000000"), null).getBody().startsWith("{\"leader\":true,"));
+        assertEquals(4_000_000_000L, store.leader("profile_1").memory());
+
+        // Signed in with Google, the same.
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "bright_tiny_wren"),
+                null);
+        var google = profiles.handleRequest(withMemory(call(ProfileHandler.PROFILE_STREAM_LEASE, "work",
+                "julio@nu01.com", "bright_tiny_wren"), "8000000000"), null);
+        assertTrue(google.getBody().startsWith("{\"leader\":true,"), google.getBody());
+    }
+
+    @Test
+    void aDeletedLeaderLeavesItsPlace() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var first = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var second = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        profiles.handleRequest(streamerCall(first, "profile_1 calm_quiet_otter"), null);
+        profiles.handleRequest(streamerCall(second, "profile_1 brave_little_lamp"), null);
+
+        // Deleting a waiting streamer leaves the leader.
+        var removed = profiles.handleRequest(call("POST /api/auth/profile/devices/remove", "work",
+                "julio@nu01.com", "brave_little_lamp"), null);
+        assertTrue(removed.getBody().contains("\"streamLeader\":{\"device\":\"calm_quiet_otter\","),
+                removed.getBody());
+        var third = streamKeyFor("work", "julio@nu01.com", "swift_gentle_fox");
+        assertEquals(409, profiles.handleRequest(streamerCall(third, "profile_1 swift_gentle_fox"), null)
+                .getStatusCode());
+        // Deleting the leader: the next to ask leads, at once.
+        removed = profiles.handleRequest(call("POST /api/auth/profile/devices/remove", "work",
+                "julio@nu01.com", "calm_quiet_otter"), null);
+        assertFalse(removed.getBody().contains("streamLeader"), removed.getBody());
+        assertTrue(profiles.handleRequest(leaseCall(third, "profile_1 swift_gentle_fox"), null).getBody()
+                .startsWith("{\"leader\":true,"));
+    }
+
+    @Test
+    void aStreamerSignedInWithGoogleLeasesWithItsSession() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        // Not a device of the profile yet: it can't lead.
+        var unknown = profiles.handleRequest(call(ProfileHandler.PROFILE_STREAM_LEASE, "work", "julio@nu01.com",
+                "calm_quiet_otter"), null);
+        assertEquals(403, unknown.getStatusCode(), unknown.getBody());
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "calm_quiet_otter"),
+                null);
+        var lease = profiles.handleRequest(call(ProfileHandler.PROFILE_STREAM_LEASE, "work", "julio@nu01.com",
+                "calm_quiet_otter"), null);
+        assertEquals(200, lease.getStatusCode(), lease.getBody());
+        assertTrue(lease.getBody().startsWith("{\"leader\":true,"), lease.getBody());
+        // A keyed streamer then waits.
+        var key = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        assertEquals(409, profiles.handleRequest(streamerCall(key, "profile_1 brave_little_lamp"), null)
+                .getStatusCode());
+        // Free members lease nothing.
+        rbacr.put("julio@nu01.com", Set.of("user"));
+        assertEquals(403, profiles.handleRequest(call(ProfileHandler.PROFILE_STREAM_LEASE, "work",
+                "julio@nu01.com", "calm_quiet_otter"), null).getStatusCode());
+        assertEquals(400, profiles.handleRequest(call(ProfileHandler.PROFILE_STREAM_LEASE, "work",
+                "julio@nu01.com", "Not/A/Device"), null).getStatusCode());
     }
 
     @Test

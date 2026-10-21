@@ -15,7 +15,8 @@ import '../l10n/l10n.dart';
 import 'dev_mode_label.dart';
 
 /// The home screen's app bar: on the left the open screen's name, bold
-/// (none over the camera), and the "dev" label in DEV; on the right, only
+/// (over the camera, the mode menu instead: [modeMenu]), and the "dev"
+/// label in DEV; on the right, only
 /// without access: sign-in (signed out), or sign-up and the account button
 /// (signed in without a role). The tabs, the Profile tab among them, are in
 /// the bottom navigation bar ([HomeNavigationBar]). Clear over the camera, with a scrim
@@ -39,7 +40,17 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.deleteDevice,
     this.deleteAccount,
     this.onHelp,
+    this.modeMenu,
+    this.joinFree,
   });
+
+  /// Join free in the sign-up sheet (iOS and Android: the store billing's);
+  /// null elsewhere, where the sheet links to nu01.com.
+  final Future<void> Function()? joinFree;
+
+  /// The Camera tab's mode menu ([CameraModeMenu]), in the title's place
+  /// over the camera. None: no menu.
+  final Widget? modeMenu;
 
   /// Opens Help (feedback and the team's answers): a button at the top
   /// right of Setup and Profile, not a tab, to save the navigation bar's
@@ -74,8 +85,8 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AppBar(
-      // The screen's name (none over the camera), then the "dev" label in
-      // DEV.
+      // The screen's name (over the camera, the mode menu), then the "dev"
+      // label in DEV.
       titleSpacing: 16,
       title: Row(
         children: [
@@ -89,6 +100,10 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (dev) const SizedBox(width: 12),
+          ],
+          if (onCamera && modeMenu != null) ...[
+            Flexible(child: modeMenu!),
             if (dev) const SizedBox(width: 12),
           ],
           if (dev) const Flexible(child: DevModeLabel()),
@@ -130,6 +145,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
               roles: roles,
               rbacr: rbacr,
               profiles: profiles,
+              joinFree: joinFree,
             ),
           AccountButton(
             auth: auth,

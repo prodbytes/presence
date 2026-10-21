@@ -18,6 +18,12 @@ abstract class LiveConnection {
   /// Completes when the connection drops (not when [close]d).
   Future<void> get done;
 
+  /// Whether the broker still had this client ID's persistent session
+  /// when it connected (the CONNACK's session-present flag), with the
+  /// subscriptions made in an earlier connection: their messages come
+  /// without subscribing again. Always false for a clean session.
+  bool get sessionPresent;
+
   /// Subscribes to [topic] (QoS 1).
   Future<void> subscribe(String topic);
 
@@ -191,7 +197,8 @@ class CopiedMessage {
 ///   most often (at start, at sign-in, then on schedule). A new event
 ///   doesn't connect: events wait on the device and go out with the next
 ///   connection ([LiveLink.onShare]); only the Sync button connects early
-///   (at most every [freeSyncEvery]). Device presence comes from a small
+///   (at most every [freeSyncEvery]); a failed connection tries again at
+///   the next slot, not after the back-off. Device presence comes from a small
 ///   retained heartbeat every [beatEvery] instead of pings ([beat],
 ///   [ping]).
 ///
@@ -487,6 +494,8 @@ class LiveSync extends ChangeNotifier {
         return;
       }
       final scheduled = mode == LiveMode.scheduled;
+      // Free: a failed attempt waits for the next slot of the schedule.
+      final attempt = Stopwatch()..start();
       _nextAt = null;
       _set(LiveSyncState.connecting);
       LiveConnection? connection;
@@ -504,7 +513,13 @@ class LiveSync extends ChangeNotifier {
           return;
         }
         _connection = connection;
-        final subscription = await _subscribe(link, connection);
+        final subscription = await _subscribe(
+          link,
+          connection,
+          // Free: the persistent session's subscriptions, when the broker
+          // kept them, aren't made again (each SUBSCRIBE bills).
+          resume: scheduled && _config.free,
+        );
         if (!current()) {
           await subscription.cancel();
           await connection.close();
@@ -545,18 +560,39 @@ class LiveSync extends ChangeNotifier {
         }
         if (!current()) return;
         _failures++;
+        // Free: never sooner than the schedule's next slot (never more
+        // often than every 15 min), whatever the back-off says.
+        final free = _config.free;
+        final wait = free ? _freeRetryDelay(attempt.elapsed) : retryDelay;
         if (_failures == 1 || _failures % 10 == 0) {
           debugPrint(
             'Presence: live sync failed ($_failures in a row, next try in '
-            '${retryDelay.inSeconds} s): ${redact(e)}',
+            '${wait.inSeconds} s): ${redact(e)}',
           );
         }
         // The bucket still has them.
         _failOutbox();
         _set(LiveSyncState.error, _describe(e));
+        if (free) {
+          // The whole wait: only a stop (or a new start) ends it early.
+          final slept = Stopwatch()..start();
+          while (current() && slept.elapsed < wait) {
+            await _sleep(wait - slept.elapsed);
+          }
+          continue;
+        }
       }
       await _sleep(retryDelay);
     }
+  }
+
+  /// A free device's wait after a failed attempt that began [elapsed] ago:
+  /// the back-off ([retryDelay]), but never less than the rest of the
+  /// schedule's wait ([nextWait]) from that attempt.
+  Duration _freeRetryDelay(Duration elapsed) {
+    final slot = nextWait() - elapsed;
+    final backoff = retryDelay;
+    return slot > backoff ? slot : backoff;
   }
 
   /// Gets [link]'s credentials, then connects with a URL signed with them
@@ -612,12 +648,38 @@ class LiveSync extends ChangeNotifier {
     );
   }
 
+  /// The topics subscribed (and acknowledged) on the persistent session
+  /// of [_sessionClient] during this run of the app ([_subscribe] with
+  /// `resume`).
+  final _sessionTopics = <String>{};
+  String? _sessionClient;
+
   /// Listens to [connection]'s messages, and subscribes to [link]'s events
   /// (which must work) and to its pings and pongs (which may not).
+  ///
+  /// With [resume] (a free device's scheduled connection, on its persistent
+  /// session): when the broker kept the session ([LiveConnection
+  /// .sessionPresent]), the topics this run already subscribed on it aren't
+  /// subscribed again: the session holds them, and their messages (queued
+  /// ones too) come all the same. Any other (one refused before, or the
+  /// first connection of this run) is.
   Future<StreamSubscription<(String, Uint8List)>> _subscribe(
     LiveLink link,
-    LiveConnection connection,
-  ) async {
+    LiveConnection connection, {
+    bool resume = false,
+  }) async {
+    final client = stableClientIdOf(link);
+    if (!resume || _sessionClient != client || !connection.sessionPresent) {
+      // A new session (or another): it holds nothing yet.
+      _sessionTopics.clear();
+      _sessionClient = resume ? client : null;
+    }
+    Future<void> subscribe(String topic) async {
+      if (resume && _sessionTopics.contains(topic)) return;
+      await connection.subscribe(topic);
+      if (resume) _sessionTopics.add(topic);
+    }
+
     final topic = topicOf(stage, link.identityId, eventsKind);
     // Listening first: a persistent session's queued messages may come
     // before the subscription is acknowledged.
@@ -626,7 +688,7 @@ class LiveSync extends ChangeNotifier {
       _onMessage(link, m.$1, m.$2);
     });
     try {
-      await connection.subscribe(topic);
+      await subscribe(topic);
     } catch (_) {
       await subscription.cancel();
       rethrow;
@@ -635,7 +697,7 @@ class LiveSync extends ChangeNotifier {
     // refused leaves the connection up (presence just isn't known).
     for (final kind in const [requestsKind, acksKind]) {
       try {
-        await connection.subscribe(topicOf(stage, link.identityId, kind));
+        await subscribe(topicOf(stage, link.identityId, kind));
       } catch (e) {
         debugPrint(
           'Presence: live sync could not subscribe to $kind: '
@@ -1189,10 +1251,18 @@ class LiveSync extends ChangeNotifier {
   static String beatTopicOf(String stage, String identityId, String device) =>
       '${topicOf(stage, identityId, beatsKind)}/$device';
 
-  /// How recently a device must have been heard from to show live (green):
-  /// [beatLiveWithin] for a free profile, 90 s (pings) otherwise.
-  Duration get liveWithin =>
-      _config.free ? beatLiveWithin : const Duration(seconds: 90);
+  /// The sync timeout for the profile's devices' presence
+  /// ([DevicePresence.of]): how long between hearing from one, as often as
+  /// they sync. A free profile's devices beat every [beatEvery]; a
+  /// member's sync on their schedule, every minute by default
+  /// ([LiveConfig.defaultEvery]): this device's, when it's slower.
+  Duration get presenceTimeout {
+    if (_config.free) return beatEvery;
+    final every = _config.mode == LiveMode.scheduled
+        ? _config.every
+        : LiveConfig.defaultEvery;
+    return every > LiveConfig.defaultEvery ? every : LiveConfig.defaultEvery;
+  }
 
   /// Whether this device shows live: connected, or (free) its last beat
   /// went within [beatLiveWithin].

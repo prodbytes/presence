@@ -28,13 +28,22 @@ class FakeLiveConnection implements LiveConnection {
   bool closed = false;
 
   @override
+  bool sessionPresent = false;
+
+  @override
   Stream<(String, Uint8List)> get messages => _messages.stream;
 
   @override
   Future<void> get done => _done.future;
 
+  /// Topics whose subscription the broker refuses.
+  Set<String> refused = {};
+
   @override
-  Future<void> subscribe(String topic) async => subscriptions.add(topic);
+  Future<void> subscribe(String topic) async {
+    if (refused.contains(topic)) throw StateError('subscription refused');
+    subscriptions.add(topic);
+  }
 
   @override
   Future<void> publish(
@@ -79,6 +88,13 @@ class FakeBroker {
   /// How many of the next connections are refused.
   int refuse = 0;
 
+  /// Persistent sessions the broker holds, by client ID: a persistent
+  /// connection with one of these resumes it (session present).
+  final sessions = <String>{};
+
+  /// Topics each connection's subscription to is refused.
+  final refusedTopics = <String>{};
+
   Future<LiveConnection> connect(
     String url,
     String clientId, {
@@ -91,7 +107,10 @@ class FakeBroker {
       refuse--;
       throw StateError('refused');
     }
-    final connection = FakeLiveConnection();
+    final connection = FakeLiveConnection()
+      ..sessionPresent = persistent && sessions.contains(clientId)
+      ..refused = refusedTopics;
+    if (persistent) sessions.add(clientId);
     connections.add(connection);
     return connection;
   }
@@ -1283,6 +1302,7 @@ void main() {
     Future<(CloudSync, LiveSync)> another({
       Duration interval = const Duration(seconds: 15),
       Duration liveInterval = const Duration(minutes: 2),
+      Stream<Set<String>?> changes = const Stream.empty(),
       DateTime Function()? now,
     }) async {
       final own = LiveSync(
@@ -1297,7 +1317,7 @@ void main() {
         backend: backend,
         store: Future.value(store),
         media: Future.value(IdbMediaStore(store)),
-        changes: const Stream.empty(),
+        changes: changes,
         debounce: Duration.zero,
         interval: interval,
         liveInterval: liveInterval,
@@ -1356,6 +1376,65 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await other.idle();
       expect(backend.listings, isNotEmpty, reason: 'timer passes');
+    });
+
+    test('an event published here and short of copies past the grace polls '
+        'the bucket every liveInterval; once another device acks it, only '
+        'every copiedInterval', () async {
+      var clock = DateTime.now().toUtc();
+      final saved = StreamController<Set<String>?>.broadcast();
+      addTearDown(saved.close);
+      final (other, _) = await another(
+        interval: const Duration(milliseconds: 10),
+        liveInterval: const Duration(milliseconds: 50),
+        changes: saved.stream,
+        now: () => clock,
+      );
+      // Recorded there; its clip has no record here, so the group's own
+      // sync (same store) can't hold a full copy and ack it.
+      await store.putEvent({
+        'id': 'mine',
+        'profileId': '1',
+        'type': 'clip_requested',
+        'time': clock.millisecondsSinceEpoch,
+        'deviceId': other.copies.deviceId,
+        'clipId': 'mine-clip',
+      });
+      saved.add({'mine'});
+      await until(() => backend.uploads.keys.any((k) => k.contains('mine')));
+      await other.idle();
+
+      // Within the grace: not short yet, the backstop is hourly.
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isEmpty, reason: 'within the grace');
+
+      // Past it, no other device holds it: the bucket every liveInterval.
+      clock = clock.add(other.ackGrace);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isNotEmpty, reason: 'short of copies');
+
+      // Another device acks it: hourly again.
+      broker.last.deliver(acksTopic, {
+        'v': 1,
+        'kind': 'copied',
+        'deviceId': 'other_device_one',
+        'identityId': identity,
+        'sentAt': now(),
+        'eventIds': ['mine'],
+      });
+      await until(() => other.copies.of('mine')?.devices.isNotEmpty ?? false);
+      await other.idle();
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isEmpty, reason: 'enough copies');
+
+      // An hour on, the backstop lists once.
+      clock = clock.add(const Duration(hours: 1));
+      await until(() => backend.listings.isNotEmpty, reason: 'hourly');
     });
 
     test(
@@ -1604,9 +1683,10 @@ void main() {
       expect(message['sentAt'], isA<int>());
       // Tiny: one billed message (5 KB).
       expect(beat.published.single.$2.length, lessThan(512));
-      // This device shows live for 11 min after it.
+      // This device shows live for 11 min after it; the profile's devices'
+      // sync timeout is the beat's.
       expect(live.showsLive, isTrue);
-      expect(live.liveWithin, const Duration(minutes: 11));
+      expect(live.presenceTimeout, const Duration(minutes: 5));
     });
 
     test('beats soon after start, then every 5 min', () async {
@@ -1676,6 +1756,87 @@ void main() {
       expect(watch.closed, isTrue);
     });
 
+    test('a failed connection waits for the next slot of the schedule, '
+        'not the back-off', () async {
+      broker.refuse = 2;
+      final live = make(every: const Duration(milliseconds: 250))
+        ..start(link());
+      final started = DateTime.now();
+      await until(() => live.state == LiveSyncState.error);
+      // The back-off alone would have tried again after 5 ms.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(broker.urls, hasLength(1));
+      await until(() => broker.urls.length == 2, reason: 'next slot');
+      expect(
+        DateTime.now().difference(started),
+        greaterThanOrEqualTo(const Duration(milliseconds: 240)),
+      );
+      await until(() => broker.urls.length == 3, reason: 'the slot after');
+      expect(
+        DateTime.now().difference(started),
+        greaterThanOrEqualTo(const Duration(milliseconds: 490)),
+      );
+      await until(() => shares == 1);
+      expect(broker.connections, hasLength(1));
+    });
+
+    test('a resumed persistent session isn\'t subscribed again; a new one, '
+        'or a topic refused before, is', () async {
+      final live = make(every: const Duration(milliseconds: 100))
+        ..start(link());
+      await until(() => broker.connections.isNotEmpty);
+      final first = broker.last;
+      expect(first.sessionPresent, isFalse);
+      expect(first.subscriptions, [eventsTopic, requestsTopic, acksTopic]);
+      // The broker kept the session: nothing subscribed, and what it
+      // kept (or sends now) still comes.
+      await until(() => broker.connections.length == 2, reason: 'on time');
+      final second = broker.last;
+      await until(() => live.state == LiveSyncState.connected);
+      expect(second.sessionPresent, isTrue);
+      expect(second.subscriptions, isEmpty);
+      second.deliver(eventsTopic, messageOf({'id': 'kept', 'time': 1}));
+      await until(() => received.isNotEmpty);
+      expect(received.single.event['id'], 'kept');
+      // The session expired: all three again.
+      await until(() => live.state == LiveSyncState.idle);
+      broker.sessions.clear();
+      broker.refusedTopics.add(requestsTopic);
+      await until(() => broker.connections.length == 3, reason: 'on time');
+      final third = broker.last;
+      await until(() => live.state == LiveSyncState.idle);
+      expect(third.sessionPresent, isFalse);
+      expect(third.subscriptions, [eventsTopic, acksTopic]);
+      // Resumed, the refused one is tried again, alone.
+      broker.refusedTopics.clear();
+      await until(() => broker.connections.length == 4, reason: 'on time');
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.sessionPresent, isTrue);
+      expect(broker.last.subscriptions, [requestsTopic]);
+    });
+
+    test('a premium device subscribes on every scheduled connection', () async {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: const LiveConfig(every: Duration(milliseconds: 80)),
+        random: Random(1),
+        drainQuiet: const Duration(milliseconds: 20),
+        maxJitter: const Duration(milliseconds: 1),
+      );
+      made.add(live);
+      live.start(link());
+      await until(() => broker.connections.length == 2, reason: 'on time');
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.sessionPresent, isTrue);
+      expect(broker.last.subscriptions, [
+        eventsTopic,
+        requestsTopic,
+        acksTopic,
+      ]);
+    });
+
     test('a premium device never beats or watches', () async {
       final live = LiveSync(
         endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
@@ -1692,7 +1853,12 @@ void main() {
       expect(await live.beat(), isFalse);
       expect(live.lastBeat, isNull);
       expect(broker.connections.expand((c) => c.retained), isEmpty);
-      expect(live.liveWithin, const Duration(seconds: 90));
+      // A member's sync timeout: the schedule, a minute at least.
+      expect(live.presenceTimeout, const Duration(minutes: 1));
+      live.config = const LiveConfig(every: Duration(minutes: 15));
+      expect(live.presenceTimeout, const Duration(minutes: 15));
+      live.config = const LiveConfig(every: Duration(seconds: 30));
+      expect(live.presenceTimeout, const Duration(minutes: 1));
     });
   });
 }

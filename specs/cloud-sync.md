@@ -34,7 +34,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
 | `<identityId>/media/<clipId>/frames/<frameId>.jpg` | sealed, each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/year=<YYYY>/day=<DDD>/<clipId>.json` | the clip record: camera, window, lengths, state, media reference; in its event's day partition (the event's `time`, which is the clip's `requestedAt`) |
 | `<identityId>/devices/<deviceId>/settings.json` | the device's settings for this profile: `{deviceId, mediaKey, profileId, updatedAt, config, location}`, every Settings value, the location set on the map (see [Configuration](configuration.md)) and the device's media key, which the profile's other devices read to open its media ([Media encryption](encryption.md)) |
-| `<identityId>/ingest/<deviceId>/<clipId>.mp4` (and `.ingest.json`) | a [streamer](streamer.md)'s recorded chunk, sealed, only while it's searched for people and animals (on the Pi, or by the cloud detector, which its job calls): then moved to `media/` (with its records) or deleted. The app never lists `ingest/` |
+| `<identityId>/ingest/<deviceId>/<clipId>.mp4` (and `.ingest.json`) | a [streamer](streamer.md)'s recorded chunk, sealed, only while it's searched for people and animals (on the Pi, or by the cloud detector, which its job calls): then moved to `media/` (with its records) or deleted (by the cloud detector, for good: no old version kept). The app never lists `ingest/` |
 | `<identityId>/encryption.json` | the marker of when the profile's media was first sealed: each device deletes, once, what's older under `events/`, `clips/` and `media/` ([Media encryption](encryption.md#deleting-unencrypted-data)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images, and the object tags, `objectTags`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
@@ -44,13 +44,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## When
 
-- **Halted while the camera is Stopped** (the mode button's Stopped,
-  `camera.paused`; see [Camera screen](camera.md)): `CloudSync.setHalted`
-  cancels the pending and periodic passes, stops [live sync](live-sync.md)
-  and the recording downloads, and nothing starts again (not a change,
-  a sign-in or Retry) until it's left: then a pass runs at once and the
-  periodic ones resume. A pass already running finishes, but doesn't
-  connect live sync. A device restarted Stopped starts halted.
+- **The camera's Stopped mode doesn't stop it** (see [Camera
+  screen](camera.md)): only the camera is off; passes, live sync and
+  recording downloads go on.
 
 - **Sealed media only:** thumbnails, tagged frames and recordings go up
   and come down sealed, as stored, never opened on the way; an unsealed
@@ -97,19 +93,36 @@ an Athena table are in [Recording and data formats](data-formats.md).
   recording completes (`Persistence.changes`).
 - **While live sync works, the timer's passes are a backstop.** When
   [live sync](live-sync.md) is connected, or idle between scheduled
-  connections (its broker keeps what comes meanwhile), the timer starts a
-  pass only **2 min** after the last pass (`CloudSync.liveInterval`, the
-  timer still ticking every 15 s): other devices' new events and
-  completed clips are announced over live sync, and each one starts a
-  pass at once for its clip (see [Live sync](live-sync.md)). Without live
+  connections (its broker keeps what comes meanwhile), other devices' new
+  events and completed clips are announced over live sync, and each one
+  starts a pass at once for its clip (see [Live sync](live-sync.md)). The
+  timer (still ticking every 15 s) then starts a pass:
+  - **every hour** since the last listing (`CloudSync.copiedInterval`)
+    while the profile's other devices hold **enough copies** of the
+    events this device published: at least `CloudSync.enoughCopies` (1)
+    other devices with a full copy (their `copied` acks, see [Event
+    copies](event-copies.md); the device that recorded an event holds
+    one), or fewer when the profile has fewer other devices (none for a
+    profile of one device). An event that hasn't had its grace yet
+    (`CloudSync.ackGrace`: 2 min plus two of live sync's scheduled
+    connections, counted at 1 min when connected always) doesn't count
+    as short;
+  - **every 2 min** after the last pass (`CloudSync.liveInterval`) while
+    an event published here is **short of copies** past its grace. It's
+    in the bucket, the backup, as events are published as they go up.
+    Polling stays frequent until it has them, or for at most an hour
+    more (`_CopyTracker.short`), so an unanswered event doesn't keep the
+    bucket polled often for good.
+  Only premium and Pro profiles sync with the bucket at all: a free
+  profile's devices sync over live sync alone. Without live
   sync (no IoT endpoint in the build, set to Never, or failing: its error
   state, and the reconnect attempts after it) the timer passes every 15 s
   as before; a reconnect attempt doesn't change which applies. Saves
   here, received events, the **Sync** button and **Retry** start passes
   at once either way, and any pass restarts the 2 min. A pass started by
   a save here or a live message **lists nothing** while the last listing
-  is under 2 min old (`CloudSync._mustList`, the age against
-  `liveInterval`): the message brought the event, and its clip is got by
+  is under 2 min old, or an hour while no event is short of copies
+  (`CloudSync._mustList`): the message brought the event, and its clip is got by
   its known keys (wanted, see **Fetch**). The timer's passes, the hourly
   full fetch, the Sync button, Retry, a sign-in and a failed pass's retry
   always list. 2 min is live
@@ -184,12 +197,49 @@ an Athena table are in [Recording and data formats](data-formats.md).
     fails the same way), and trying again retries. A download that meets
     expired credentials (or a request AWS refused as signed at the wrong
     time) is made again at once with new credentials (or the corrected
-    clock);
+    clock); one that's **archived** says so instead (see **Archived
+    recordings** below);
   - **asked for a copy** ([Event copies](event-copies.md), "Tap to sync a
     copy to every device"): a device that already has the event unchanged
     downloads its pending recording then (`_Recordings.fetchPending`),
     so it holds it in full and acks it;
   - one download per recording at a time (`_Recordings._inFlight`).
+- **Archived recordings (cold storage):** the bucket's lifecycle moves
+  objects over 128 KB and under 500 MB (clip recordings, a streamer's
+  media and ingest chunks) to **S3 Glacier Deep Archive 67 days after
+  upload**, and erases everything 365 days after upload; smaller objects
+  (event JSON, clip records, thumbnails, tagged frames) stay readable
+  until then. S3 answers a GET of an archived object **HTTP 403 with the
+  error code `InvalidObjectState`**, which the app tells from refused
+  credentials by the error's XML `<Code>` (`S3Exception.code`,
+  `archived`; `credentialsRejected` is `AccessDenied`, `ExpiredToken` or
+  `InvalidToken` only, by their words only when the body has no code):
+  - an archived object **never counts as rejected credentials**: nothing
+    renews them (`backend.reset`), and sync never stops or backs off
+    because of one;
+  - **playing a clip** whose recording is archived:
+    `CloudSync.fetchRecording` returns `RecordingFetch.archived` (it
+    returns `stored`, `missing` or `archived`), the load
+    (`Persistence._restoreMedia`) fails with `RecordingArchived`, and the
+    player shows **"Archived: this video is in cold storage"** (in the
+    theme's aqua, not the failure's red) instead of "Couldn't load this
+    clip". The key is remembered as archived while the app runs
+    (`_Recordings._archived`), so playing it again asks S3 nothing; its
+    `fetch:` entry stays (it's still in the cloud). Frame reading
+    (tagging, Auto, recognition) fails the same way, as for any
+    recording that can't be had;
+  - **in a pass** (the full fetch, changed events, wanted clips, the
+    media keys), an archived object is skipped like a gone one
+    (`_Fetcher._getOrSkip`, `_getIfThere`): a thumbnail or tagged frame
+    that can't be read is left out, logged, and the pass goes on. A
+    pass never downloads recordings, and the full fetch covers 15 days,
+    so only an old event changed elsewhere (its tagged frames) could meet
+    one; synced-clip recognition takes clips under a day old; a copy
+    asked for (`fetchPending`) goes through `fetchRecording`;
+  - **restoring from the archive isn't supported yet**: an archived
+    recording can't be played from the cloud (a device that downloaded it
+    before still plays its own copy). The [event copies](event-copies.md)
+    indicators say a clip older than 67 days is in cold storage.
 - **Changes from other devices:** an event the device has that another
   device changed since (a tag added, renamed or removed, a suggestion
   confirmed, object tags) comes down again in the same pass, within the
@@ -264,10 +314,12 @@ an Athena table are in [Recording and data formats](data-formats.md).
     live message within 2 min of the last listing, which lists nothing
     (see above). Every 15 s that's about 11,500 listings a day per device
     (about 345,000 a month, $1.73 at S3's $0.005 per 1000; $0.43 a day
-    for listing the whole window every 15 s). While live sync works, at
-    most one listing (2 LISTs) per 2 min, however busy: about 1,440 a day
-    (43,200 a month, about $0.22), plus the hourly full listings (15 an
-    hour, about 10,800 a month, $0.05). A clip, its own or received, adds
+    for listing the whole window every 15 s). While live sync works and
+    an event published here is short of copies, at most one listing (2
+    LISTs) per 2 min, however busy: about 1,440 a day (43,200 a month,
+    about $0.22), plus the hourly full listings (15 an hour, about 10,800
+    a month, $0.05). With enough copies, only the hourly full listings:
+    about $0.05 a month per device. A clip, its own or received, adds
     no LIST: before 2026-10-15 each pass a save or a live message started
     listed again, and each received clip had its record and its media
     listed, about 6 LISTs per own clip and 7 per received one (about
@@ -332,7 +384,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   a fingerprint of its content (the SHA-256 of the JSON, or the media ID),
   and for events their ETag too (`etag:<object key>`, see **Changes from
   other devices**). An unchanged object is skipped. A changed one, such as a clip's event
-  that's updated when the clip completes, is uploaded again. The sync
+  that's updated when the clip completes, is uploaded again. A
+  thumbnail's fingerprint is `thumbnail`, or `thumbnail@<thumbnailRedone>`
+  once it was made again from the recording ([Clips](clips.md)), so a
+  new thumbnail goes up again (with the clip's record); the local
+  `thumbnailCheck` isn't uploaded, so checking one sends nothing. Devices
+  that already have the clip keep the thumbnail they fetched, and check
+  it themselves. The sync
   keeps that store in memory, read again at each reconciliation, rather
   than reading it every pass; [retention](event-retention.md) prunes the
   entries of the events it deletes.
@@ -419,9 +477,17 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
     unsigned: the token is the proof;
   - credentials are reused until five minutes before they expire (by
-    AWS's time, see **Clock**); callers asking at once (a pass, live
-    sync, a playback download) share one fetch, and one that a sign-out
-    or reset cleared meanwhile isn't kept;
+    AWS's time, see **Clock**), across the session token's hourly
+    refresh: they're kept per account (the token's `iss` and `sub`, read
+    without verifying, as only the auth API needs to), so a refreshed
+    token of the same account reuses them and another account's never
+    does (credentials without an expiry, the local stack's, are kept for
+    their own token only). A sign-out, another profile, a change of plan
+    (premium came or went: the credentials' `tier` tag,
+    `CloudSync._onAuthChanged`), a link or unlink, and credentials AWS
+    rejected all drop them (`CloudBackend.reset`). Callers asking at once
+    (a pass, live sync, a playback download) share one fetch, and one
+    that a sign-out or reset cleared meanwhile isn't kept;
   - after a link or unlink, `CloudSync.reconnect()` drops them and starts
     over, as for a new user (the folder changed).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to
@@ -445,6 +511,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Errors:**
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
+  - an archived object (403 `InvalidObjectState`) isn't an error of the
+    credentials or of the pass: see **Archived recordings**;
   - if S3 refuses a request as signed at the wrong time, see **Clock**;
   - if the auth API rejects the session token (401, for example once
     the session has ended and couldn't be refreshed), or Cognito rejects its token (`NotAuthorizedException`),
@@ -494,12 +562,18 @@ In [presence_infra/](../presence_infra):
   private `.env`).
   - Private (public access blocked, owner-enforced), SSE-S3 encrypted, and
     TLS only.
-  - **Kept for 3 months:** every object expires 90 days after it was
-    written (a changed object that's uploaded again starts over). Being
-    versioned, the bucket then keeps it as an old version for 30 more days,
-    as it does for anything overwritten or deleted, so a mistake can be
-    undone. After that it's gone, and a lifecycle rule clears the leftover
-    delete markers. Incomplete multipart uploads go after 1 day.
+  - **Readable 67 days, archived, erased after 365** (the same
+    everywhere): 67 days after it was written, an object over 128 KB (a
+    recording, streamer video) moves to **Glacier Deep Archive**, the
+    coldest class, where it can't be read without a restore (hours; not
+    supported by the app yet: the player says it's archived). Smaller
+    objects (events, clip records, thumbnails, frames) stay readable. Every
+    object expires 335 days after it was written (a changed object that's
+    uploaded again starts over); being versioned, the bucket then keeps it
+    as an old version for 30 more days, as it does for anything overwritten
+    or deleted, so a mistake can be undone, and it's erased for good 365
+    days after it was written. A lifecycle rule clears the leftover delete
+    markers; incomplete multipart uploads go after 1 day.
   - A new device, or one whose storage was cleared, restores only the last
     two weeks anyway (see "When" above). Devices keep their own copies of older
     events, and the app doesn't upload expired ones again (it remembers
@@ -511,8 +585,11 @@ In [presence_infra/](../presence_infra):
     - objects then move by themselves between the Frequent, Infrequent
       (after 30 days unread) and Archive Instant Access (after 90 days)
       tiers, and all stay readable at once;
-    - the opt-in Archive and Deep Archive tiers are off: they need a restore
-      before a read, which would break the fetch after sign-in;
+    - Intelligent-Tiering's own opt-in Archive and Deep Archive tiers are
+      off (they'd archive by idle time, including recent clips); instead a
+      lifecycle rule moves objects over 128 KB to the Glacier Deep Archive
+      class at 67 days, by age (above), which the app knows how to show
+      ("Archived recordings");
     - objects under 128 KB, such as event JSON, stay in the Frequent tier
       with no monitoring fee.
   - CORS allows `GET`, `PUT`, `HEAD` and `DELETE` from `https://presence.nu01.com`,
@@ -547,9 +624,17 @@ In [presence_infra/](../presence_infra):
   fetched; a damaged recording reference is dropped; a clock-skewed
   request is made again, and a persistent one says the clock is off; a
   recording download that meets expired credentials succeeds with new
-  ones in the same run), `s3_test.dart` (the clock corrected from
+  ones in the same run; an archived recording, the fake S3 answering 403
+  `InvalidObjectState`, is `RecordingFetch.archived`, not asked for
+  again, and neither renews the credentials nor stops sync, nor do
+  archived objects met by a pass), `persistence_test.dart` (an archived
+  cloud clip, played, shows "Archived: this video is in cold storage",
+  its load fails with `RecordingArchived`, the credentials kept),
+  `s3_test.dart` (the clock corrected from
   `ServerTime` or the `Date` header, the next request signed with it,
-  other errors leave it), `profile_test.dart` (one credentials fetch for
+  other errors leave it; `InvalidObjectState` is archived, never
+  rejected credentials, even with other codes' words in its message;
+  the credentials rejected by their codes), `profile_test.dart` (one credentials fetch for
   callers at once; a cleared one isn't kept) and
   `record_integrity_test.dart` (the codec).
 - Settings: `cloud_sync_test.dart` (the settings listing only on the

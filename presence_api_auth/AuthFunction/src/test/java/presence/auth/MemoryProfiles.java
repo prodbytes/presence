@@ -66,6 +66,7 @@ class MemoryProfiles implements Profiles.Store {
         profiles.remove(id);
         details.remove(id);
         devices.remove(id);
+        leaders.remove(id);
     }
 
     @Override
@@ -122,5 +123,35 @@ class MemoryProfiles implements Profiles.Store {
         var list = devices.computeIfAbsent(profileId, p -> new ArrayList<>());
         list.remove(deviceId);
         return List.copyOf(list);
+    }
+
+    /** profile ID -> its leading streamer. */
+    final Map<String, Profiles.Leader> leaders = new HashMap<>();
+
+    @Override
+    public Profiles.Leader claimLeader(String profileId, String deviceId, long memory, Instant now,
+                                       Instant staleBefore) {
+        if (!profiles.containsKey(profileId)) {
+            return null;
+        }
+        var current = leaders.get(profileId);
+        if (current == null || current.device().equals(deviceId) || current.seenAt().isBefore(staleBefore)
+                || (memory > 0 && current.memory() < memory)) {
+            leaders.put(profileId, new Profiles.Leader(deviceId, now, memory));
+        }
+        return leaders.get(profileId);
+    }
+
+    @Override
+    public Profiles.Leader leader(String profileId) {
+        return leaders.get(profileId);
+    }
+
+    @Override
+    public void dropLeader(String profileId, String deviceId) {
+        var current = leaders.get(profileId);
+        if (current != null && current.device().equals(deviceId)) {
+            leaders.remove(profileId);
+        }
     }
 }

@@ -11,6 +11,7 @@ import 'package:presence_app/auth/account_sheet.dart';
 import 'package:presence_app/auth/payments_client.dart';
 import 'package:presence_app/auth/plan_notice.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/auth/store_billing.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/cognito.dart';
 import 'package:presence_app/events.dart';
@@ -305,6 +306,39 @@ void main() {
       expect(backend.resets, resets + 2);
     });
 
+    test('refreshDevices asks for the slots again, at most every 30 s, and '
+        'Sync asks too', () async {
+      await auth.signIn();
+      await sync.idle();
+      final resets = backend.resets;
+
+      // A Pi streamer joined: no event of it here yet.
+      backend.deviceSlots = const DeviceSlots(
+        limit: 50,
+        devices: [first, second],
+      );
+      sync.refreshDevices();
+      await sync.idle();
+      expect(backend.resets, resets + 1);
+      expect(sync.deviceSlots!.devices, [first, second]);
+
+      sync.refreshDevices();
+      await sync.syncAll();
+      await sync.idle();
+      expect(backend.resets, resets + 1, reason: 'within 30 s');
+
+      now = now.add(const Duration(seconds: 31));
+      await sync.syncAll();
+      await sync.idle();
+      expect(backend.resets, resets + 2);
+    });
+
+    test('refreshDevices: nothing signed out', () async {
+      sync.refreshDevices();
+      await sync.idle();
+      expect(backend.resets, 0);
+    });
+
     test('full: a device the slots don\'t list won\'t show, so nothing is '
         'asked', () async {
       backend.deviceSlots = const DeviceSlots(
@@ -334,9 +368,6 @@ void main() {
     Future<List<Uri>> show(
       WidgetTester tester, {
       required Plan plan,
-      DeviceSlots? slots,
-      String? thisDevice,
-      int hidden = 0,
       Future<void> Function()? onCheckAgain,
       PaymentLinks? links,
     }) async {
@@ -346,9 +377,6 @@ void main() {
           home: Scaffold(
             body: PlanNotice(
               plan: plan,
-              slots: slots,
-              thisDevice: thisDevice,
-              hidden: hidden,
               email: 'ana@example.com',
               profileId: 'automatic_paranoid_axolotl',
               onCheckAgain: onCheckAgain,
@@ -488,61 +516,28 @@ void main() {
       await show(tester, plan: Plan.free, links: const PaymentLinks());
       expect(find.byKey(const Key('plan-upgrade')), findsOneWidget);
     });
-
-    testWidgets('says when this device is past the limit', (tester) async {
-      await show(tester, plan: Plan.free, slots: freeSlots, thisDevice: third);
-      expect(
-        tester.widget<Text>(find.byKey(const Key('plan-warning'))).data,
-        contains("This device is past your plan's first 2: it doesn't sync"),
-      );
-    });
-
-    testWidgets('says how many devices are hidden', (tester) async {
-      await show(
-        tester,
-        plan: Plan.free,
-        slots: freeSlots,
-        thisDevice: first,
-        hidden: 1,
-      );
-      expect(
-        tester.widget<Text>(find.byKey(const Key('plan-warning'))).data,
-        "1 more device doesn't sync, and its events are hidden: Free syncs "
-        'your first 2.',
-      );
-    });
   });
 
-  group('DeviceLimitNotice', () {
-    late StreamController<AppEvent> bus;
-    late EventLog log;
-    setUp(() {
-      bus = StreamController<AppEvent>.broadcast();
-      log = EventLog(bus.stream)
-        ..addHistory([eventOn(first), eventOn(second), eventOn(third)]);
-    });
-    tearDown(() {
-      log.dispose();
-      bus.close();
-    });
-
+  group('HiddenDevicesLine', () {
     Future<List<Uri>> show(
-      WidgetTester tester,
-      DeviceSlots? slots,
-      String thisDevice, {
+      WidgetTester tester, {
+      Plan plan = Plan.free,
+      int hidden = 0,
+      bool pastLimit = false,
       PaymentLinks? links,
     }) async {
       final opened = <Uri>[];
-      log.visibleDevices = slots?.visibleFrom(thisDevice);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DeviceLimitNotice(
-              log: log,
-              slots: slots,
+            body: HiddenDevicesLine(
+              plan: plan,
+              hidden: hidden,
+              pastLimit: pastLimit,
+              email: 'ana@example.com',
               profileId: profile,
-              thisDevice: thisDevice,
               links: links,
+              channel: PurchaseChannel.stripe,
               openLink: (url) async {
                 opened.add(url);
                 return true;
@@ -555,59 +550,52 @@ void main() {
     }
 
     testWidgets('nothing when nothing is hidden', (tester) async {
-      await show(tester, null, first);
-      expect(find.byKey(const Key('device-limit-notice')), findsNothing);
-      await show(
-        tester,
-        const DeviceSlots(limit: 50, devices: [first, second, third]),
-        first,
-      );
-      expect(find.byKey(const Key('device-limit-notice')), findsNothing);
+      await show(tester);
+      expect(find.byKey(const Key('hidden-devices-line')), findsNothing);
     });
 
-    testWidgets('on a device that shows: how many are hidden, and upgrade', (
+    testWidgets('how many are hidden, quietly, and a link to upgrade', (
       tester,
     ) async {
-      await show(tester, freeSlots, first);
-      expect(find.textContaining("1 device's events are hidden"), findsOne);
-      expect(find.textContaining('Premium shows up to 25.'), findsOne);
-      expect(find.byKey(const Key('device-limit-upgrade')), findsOneWidget);
+      final opened = await show(tester, hidden: 1);
+      expect(find.text('1 device hidden'), findsOneWidget);
+      // A muted line, no card or banner.
+      expect(find.byType(Card), findsNothing);
+      expect(find.byType(FilledButton), findsNothing);
+      await tester.tap(find.byKey(const Key('hidden-devices-upgrade')));
+      await tester.pump();
+      // No links from the payments API: nu01.com.
+      expect(opened, [Uri.parse('https://nu01.com')]);
     });
 
-    testWidgets('Premium past its limit points at Pro', (tester) async {
-      final slots = DeviceSlots(
-        limit: DeviceSlots.premiumLimit,
-        devices: [
-          first,
-          second,
-          for (var i = 0; i < DeviceSlots.premiumLimit; i++) 'device_${i}_x',
-          third,
-        ],
-      );
-      // third is past the first 25: hidden on first.
-      await show(tester, slots, first);
-      expect(find.textContaining('Premium shows your first 25'), findsOne);
-      expect(find.textContaining('Pro shows up to 50.'), findsOne);
-      // No Pro link yet: no button.
-      expect(find.byKey(const Key('device-limit-upgrade-pro')), findsNothing);
-      expect(find.byKey(const Key('device-limit-upgrade')), findsNothing);
+    testWidgets('past the limit: this device does not sync', (tester) async {
+      await show(tester, pastLimit: true);
+      expect(find.text("This device doesn't sync"), findsOneWidget);
+    });
+
+    testWidgets("Premium: Pro's checkout once its link is set, never named", (
+      tester,
+    ) async {
+      await show(tester, plan: Plan.premium, hidden: 2);
+      expect(find.text('2 devices hidden'), findsOneWidget);
+      expect(find.byKey(const Key('hidden-devices-upgrade')), findsNothing);
 
       final opened = await show(
         tester,
-        slots,
-        first,
+        plan: Plan.premium,
+        hidden: 2,
         links: const PaymentLinks(proMonthly: 'https://buy.stripe.com/pm00'),
       );
-      await tester.tap(find.byKey(const Key('device-limit-upgrade-pro')));
+      expect(find.textContaining('Pro'), findsNothing);
+      await tester.tap(find.byKey(const Key('hidden-devices-upgrade')));
       await tester.pump();
       expect(opened.single.path, '/pm00');
     });
 
-    testWidgets("past the limit: the other devices' events are hidden", (
-      tester,
-    ) async {
-      await show(tester, freeSlots, third);
-      expect(find.textContaining("This device doesn't sync"), findsOne);
+    testWidgets('Pro: no link', (tester) async {
+      await show(tester, plan: Plan.pro, hidden: 2);
+      expect(find.text('2 devices hidden'), findsOneWidget);
+      expect(find.byKey(const Key('hidden-devices-upgrade')), findsNothing);
     });
   });
 
@@ -647,6 +635,9 @@ void main() {
     expect(find.byKey(const Key('plan-upgrade')), findsOneWidget);
     expect(find.byKey(Key('profile-device-hidden-$third')), findsOneWidget);
     expect(find.byKey(Key('profile-device-hidden-$second')), findsNothing);
+    // One quiet line under the list says how many are hidden.
+    expect(find.byKey(const Key('hidden-devices-line')), findsOneWidget);
+    expect(find.text('1 device hidden'), findsOneWidget);
 
     client.roles = const [userRole, premiumRole];
     await roles.refresh();
@@ -666,5 +657,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pro'), findsWidgets);
     expect(find.byKey(const Key('plan-upgrade')), findsNothing);
+
+    // Nothing hidden: no line.
+    log.visibleDevices = null;
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('hidden-devices-line')), findsNothing);
   });
 }

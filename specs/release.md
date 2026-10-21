@@ -80,7 +80,10 @@ app binaries with `make` and publishes them as a GitHub release.
   given to the workflow. The streamer job gets its device sign-in client from
   the variable `GOOGLE_DEVICE_CLIENT_ID` and the secret
   `GOOGLE_DEVICE_CLIENT_SECRET` (that kind of client's secret isn't
-  confidential to Google: it ships in the binary).
+  confidential to Google: it ships in the binary), and its [live
+  sync](live-sync.md) endpoint from the variable `IOT_ENDPOINT` (the
+  account's public AWS IoT endpoint; without it the streamer's live sync is
+  off unless set on the Pi).
 - **Security:** actions are pinned to commit SHAs, Flutter to a commit and
   the SAM CLI to a version (1.165.0, in the deploy workflows); the
   workflow token is read-only except in the release job (`contents:
@@ -100,8 +103,11 @@ folder, and removed at the end of the job, even after a failure.
   install; the workflow signs with the **upload key**, which Play checks.
   [scripts/android-upload-key.sh](../scripts/android-upload-key.sh)
   creates it with `keytool` (PKCS12, RSA 4096, alias `upload`, one
-  password, valid ~27 years) at `~/.config/presence/upload-keystore.jks`
-  by default (it refuses a path inside the repo), and prints its SHA-1
+  password, valid ~27 years) by default in the private credentials clone
+  next to the repo, at
+  `../setec-astronomy/presence.nu01/env.local/android/upload-keystore.jks`
+  (git-ignored there), or at `~/.config/presence/upload-keystore.jks`
+  without that clone (it refuses a path inside the repo), and prints its SHA-1
   and SHA-256 fingerprints and the `gh secret set` commands below. Given
   an existing keystore, it only prints those. Keep the keystore and
   password backed up: losing them means asking Google to reset the
@@ -126,7 +132,7 @@ folder, and removed at the end of the job, even after a failure.
 
   | Name | What |
   | --- | --- |
-  | `ANDROID_UPLOAD_KEYSTORE_BASE64` | the keystore, base64: `base64 < ~/.config/presence/upload-keystore.jks \| gh secret set ANDROID_UPLOAD_KEYSTORE_BASE64` |
+  | `ANDROID_UPLOAD_KEYSTORE_BASE64` | the keystore, base64: `base64 < ../setec-astronomy/presence.nu01/env.local/android/upload-keystore.jks \| gh secret set ANDROID_UPLOAD_KEYSTORE_BASE64` |
   | `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | its password: `gh secret set ANDROID_UPLOAD_KEYSTORE_PASSWORD` (asks for it) |
   | `ANDROID_UPLOAD_KEY_ALIAS` | optional, default `upload` |
   | `ANDROID_UPLOAD_KEY_PASSWORD` | optional, default the keystore's password |
@@ -142,9 +148,12 @@ folder, and removed at the end of the job, even after a failure.
     upload key's, for side-loaded builds). The site doesn't serve that
     file yet: nothing in `presence_index/site/` or `scripts/deploy.sh`
     makes it. Its `sha256_cert_fingerprints` list takes several.
-  - Google sign-in's Android OAuth client must have the app signing key's
-    SHA-1 (and the upload key's, for side-loaded builds), or sign-in fails
-    in the store build.
+  - Google sign-in needs one Android OAuth client per signing key (a
+    client takes one SHA-1): the app signing key's, or sign-in fails in
+    the store build, and the upload key's, for side-loaded builds. Each in
+    presence-492410, the web client's project (Google refuses an Android
+    client in another project, error 28444); a package and SHA-1 can be in
+    one client only, across all projects.
 
 ### App Store (iOS)
 
@@ -170,7 +179,12 @@ folder, and removed at the end of the job, even after a failure.
   `.ipa` with `xcrun altool --upload-app` (the key at
   `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`, removed after). It
   then shows in TestFlight; review and release stay manual. Without the
-  key, the `.ipa` is only attached to the release.
+  key, the `.ipa` is only attached to the release. RC and GA tags pushed
+  together can get the same build number (the build time in seconds) for
+  the same version; App Store Connect then refuses the second upload as a
+  duplicate (`ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE` with that build
+  number as `previousBundleVersion`), and the job takes that as done,
+  since the same build is already there. Any other upload error fails it.
 - **Variables and secrets:**
 
   | Name | Kind | What |
@@ -191,6 +205,15 @@ folder, and removed at the end of the job, even after a failure.
   that App ID and certificate; create the app in App Store Connect; and,
   for uploads, an API key with the App Manager role (Users and Access →
   Integrations → App Store Connect API; the `.p8` downloads once).
+- **Where the files live:** every signing credential (the distribution
+  key, its CSR, `.cer` and `.p12` with its password, the App Store
+  profile, the API key's `.p8`, the Android upload keystore and its
+  password) is kept in the private credentials clone, under
+  `../setec-astronomy/presence.nu01/env.local/` (`apple/`, `android/`),
+  git-ignored there and listed in its README; never in this repo. The
+  distribution key and CSR are made there with `openssl req -new -newkey
+  rsa:2048 -nodes` rather than Keychain Access, so the `.p12` is built
+  from them with `openssl pkcs12 -export`.
 - The certificate and profile expire yearly; renew them and update the
   secrets.
 
@@ -268,7 +291,7 @@ The app version is `X.Y.Z`, resolved by
 [scripts/version.sh](../scripts/version.sh):
 
 - **X** and **Y** come from [version.X.txt](../version.X.txt) and
-  [version.Y.txt](../version.Y.txt) at the repo root (now `0` and `6`).
+  [version.Y.txt](../version.Y.txt) at the repo root (now `0` and `7`).
   Edit them to bump the major or minor version.
 - **Z** is the build time as a UTC timestamp, `YYYYMMDDHHMM` (e.g.
   `1.0.202609261534`).
@@ -299,8 +322,8 @@ The app version is `X.Y.Z`, resolved by
   `Signing.xcconfig` and `ExportOptions.plist` were checked (Xcode reads
   the signing settings for Release, not Debug).
 - The marketing version's Z is a 12-digit timestamp
-  (`0.6.202610141530`); App Store Connect may refuse a component that
-  large in `CFBundleShortVersionString`. If it does, iOS builds need a
-  shorter Z.
+  (`0.7.202610161800`). App Store Connect takes it in
+  `CFBundleShortVersionString`: build `0.6.202610151308` was accepted on
+  2026-10-16.
 - The build number (Unix seconds) outgrows Android's `versionCode` limit in
   2036.

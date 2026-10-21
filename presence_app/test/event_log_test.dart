@@ -135,6 +135,69 @@ void main() {
     expect(view().shown.map((e) => e.id), ['rex', 'start']);
   });
 
+  test('the clips with no one are hidden until shown; other events are '
+      'not', () {
+    ClipRequested seeing(String id, int minute, List<String>? labels) =>
+        clip(id, minute, profileId: 'me')
+          ..annotations.setObjects([
+            for (final label in labels ?? const <String>[])
+              ObjectTag(label: label, ms: 0, score: 0.9),
+          ]);
+    final empty = seeing('empty', 7, []);
+    final named = seeing('named', 3, [])..annotations.add('Rex', 0.5, 0.5);
+    log.addHistory([
+      empty,
+      seeing('person', 6, ['human', 'car']),
+      seeing('cat', 5, ['cat']),
+      seeing('bird', 4, ['bird']),
+      seeing('truck', 8, ['truck']),
+      named,
+      // Not searched for objects yet: may have someone.
+      clip('new', 2, profileId: 'me'),
+      clip('start', 1, profileId: 'me', trigger: ClipTrigger.startup)
+        ..annotations.setObjects(const []),
+      system('door', 0)..profileId = 'me',
+    ]);
+    final filters = EventFilters(showEventsWithNoOne: false);
+    addTearDown(filters.dispose);
+    EventView view() => filters.viewOf(log, deviceId: 'here', profileId: 'me');
+    List<String?> shown() => view().shown.map((e) => e.id).toList();
+
+    // System events shown: they show, the start's clip with no one too.
+    // Every animal counts, the bird too; a truck alone doesn't.
+    expect(shown(), ['person', 'cat', 'bird', 'named', 'new', 'start', 'door']);
+    expect(EventTimeline.hasSomeone(empty), isFalse);
+
+    // With the system events toggle: only the grabs with someone.
+    filters.showSystemEvents.value = false;
+    expect(shown(), ['person', 'cat', 'bird', 'named', 'new']);
+
+    // With the search: both must pass.
+    filters.search.value = 'truck';
+    expect(shown(), isEmpty);
+    expect(view().ofKinds.map((e) => e.id), contains('truck'));
+    filters.search.value = '';
+
+    // Recognition seeing someone later: it shows.
+    final first = view().withSomeone;
+    expect(identical(view().withSomeone, first), isTrue);
+    empty.annotations.setObjects([
+      const ObjectTag(label: 'dog', ms: 0, score: 0.8),
+    ]);
+    expect(shown(), ['empty', 'person', 'cat', 'bird', 'named', 'new']);
+
+    filters.showEventsWithNoOne.value = true;
+    expect(shown(), [
+      'truck',
+      'empty',
+      'person',
+      'cat',
+      'bird',
+      'named',
+      'new',
+    ]);
+  });
+
   test('focus is a one-shot request', () {
     final filters = EventFilters();
     addTearDown(filters.dispose);

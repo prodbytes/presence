@@ -41,6 +41,44 @@ void main() {
     expect(PresenceConfig.fromJson(on.toJson()), on);
   });
 
+  test('the integrations\' streamers: picked ones round-trip, junk is '
+      'ignored, and none follows the leader', () {
+    const none = IntegrationsConfig();
+    expect(none.streamerFor('blink'), isNull);
+    expect(none.toJson(), isEmpty);
+    final picked = none
+        .withStreamer('blink', 'calm_quiet_otter')
+        .withStreamer('reolink', 'brave_little_lamp');
+    expect(picked.streamerFor('blink'), 'calm_quiet_otter');
+    expect(picked.streamerFor('gopro'), isNull);
+    final c = const PresenceConfig().copyWith(integrations: picked);
+    expect(PresenceConfig.fromJson(c.toJson()), c);
+    expect(PresenceConfig.fromJson(c.toJson()).integrations, picked);
+    // Back to the leader.
+    expect(picked.withStreamer('blink', null).streamerFor('blink'), isNull);
+    expect(
+      picked.withStreamer('blink', null).streamerFor('reolink'),
+      isNotNull,
+    );
+    // Unknown integrations, bad IDs and non-strings are ignored.
+    expect(none.withStreamer('nest', 'calm_quiet_otter'), none);
+    expect(none.withStreamer('blink', '../etc'), none);
+    expect(
+      IntegrationsConfig.fromJson({
+        'streamers': {
+          'blink': 'calm_quiet_otter',
+          'gopro': 'Not An ID',
+          'reolink': 7,
+          'nest': 'brave_little_lamp',
+        },
+      }),
+      none.withStreamer('blink', 'calm_quiet_otter'),
+    );
+    expect(IntegrationsConfig.fromJson({'streamers': 'x'}), none);
+    // Older records have none.
+    expect(PresenceConfig.fromJson(const {}).integrations, none);
+  });
+
   test('round-trips through JSON', () {
     final json = custom.toJson();
     expect(json['version'], PresenceConfig.version);

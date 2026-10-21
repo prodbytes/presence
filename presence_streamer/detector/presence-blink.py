@@ -15,11 +15,12 @@ there (blinkpy's log goes to stderr). The password never goes to a file.
   presence-blink.py cameras --token FILE
       {"state": "ok", "cameras": [{"id", "name", "network"}]}.
 
-  presence-blink.py fetch --token FILE --since EPOCH --out DIR
-      Downloads the clips since EPOCH (seconds), not deleted, each to
-      DIR/<camera id>/rec-blink-<UTC start>.mp4 (kept if it's there), one
-      {"clip": {"camera", "name", "file", "start"}} line each, then
-      {"state": "ok", "latest": EPOCH}.
+  presence-blink.py fetch --token FILE --since EPOCH --out DIR [--skip IDS]
+      Downloads the clips made since EPOCH (seconds), not deleted, of the
+      cameras not in IDS (camera ids, comma-separated: the ones removed in
+      the app), each to DIR/<camera id>/rec-blink-<UTC start>.mp4 (kept
+      if it's there), one {"clip": {"camera", "name", "file", "start"}}
+      line each, then {"state": "ok", "latest": EPOCH}.
 
 Exit status 0, 2 for a login Blink refused (the token's no good: log in
 again), 1 for anything else.
@@ -126,6 +127,7 @@ async def fetch(args):
         # With its zone: blinkpy reads a time without one as local.
         items = await blink.get_videos_metadata(since=since.isoformat(), stop=10)
         latest = args.since
+        skip = {s for s in (args.skip or "").split(",") if s}
         for item in sorted(items, key=lambda i: str(i.get("created_at", ""))):
             try:
                 start = start_of(item["created_at"])
@@ -135,7 +137,15 @@ async def fetch(args):
                 continue
             if item.get("deleted"):
                 continue
+            # Blink's since is when a clip last changed, not when it was
+            # made: a clip from before where fetching got to comes back
+            # (and would be fetched again each time). Skipped here.
+            if int(start.timestamp()) < args.since:
+                continue
             camera = str(item.get("device_id") or ids.get(str(name).lower()) or name)
+            if camera in skip:
+                latest = max(latest, int(start.timestamp()))
+                continue
             folder = os.path.join(args.out, camera)
             os.makedirs(folder, exist_ok=True)
             path = os.path.join(folder, "rec-blink-" + start.strftime("%Y%m%dT%H%M%S") + ".mp4")
@@ -159,6 +169,7 @@ def main():
     parser.add_argument("--token", required=True)
     parser.add_argument("--since", type=int, default=0)
     parser.add_argument("--out")
+    parser.add_argument("--skip", default="")
     args = parser.parse_args()
     logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
     try:

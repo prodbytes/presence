@@ -1,10 +1,22 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- The sections, in order: Location, Camera, Motion, Clips, Scheduled
-  clips, Recognition, History, Live sync (with live sync in the build),
-  Advanced (admins only), Subjects; then the version, the health line,
-  Add a device, and last the device and profile IDs.
+- The sections, in order, under two **group headings**
+  (`SettingsGroupHeader`: `titleLarge`, bold, in the accent color, the
+  second with a divider above it):
+  - **This device** (`settings-group-this-device`, always, first): what's
+    set for this device alone (every setting is stored per device):
+    - **Location** (the map);
+    - capturing: **Camera**, **Motion**, **Clips**, **Scheduled clips**;
+    - events: **Recognition**, **Events** (how many load), **History**;
+    - syncing: **Live sync** (with live sync in the build);
+    - the app: **Language**, **Advanced** (admins only);
+  - **All devices** (`settings-group-all-devices`, shown when one of its
+    sections is): what the profile's streamers do for every device, the
+    cameras they fetch: **Blink cameras**, **GoPro cameras**, **Reolink
+    cameras**, **USB cameras** (premium, cloud sync);
+  - then the device and profile IDs, and last the version, the health
+    line and Add a device (its QR code).
 - **Each section is a group** (`SettingsSection` in
   [lib/settings.dart](../presence_app/lib/settings.dart)), as in most
   phone apps' settings (Strava was the reference): its name as a short
@@ -91,9 +103,13 @@
     90 % (that version's default) reads as the new 85 %, once: saved
     again as version 2, a 90 % chosen later stays. A stored level under
     50 % reads as 50 %.
-- **Blink cameras** section, last (premium, cloud sync): see
-  [Blink cameras](blink.md).
-- **Language** section, after History (see [Languages](i18n.md)): an
+- **Blink cameras** section, then **GoPro cameras**, **Reolink
+  cameras** and **USB cameras**, after History (premium, cloud sync): see
+  [Blink cameras](blink.md), [GoPro cameras](gopro.md), [Reolink
+  cameras](reolink.md) and [USB cameras](usb-cameras.md). Each has a
+  streamer dropdown, **Leader** (the leading streamer) by default, or a
+  streamer picked for that section alone.
+- **Language** section, after Live sync (see [Languages](i18n.md)): an
   **App language** picker: Same as the device (default), English,
   Español, Português; the app switches at once. Stored as `language:
   {code}`.
@@ -121,13 +137,14 @@
 - **Advanced** section, for admins only (everyone in DEV): **Show the Log
   tab**, on by default in DEV and off otherwise. Stored as `log: {show}`,
   unset until flipped (see [Log](log.md)).
-- **Subjects** section, the last setting: **How many events to load at
+- **Events** section (was Subjects), between Recognition and History:
+  **How many events to load at
   once**, 10–500 in steps of 10, default **100**: how many of a subject's
   latest events its screen lists and maps (the Monitoring map's one dot
   per subject doesn't depend on it; see [Subjects](subjects.md)). Stored
   values are kept
   (raised to 10 if below).
-- **The build's version** is after the sections, centred, quiet
+- **The build's version** is after the IDs, centred, quiet
   (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the bottom): only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
@@ -165,12 +182,13 @@
     history.
   - While a check fails, a warning icon pill shows over the camera too
     ([Navigation](navigation.md)).
-- **Add a device**, under the health line, shown in place
+- **Add a device**, under the health line, the last thing on the page,
+  shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
   user (see [Add a device](add-device.md)).
-- **The device and profile IDs, always, the last thing** on the page,
-  under Add a device, in **one column**: one centred line each, a bold
+- **The device and profile IDs, always**, after the sections and above
+  the version, in **one column**: one centred line each, a bold
   label in the accent color (`primary`) then the ID in the plain text
   color (`onSurface`), selectable to copy, so label and value read apart;
   the same size as the version (`bodyMedium`, 14 sp). When a line doesn't

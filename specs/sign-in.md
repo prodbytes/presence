@@ -216,8 +216,10 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     from rbacr, roots from its root list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
-    icon. The icon opens "Subscribe", which sends the user to subscribe at
-    nu01.com, takes a voucher code (see [Membership](membership.md)), and
+    icon. The icon opens the sign-up sheet, which offers **Join free** in
+    the iOS and Android apps (the payments API grants rbacr's `free`) or
+    sends the user to subscribe at nu01.com on the web and desktop, takes
+    a voucher code (see [Membership](membership.md)), and
     has **Check again**, which asks rbacr and the auth API once more. There are no tabs,
     no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.
@@ -284,11 +286,15 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
     credentials), so a device shows before its first event (a Raspberry Pi
     streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
-    are sorted. The list updates while the sheet is open, and scrolls when
+    go **most recently active first** (`recentFirst`): the newer of the
+    device's latest event and its latest answer over live sync, then
+    those never active, by ID. The list updates while the sheet is open, and scrolls when
     long. A row is small: each ID is selectable, 11 sp
     (`ProfileDevices.deviceIdSize`) on one line beside its presence dot,
     scaled down to fit when it's still too long (at a large system font)
-    rather than broken mid-word; "this device" and "hidden" go under it in
+    rather than broken mid-word; "this device", "leader" (the profile's
+    leading streamer, `DeviceSlots.leader`, in the accent color, with a
+    tooltip: [Streamer leadership](streamer-leader.md)) and "hidden" go under it in
     `bodySmall` (12 sp), its details in `labelSmall` (11 sp), its OS icon 16
     px; with access the ID is
     in the accent color and a tap **shows the device's events**: the
@@ -324,10 +330,10 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
       device whose events are all from before events recorded an OS gets
       the generic icon and just the time.
     - A **presence dot** before each ID ([Device
-      presence](device-presence.md)): green (answered a ping within 90 s;
-      this device while connected to live sync), yellow (heard from or an
-      event within 24 h), red (older, or never), with the reason ("Live —
-      answered 5 s ago", "Last seen 3 h ago") as tooltip and screen-reader
+      presence](device-presence.md)): green (active within 5 sync
+      timeouts; this device while connected to live sync), yellow
+      (within 10), red (older, or never), with the reason ("Live —
+      answered 5 s ago", "Last seen 7 min ago") as tooltip and screen-reader
       label. **This device's** dot is the connectivity row's color, with
       its headline as the reason ("This device — Live sync failed"),
       updating with it (`ProfileDevices.thisPresence`). Without live sync, yellow or red from the latest event, and
@@ -335,8 +341,11 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
       devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with
       an ellipsis.
-  - Devices past the plan's limit are labelled **hidden**, and under the
-    list a box says whether the account is **Free** or **Premium**, what
+  - Devices past the plan's limit are labelled **hidden**; under the list,
+    when any are, one small muted line says how many ("3 devices hidden",
+    or "This device doesn't sync"), with a discreet **Upgrade** link on
+    the web ([Premium and free](premium.md#in-the-app)). Below it a box
+    says whether the account is **Free** or **Premium**, what
     that gives, and for Free how to buy Premium (on the web **Premium
     monthly** and **Premium yearly**, the plans' Stripe checkouts; on iOS
     and Android the App Store's or Google Play's plans, Restore purchases
@@ -452,8 +461,10 @@ app, and the web bundle is readable, so `.env` can also hold secrets such
 as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
 uses and never receives: only a future backend would. Without `.env`, the
 account sheet says sign-in isn't set up. The Android client is registered with the development Mac's debug-key
-SHA-1 (recorded in the private repo). A release key will need its own
-Android client.
+SHA-1 (recorded in the private repo). Each other signing key needs its
+own Android client in presence-492410 (a client takes one SHA-1): the
+upload key's (side-loaded RC and GA builds) and Play's app signing key's
+(Play installs), once Play signs the app.
 
 The iOS client (its ID is `GOOGLE_IOS_CLIENT_ID` in the private `.env`) was created
 with bundle ID `com.nu01.presence` and no App Store ID or Team ID (neither

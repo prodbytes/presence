@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
+import 'package:presence_app/clips.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/event_copies.dart';
 import 'package:presence_app/cloud/live_sync.dart';
@@ -36,6 +37,9 @@ class RoutedConnection implements LiveConnection {
 
   @override
   Future<void> get done => _done.future;
+
+  @override
+  bool get sessionPresent => false;
 
   @override
   Future<void> subscribe(String topic) async => topics.add(topic);
@@ -394,6 +398,91 @@ void main() {
       expect(s.label, 'Not synced');
       expect(s.tooltip, 'This device');
       expect(copies.summaryOf('e6').label, 'Not synced');
+    });
+
+    test('a clip older than 67 days: the cloud holds it in cold storage', () {
+      final now = DateTime.utc(2026, 10, 15);
+      final copies = EventCopies()
+        ..deviceId = 'phone_a'
+        ..liveOn = true
+        ..setLocal('old', self: true, cloud: true)
+        ..setLocal('new', self: true, cloud: true)
+        ..setLocal('gone', self: true, cloud: false);
+      final old = now.subtract(const Duration(days: 68));
+      final recent = now.subtract(const Duration(days: 66));
+      var s = copies.summaryOf(
+        'old',
+        origin: 'phone_a',
+        clipTime: old,
+        now: now,
+      );
+      expect(s.coldStorage, isTrue);
+      expect(s.cloud, isTrue);
+      expect(s.label, '2 copies');
+      expect(s.tooltip, 'This device, Cloud (cold storage)');
+      s = copies.summaryOf(
+        'new',
+        origin: 'phone_a',
+        clipTime: recent,
+        now: now,
+      );
+      expect(s.coldStorage, isFalse);
+      expect(s.tooltip, 'This device, Cloud');
+      // Not a clip (no recording), or not in the cloud: never.
+      expect(copies.summaryOf('old', origin: 'phone_a').coldStorage, isFalse);
+      expect(
+        copies
+            .summaryOf('gone', origin: 'phone_a', clipTime: old, now: now)
+            .coldStorage,
+        isFalse,
+      );
+    });
+
+    testWidgets('an old clip\'s cloud indicator and copies say its recording '
+        'is in cold storage', (tester) async {
+      final copies = EventCopies()
+        ..deviceId = 'phone_a'
+        ..liveOn = true
+        ..setLocal('e1', self: true, cloud: true);
+      final event = ClipRequested(
+        VideoClip.restored(
+          id: 'clip-1',
+          cameraId: 'cam',
+          cameraLabel: 'Back camera',
+          before: const Duration(seconds: 15),
+          after: const Duration(seconds: 15),
+          past: null,
+          full: null,
+        ),
+        id: 'e1',
+        deviceId: 'phone_a',
+        time: DateTime.now().subtract(const Duration(days: 100)),
+      );
+      await tester.pumpWidget(
+        EventCopiesScope(
+          copies: copies,
+          child: MaterialApp(
+            home: Scaffold(body: EventIndicators(event: event)),
+          ),
+        ),
+      );
+      String tooltipOf(String key) => tester
+          .widget<Tooltip>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(Tooltip),
+            ),
+          )
+          .message!;
+      expect(
+        tooltipOf('event-cloud-e1'),
+        "In the cloud\nIts recording is in cold storage: it can't be played "
+        'from the cloud',
+      );
+      expect(
+        tooltipOf('event-copies-e1'),
+        'On 1 device\nThis device, Cloud (cold storage)',
+      );
     });
 
     test('kept across a restart, and bounded', () async {

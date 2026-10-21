@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'auth/account_sheet.dart' show profileDeviceDetails;
 import 'cloud/cloud_sync.dart';
+import 'config.dart';
 import 'events.dart';
 import 'l10n/l10n.dart';
+import 'streamer_picker.dart';
 
 /// Sends a streamer a sealed file (`CloudSync.putDeviceFile`); false when
 /// it couldn't.
@@ -28,13 +30,16 @@ typedef GetDeviceFile = Future<Map<String, Object?>?> Function(
 /// app asks it through the profile's folder, sealed with the streamer's
 /// key ([CloudSync.putDeviceFile]: `blink.json`, with the email, the
 /// password, then the PIN Blink sends), and reads its answer
-/// (`blink-status.json`) every [poll] while this shows.
+/// (`blink-status.json`) every [poll] while this shows. The streamer is the
+/// one picked in [config], else whichever leads ([StreamerPicker]).
 class BlinkSettings extends StatefulWidget {
   const BlinkSettings({
     super.key,
     required this.streamers,
     required this.putFile,
     required this.getFile,
+    this.leader,
+    this.config,
     this.poll = const Duration(seconds: 10),
     this.now,
   });
@@ -45,10 +50,13 @@ class BlinkSettings extends StatefulWidget {
     required CloudSync sync,
     required EventLog log,
     required String profileId,
+    required ConfigController config,
     String? thisDevice,
   }) => BlinkSettings(
     key: key,
     streamers: () => streamersOf(log, sync, profileId, thisDevice),
+    leader: () => sync.deviceSlots?.leader,
+    config: config,
     putFile: sync.putDeviceFile,
     getFile: sync.getDeviceFile,
   );
@@ -57,17 +65,25 @@ class BlinkSettings extends StatefulWidget {
   final List<String> Function() streamers;
   final PutDeviceFile putFile;
   final GetDeviceFile getFile;
+
+  /// The profile's leading streamer ([DeviceSlots.leader]), when known.
+  final String? Function()? leader;
+
+  /// Where the streamer picked is kept ([IntegrationsConfig]); this
+  /// section's own, unkept, when null.
+  final ConfigController? config;
   final Duration poll;
   final DateTime Function()? now;
 
   /// The streamers that can fetch Blink's clips: the profile's Linux
-  /// devices (Blink cameras say "Blink", not Linux).
+  /// devices (Blink cameras say "Blink", not Linux), the leading one first
+  /// ([DeviceSlots.leader]): only the leader streams.
   static List<String> streamersOf(
     EventLog log,
     CloudSync sync,
     String profileId,
     String? thisDevice,
-  ) => [
+  ) => leaderFirst([
     for (final d in profileDeviceDetails(
       log.events,
       profileId: profileId,
@@ -75,6 +91,13 @@ class BlinkSettings extends StatefulWidget {
       listed: sync.deviceSlots?.devices ?? const [],
     ))
       if (d.os == 'Linux') d.id,
+  ], sync.deviceSlots?.leader);
+
+  /// [streamers] with [leader] first, when it's one of them.
+  static List<String> leaderFirst(List<String> streamers, String? leader) => [
+    if (leader != null && streamers.contains(leader)) leader,
+    for (final s in streamers)
+      if (s != leader) s,
   ];
 
   @override
@@ -109,28 +132,33 @@ class _BlinkSettingsState extends State<BlinkSettings> {
     _email.dispose();
     _password.dispose();
     _pin.dispose();
+    if (widget.config == null) _config.dispose();
     super.dispose();
   }
 
   List<String> get _streamers => widget.streamers();
 
+  late final ConfigController _config = widget.config ?? ConfigController();
+
+  String? get _target => streamerTarget(
+    _streamers,
+    chosen: _config.integrations.streamerFor('blink'),
+    leader: widget.leader?.call(),
+  );
+
   Future<void> _refresh() async {
-    final streamers = _streamers;
-    if (streamers.isEmpty) return;
-    // The one with Blink already, else the first.
-    if (_streamer == null || !streamers.contains(_streamer)) {
-      String? withBlink;
-      for (final s in streamers) {
-        if (await widget.getFile(s, 'blink-status.json') != null) {
-          withBlink = s;
-          break;
-        }
-      }
-      if (!mounted) return;
-      setState(() => _streamer = withBlink ?? streamers.first);
+    // The one picked, else the leader: a new one starts afresh.
+    final target = _target;
+    if (target == null) return;
+    if (target != _streamer) {
+      setState(() {
+        _streamer = target;
+        _status = null;
+        _sent = null;
+      });
     }
-    final status = await widget.getFile(_streamer!, 'blink-status.json');
-    if (!mounted) return;
+    final status = await widget.getFile(target, 'blink-status.json');
+    if (!mounted || _streamer != target) return;
     setState(() => _status = status);
   }
 
@@ -183,6 +211,11 @@ class _BlinkSettingsState extends State<BlinkSettings> {
   void _disconnect() =>
       _send({'disconnect': true, 'requestedAt': _now().millisecondsSinceEpoch});
 
+  /// The camera whose device is [device] is no longer fetched, nor one of
+  /// the profile's devices, till a disconnect and a new connect.
+  void _remove(String device) =>
+      _send({'remove': device, 'requestedAt': _now().millisecondsSinceEpoch});
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -207,22 +240,14 @@ class _BlinkSettingsState extends State<BlinkSettings> {
       spacing: 8,
       children: [
         Text(l.blinkAbout, style: quiet),
-        DropdownButtonFormField<String>(
+        StreamerPicker(
           key: const Key('blink-streamer'),
-          initialValue: _streamer ?? streamers.first,
-          decoration: InputDecoration(labelText: l.blinkStreamer),
-          items: [
-            for (final s in streamers)
-              DropdownMenuItem(value: s, child: Text(s)),
-          ],
-          onChanged: (s) {
-            setState(() {
-              _streamer = s;
-              _status = null;
-              _sent = null;
-            });
-            _refresh();
-          },
+          integration: 'blink',
+          streamers: streamers,
+          leader: widget.leader?.call(),
+          config: _config,
+          label: l.blinkStreamer,
+          onChanged: _refresh,
         ),
         Text(
           switch (state) {
@@ -276,9 +301,18 @@ class _BlinkSettingsState extends State<BlinkSettings> {
                     ),
                   ),
                 ),
+                IconButton(
+                  key: Key('blink-remove-$device'),
+                  tooltip: l.blinkRemove,
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _sending ? null : () => _remove(device),
+                ),
               ],
             ),
-          if (cameras.isEmpty) Text(l.blinkNoCameras, style: quiet),
+          if (cameras.isEmpty)
+            Text(l.blinkNoCameras, style: quiet)
+          else
+            Text(l.blinkRemoveNote, style: quiet),
           if (lastFetch != null)
             Text(
               l.blinkLastFetch(

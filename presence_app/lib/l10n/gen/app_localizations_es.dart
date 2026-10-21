@@ -17,7 +17,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get aboutParagraph =>
-      'Presence convierte un teléfono, tableta, portátil o Raspberry Pi en una cámara siempre activa para un lugar que cuidas: video en vivo, clips que incluyen los momentos previos y clips al detectar movimiento. Graba solo donde tengas permiso.';
+      'Presence convierte cualquier dispositivo con cámara en una cámara siempre activa para un lugar que cuidas: video en vivo, clips que incluyen los momentos previos y clips al detectar movimiento. Graba solo donde tengas permiso.';
 
   @override
   String get authAccessAdmin => 'Acceso admin';
@@ -137,19 +137,6 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String authDevicesHidden(int count, String plan, int limit) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          'Los eventos de $count dispositivos están ocultos: $plan muestra tus primeros $limit dispositivos.',
-      one:
-          'Los eventos de 1 dispositivo están ocultos: $plan muestra tus primeros $limit dispositivos.',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get authFeedback => 'Comentarios';
 
   @override
@@ -169,6 +156,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authHidden => 'oculto';
 
   @override
+  String authHiddenCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dispositivos ocultos',
+      one: '1 dispositivo oculto',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get authHiddenTooltip =>
       'Supera el límite de dispositivos del plan: no se sincroniza, y sus eventos se ocultan aquí';
 
@@ -176,6 +174,28 @@ class AppLocalizationsEs extends AppLocalizations {
   String authHideDevice(String device) {
     return 'Ocultar los eventos de $device';
   }
+
+  @override
+  String get authJoin => 'Únete a Presence';
+
+  @override
+  String get authJoinFree => 'Unirse gratis';
+
+  @override
+  String get authJoinFreeFailed =>
+      'No se pudo unir ahora. Inténtalo de nuevo en un momento.';
+
+  @override
+  String authJoinFreeText(String email) {
+    return '$email aún no es miembro de Presence. Únete gratis para usarlo en este dispositivo.';
+  }
+
+  @override
+  String get authLeader => 'líder';
+
+  @override
+  String get authLeaderTooltip =>
+      'El streamer líder del perfil: el único que transmite a la nube. Los demás esperan, y uno toma su lugar cuando lleva una hora sin conexión.';
 
   @override
   String get authLinkAnother => 'Vincular otra cuenta';
@@ -226,19 +246,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authLinkedToProfile => 'Vinculada al perfil.';
 
   @override
-  String authMoreHidden(int count, String plan, int limit) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          '$count dispositivos más no se sincronizan, y sus eventos se ocultan: $plan sincroniza tus primeros $limit.',
-      one:
-          '1 dispositivo más no se sincroniza, y sus eventos se ocultan: $plan sincroniza tus primeros $limit.',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get authNoEvents => 'Sin eventos';
 
   @override
@@ -263,17 +270,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authOsUnknown => 'Sistema operativo desconocido';
 
   @override
-  String authOthersHidden(String plan, int limit) {
-    return 'Este dispositivo no se sincroniza, y los eventos de tus otros dispositivos se ocultan en él: $plan sincroniza tus primeros $limit dispositivos.';
-  }
-
-  @override
   String get authOwner => 'Propietaria';
-
-  @override
-  String authPastLimit(int limit) {
-    return 'Este dispositivo supera los primeros $limit de tu plan: no se sincroniza, así que aquí solo se ven sus propios eventos.';
-  }
 
   @override
   String get authPaymentsDefaults =>
@@ -348,20 +345,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authPremiumMonthly => 'Premium mensual';
 
   @override
-  String authPremiumShowsUpTo(String text, int limit) {
-    return '$text Premium muestra hasta $limit.';
-  }
-
-  @override
   String get authPremiumYearly => 'Premium anual';
 
   @override
   String get authProMonthly => 'Pro mensual';
-
-  @override
-  String authProShowsUpTo(String text, int limit) {
-    return '$text Pro muestra hasta $limit.';
-  }
 
   @override
   String get authProYearly => 'Pro anual';
@@ -449,20 +436,20 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authStreamerBody =>
-      'Pega esto en una terminal de una Raspberry Pi con cámara (Raspberry Pi OS, 32 o 64 bits), incluso sin pantalla. Instala el streamer de Presence como un nuevo dispositivo de este perfil, que graba desde cada arranque y guarda los clips con personas y animales. Nadie inicia sesión en la Pi.';
+      'Pega esto en una terminal de un dispositivo Linux con cámara (Raspberry Pi OS o Debian, ARM, 32 o 64 bits), incluso sin pantalla. Instala el streamer de Presence como un nuevo dispositivo de este perfil, que graba desde cada arranque y guarda los clips con personas y animales. Nadie inicia sesión en él.';
 
   @override
-  String get authStreamerCopied => 'Comando copiado: pégalo en la Raspberry Pi';
+  String get authStreamerCopied => 'Comando copiado: pégalo en el streamer';
 
   @override
   String get authStreamerCopy => 'Copiar comando';
 
   @override
-  String get authStreamerCreate => 'Crear comando';
+  String get authStreamerCreate => 'Obtener comando';
 
   @override
   String authStreamerFailed(String error) {
-    return 'No se pudo crear el comando ($error)';
+    return 'No se pudo obtener el comando ($error)';
   }
 
   @override
@@ -470,7 +457,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Contiene la clave de este dispositivo, que solo se muestra ahora: mantenla privada. Borrar el dispositivo lo detiene; crear otro comando crea otro dispositivo.';
 
   @override
-  String get authStreamerTitle => 'Transmitir desde una Raspberry Pi';
+  String get authStreamerTitle => 'Streamer';
 
   @override
   String get authSubscribe => 'Suscribirse';
@@ -492,6 +479,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authThisDevice => 'este dispositivo';
+
+  @override
+  String get authThisDeviceHidden => 'Este dispositivo no se sincroniza';
 
   @override
   String get authUnavailable => 'No se puede iniciar sesión.';
@@ -556,7 +546,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get blinkAbout =>
-      'Un streamer Linux tuyo (una Raspberry Pi) trae los clips de tus cámaras Blink: cada cámara es un dispositivo, y sus clips con una persona o un animal se vuelven eventos.';
+      'Un streamer tuyo trae los clips de tus cámaras Blink: cada cámara es un dispositivo, y sus clips con una persona o un animal se vuelven eventos.';
 
   @override
   String get blinkConnect => 'Conectar';
@@ -594,7 +584,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get blinkNoStreamer =>
-      'Configura primero un streamer en una Raspberry Pi (Perfil › Transmitir desde una Raspberry Pi); trae los clips de las cámaras Blink.';
+      'Configura primero un streamer (Perfil › Streamer); trae los clips de las cámaras Blink.';
 
   @override
   String get blinkNotSent =>
@@ -619,6 +609,13 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get blinkRemove => 'Quitar';
+
+  @override
+  String get blinkRemoveNote =>
+      'Quitar deja de traer una cámara, y sale de tus dispositivos; sus eventos se quedan. Desconecta y vuelve a conectar para recuperar las cámaras quitadas.';
+
+  @override
   String get blinkSendPin => 'Enviar PIN';
 
   @override
@@ -628,19 +625,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String blinkWaiting(String device) {
     return 'Enviado a $device; revisa cada 30 s…';
   }
-
-  @override
-  String get cameraActionAll => 'Mostrar todos los dispositivos';
-
-  @override
-  String get cameraActionNormal => 'Volver a lo normal: esta cámara';
-
-  @override
-  String get cameraActionStopped => 'Detener: sin capturar ni sincronizar';
-
-  @override
-  String get cameraActionUnattended =>
-      'Modo desatendido: pantalla apagada, sigue capturando';
 
   @override
   String cameraAgeDays(int days) {
@@ -670,6 +654,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cameraClip => 'Clip';
+
+  @override
+  String get cameraClipArchived =>
+      'Archivado: este video está en almacenamiento en frío';
 
   @override
   String get cameraClipCameraOff => 'Cámara apagada';
@@ -757,16 +745,31 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cameraLive => 'en vivo';
 
   @override
-  String get cameraModeAll => 'Todas';
+  String get cameraModeAll => 'Todos los dispositivos';
 
   @override
-  String get cameraModeNormal => 'Normal';
+  String get cameraModeAllHint => 'Todos los dispositivos en cuadrícula';
+
+  @override
+  String get cameraModeMenu => 'Modo de la cámara';
+
+  @override
+  String get cameraModeNormal => 'Esta cámara';
+
+  @override
+  String get cameraModeNormalHint => 'Pantalla completa';
 
   @override
   String get cameraModeStopped => 'Detenido';
 
   @override
+  String get cameraModeStoppedHint => 'Cámara apagada, sigue sincronizando';
+
+  @override
   String get cameraModeUnattended => 'Desatendido';
+
+  @override
+  String get cameraModeUnattendedHint => 'Pantalla apagada, sigue capturando';
 
   @override
   String get cameraNight => 'Noche';
@@ -1172,6 +1175,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Archivado en la nube (no en este dispositivo)';
 
   @override
+  String get eventCloudColdStorage =>
+      'Su grabación está en almacenamiento en frío: no se puede reproducir desde la nube';
+
+  @override
   String get eventCloudDelete => 'Borrar';
 
   @override
@@ -1223,6 +1230,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eventCopiesCloud => 'Nube';
+
+  @override
+  String get eventCopiesCloudColdStorage => 'Nube (almacenamiento en frío)';
 
   @override
   String get eventCopiesLiveOff =>
@@ -1509,6 +1519,9 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get eventsHideNoOne => 'Ocultar eventos sin nadie';
+
+  @override
   String get eventsHideSystem => 'Ocultar eventos del sistema';
 
   @override
@@ -1519,6 +1532,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String eventsNoMatch(String query) {
     return 'Ningún evento coincide con \"$query\"';
   }
+
+  @override
+  String get eventsNoOneHidden =>
+      'Aún no se ha visto a nadie: los eventos sin nadie están ocultos';
 
   @override
   String get eventsNone => 'No hay eventos';
@@ -1535,6 +1552,9 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get eventsShowEveryDevice =>
       'Ver los eventos de todos los dispositivos';
+
+  @override
+  String get eventsShowNoOne => 'Mostrar eventos sin nadie';
 
   @override
   String get eventsShowSystem => 'Mostrar eventos del sistema';
@@ -1570,6 +1590,32 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get feedbackYou => 'Tú';
+
+  @override
+  String get goproAbout =>
+      'Un streamer tuyo trae los videos nuevos de tus cámaras GoPro por su red: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Una GoPro HERO9 o más nueva, en la red de casa (HERO12 o más nueva), conectada por USB, o en su propio Wi-Fi. Una HERO5 a HERO8: conéctala al streamer y agrégala en Cámaras USB.';
+
+  @override
+  String get goproAddressHelp =>
+      'Su dirección IP: en la red de casa, la que muestra la app GoPro Quik; por USB 172.2x.1yz.51; en el Wi-Fi de la cámara 10.5.5.9.';
+
+  @override
+  String get goproCameras => 'Sus cámaras GoPro:';
+
+  @override
+  String goproError(String error) {
+    return 'GoPro: $error';
+  }
+
+  @override
+  String get goproNoStreamer =>
+      'Configura primero un streamer (Perfil › Streamer); trae los videos de las cámaras GoPro.';
+
+  @override
+  String get goproNone => 'Aún no hay cámaras GoPro.';
+
+  @override
+  String get goproPassword => 'Contraseña de la cámara (solo red de casa)';
 
   @override
   String healthApiAnswered(String mode) {
@@ -2006,6 +2052,88 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get netcamAdd => 'Agregar cámara';
+
+  @override
+  String get netcamAddress => 'Dirección de la cámara';
+
+  @override
+  String netcamCameraError(String error) {
+    return 'No se pueden traer: $error';
+  }
+
+  @override
+  String get netcamChannel => 'Canal (una cámara de un NVR)';
+
+  @override
+  String get netcamChannelHelp =>
+      '0 para una cámara sola, o la primera cámara de un NVR.';
+
+  @override
+  String netcamChannelOf(int channel) {
+    return 'canal $channel';
+  }
+
+  @override
+  String get netcamChecking => 'Conectando con la cámara…';
+
+  @override
+  String netcamLastFetch(String time) {
+    return 'Videos traídos por última vez a las $time.';
+  }
+
+  @override
+  String get netcamName => 'Nombre de la cámara';
+
+  @override
+  String get netcamNotSent =>
+      'No se pudo enviar: la clave del streamer aún no está aquí, o la sincronización está apagada. Inténtalo en un minuto.';
+
+  @override
+  String get netcamPasswordNote =>
+      'Sellada con la clave del streamer (solo tus dispositivos la abren) y borrada de la nube cuando el streamer la tiene.';
+
+  @override
+  String get netcamRemove => 'Quitar';
+
+  @override
+  String get netcamStreamer => 'El streamer que los trae';
+
+  @override
+  String get netcamUsername => 'Usuario';
+
+  @override
+  String netcamWaiting(String device) {
+    return 'Enviado a $device; revisa cada 30 s…';
+  }
+
+  @override
+  String get reolinkAbout =>
+      'Un streamer tuyo trae las grabaciones que tus cámaras Reolink (o tu NVR) hacen al detectar movimiento, por su red: cada cámara es un dispositivo, y sus grabaciones con una persona o un animal se vuelven eventos. La cámara graba en su tarjeta SD o en el disco del NVR, con HTTPS activado (en su configuración de red).';
+
+  @override
+  String get reolinkAddressHelp =>
+      'Su dirección IP en tu red, como la muestra la app Reolink (Configuración › Información de red).';
+
+  @override
+  String get reolinkCameras => 'Sus cámaras Reolink:';
+
+  @override
+  String reolinkError(String error) {
+    return 'Reolink: $error';
+  }
+
+  @override
+  String get reolinkNoStreamer =>
+      'Configura primero un streamer (Perfil › Streamer); trae las grabaciones de las cámaras Reolink.';
+
+  @override
+  String get reolinkNone => 'Aún no hay cámaras Reolink.';
+
+  @override
+  String get reolinkPassword => 'Contraseña de la cámara';
+
+  @override
   String get settingsAddDeviceCopy => 'Copiar enlace';
 
   @override
@@ -2132,6 +2260,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los minutos y segundos llegan hasta 59';
 
   @override
+  String get settingsDeleteDeviceCameraNotTold =>
+      'No se pudo avisar a su streamer de que deje de traer esta cámara, así que puede volver. Bórrala de nuevo cuando el streamer esté en línea, o quítala en la sección de la cámara en Ajustes.';
+
+  @override
   String get settingsDeleteDeviceCancel => 'Cancelar';
 
   @override
@@ -2185,6 +2317,15 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get settingsDeviceLoading => 'cargando…';
+
+  @override
+  String get settingsGoProSection => 'Cámaras GoPro';
+
+  @override
+  String get settingsGroupAllDevices => 'Todos los dispositivos';
+
+  @override
+  String get settingsGroupThisDevice => 'Este dispositivo';
 
   @override
   String get settingsHistoryNote =>
@@ -2428,6 +2569,9 @@ class AppLocalizationsEs extends AppLocalizations {
       'Aún no disponible en este dispositivo';
 
   @override
+  String get settingsReolinkSection => 'Cámaras Reolink';
+
+  @override
   String get settingsSameAsClip => 'Igual que pulsar Clip';
 
   @override
@@ -2455,7 +2599,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsSubjectEvents => 'Cuántos eventos cargar a la vez';
 
   @override
-  String get settingsSubjectsSection => 'Sujetos';
+  String get settingsSubjectsSection => 'Eventos';
+
+  @override
+  String get settingsUsbCamSection => 'Cámaras USB';
 
   @override
   String storeDays(int count) {
@@ -2621,6 +2768,20 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String streamerLeader(String device) {
+    return 'Líder ($device)';
+  }
+
+  @override
+  String streamerLeaderUnknown(String device) {
+    return 'Líder (aún ninguno; $device por ahora)';
+  }
+
+  @override
+  String get streamerPickerHelp =>
+      'Líder sigue al streamer que lidere. Solo el streamer líder trae, así que uno elegido aquí trae mientras lidere.';
+
+  @override
   String subjectsEvents(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2655,4 +2816,48 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get subjectsRecognizedAuto => 'Reconocido automáticamente';
+
+  @override
+  String get usbcamAbout =>
+      'Un streamer tuyo trae los videos nuevos de las cámaras conectadas a él por USB, sin red ni dirección: cada cámara es un dispositivo, y sus videos con una persona o un animal se vuelven eventos. Cámaras que aparecen como cámara o dispositivo multimedia (PTP o MTP), como una GoPro HERO5 a HERO8 o la mayoría de las cámaras digitales; encendidas, conectadas al streamer.';
+
+  @override
+  String get usbcamAdd => 'Agregar';
+
+  @override
+  String get usbcamCameras => 'Sus cámaras USB:';
+
+  @override
+  String get usbcamDetected => 'Conectadas a él, para agregar:';
+
+  @override
+  String usbcamError(String error) {
+    return 'Cámaras USB: $error';
+  }
+
+  @override
+  String get usbcamNoStreamer =>
+      'Configura primero un streamer (Perfil › Streamer); las cámaras se conectan a él.';
+
+  @override
+  String get usbcamNone => 'Aún no hay cámaras USB agregadas.';
+
+  @override
+  String get usbcamNoneDetected =>
+      'No hay otra cámara conectada a él. Conecta una y enciéndela: aparece aquí en menos de un minuto.';
+
+  @override
+  String get usbcamStreamer => 'El streamer al que están conectadas';
+
+  @override
+  String get usbcamUnattended =>
+      'Desatendida: conservar solo las partes con movimiento y borrar los videos de la cámara una vez traídos';
+
+  @override
+  String get usbcamUnattendedHint =>
+      'Para una cámara que se deja grabando, así su tarjeta no se llena. Desactivado: se conserva cada video y no se borra nada de la cámara.';
+
+  @override
+  String get usbcamUnplugged =>
+      'No está conectada: sus videos nuevos se traen cuando vuelva.';
 }

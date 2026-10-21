@@ -20,8 +20,10 @@ web, a voucher, an admin's grant) just sees Premium on every platform.
 
 The iOS and Android apps never show, link to or mention Stripe,
 nu01.com's sign-up page or a web price (App Store 3.1.1, Google Play's
-payments policy): not in the plan box, the Monitoring tab's notice, or
-the fallback when the payments API doesn't answer.
+payments policy): not in the plan box, the Profile tab's hidden-devices
+line, the fallback when the payments API doesn't answer, or the sign-up
+sheet, which offers [Join free](membership.md#getting-access-join-free-or-subscribe)
+in the app instead.
 
 ## Where
 
@@ -45,13 +47,13 @@ the fallback when the payments API doesn't answer.
     the box turns Premium without signing out.
   - A member who is Premium through a subscription verified in this
     store (iOS, Android) gets **Manage subscription** in the box.
-- **The Monitoring tab's** hidden-devices card (`DeviceLimitNotice`), for
-  a free profile: "… Premium shows up to 25." and an **Upgrade** button:
-  on the web, to the monthly plan's checkout (the yearly's when there's no
-  monthly link, nu01.com when neither); on iOS and Android, to the Profile
-  tab, where the store's plans are; elsewhere, no button. For a premium
-  profile on the web, "… Pro shows up to 50." and, with a Pro link, an
-  **Upgrade** button to Pro's checkout ([below](#pro)).
+- **The account sheet's** hidden-devices line (`HiddenDevicesLine`),
+  just above the plan box when devices are hidden: "3 devices hidden ·
+  **Upgrade**", small and muted. On the web only, Upgrade opens, for a
+  free profile, the monthly plan's checkout (the yearly's when there's no
+  monthly link, nu01.com when neither), and for a premium profile with a
+  Pro link, Pro's checkout ([below](#pro)); on iOS, Android and elsewhere
+  no link. The Monitoring tab has no upgrade notice.
 
 ## Pro
 

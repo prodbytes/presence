@@ -4,7 +4,13 @@
   map (under it on phones), in a vertically scrolling timeline, newest at the top: a
   **feed**, as in Strava's. Each entry is **one card** (`FeedCard`, key
   `feed-card`, rounded, bg2), with no dot or rail beside it: a **header
-  row** on top with the device it was taken on and its copies, then the
+  row** on top with the device it was taken on at the left and **every
+  button of the card together at the top right**, in one row
+  (`event-actions-<id>`): its indicators (recognition, the cloud, the
+  copies; each does something when tapped) and, for the profile's
+  events, delete (`event-delete-<id>`), side by side with no gap but
+  their own; the device's name gives way (it ellipsizes) so they keep
+  their full size, on a 320 dp phone at 2x text too. Then the
   event's own card (`EventCard`, the clip's, a suggestion's), drawn
   square inside it (the theme's card shape, overridden) so the two read
   as one and a clip's thumbnail runs edge to edge under the header. Cards
@@ -27,12 +33,14 @@
   [Devices, users and places](devices-users-places.md)).
 - **One filter model.** What the timeline shows is worked out in one
   place, `EventFilters` ([lib/event_filters.dart](../presence_app/lib/event_filters.dart)):
-  it holds the system events toggle (`showSystemEvents`) and the search
-  (`search`, which a device's whole ID narrows to that device:
-  `searchedDevice`, `showDevice`), and `viewOf` gives each step's events
-  (the profile's, of the device searched for, of the kinds, matching the
-  search). Each step's list is kept until its inputs change (a new event,
-  a filter, a clip's tags while searching), so the timeline, the count and
+  it holds the system events toggle (`showSystemEvents`), the events
+  with no one toggle (`showEventsWithNoOne`) and the search (`search`,
+  which a device's whole ID narrows to that device: `searchedDevice`,
+  `showDevice`), and `viewOf` gives each step's events (the profile's, of
+  the device searched for, of the kinds, with someone on them, matching
+  the search). Each step's list is kept until its inputs change (a new
+  event, a filter, a clip's tags while hiding the events with no one or
+  searching), so the timeline, the count and
   the map share one pass instead of filtering the whole history on every
   rebuild. The home screen keeps one, so the choices survive the tab
   being rebuilt.
@@ -51,8 +59,8 @@
   or pet nobody's named has a yellow **unidentified** flag, with
   **Identify** to name them.
 - **Search.** The events search (`EventSearch`) sits at the top left of
-  the Monitoring tab, in one compact row with the count and the system
-  events toggle. It's a **search icon button** (tooltip "Search events")
+  the Monitoring tab, in one compact row with the count, the system
+  events toggle and the events with no one toggle. It's a **search icon button** (tooltip "Search events")
   until tapped; tapped, it opens into a **Search events** field (up to
   280 dp, narrower on a small phone), focused so the keyboard comes up.
   The field is **filled and rounded** (`surfaceContainerHigh`, 20 dp
@@ -67,9 +75,10 @@
   [flags](event-flags.md)** (`unidentified`) contains the
   text. Suggestions waiting for an answer aren't tags, so they don't
   match a clip; the "Is this Rex?" and "Who is this?" events match
-  through their own title and detail, and their clip's camera label. Blank, every event shows.
-  - The search works together with the system events toggle: an event
-    shows only if it passes both. A search that is a device's **whole
+  through their own title and detail, and their clip's camera label.
+  Blank, every event shows.
+  - The search works together with the system events and events with no
+    one toggles: an event shows only if it passes all three. A search that is a device's **whole
     ID** (ignoring case and spaces around it), such as one set by tapping
     a device name, shows **only that device's events**, on the timeline,
     the count and the [subjects map](subjects.md); part of an ID matches
@@ -156,6 +165,18 @@
   in bold (events not saved yet, which have no device ID, are this
   device's; before the device ID is known they have no tag). It's a
   button; its tooltip says "Show this device's events".
+  - **A camera's name before its device:** an event from a camera a
+    streamer fetches clips from ([Blink](blink.md), [GoPro](gopro.md),
+    [Reolink](reolink.md)), each its own device, has a **camera name**
+    (`AppEvent.cameraName`: "Garden"), and its tag reads **"Garden |
+    pungent_orbital_canal"**; without one (a phone's, a streamer's own
+    camera) the device alone, as before. Tapping it still filters by the
+    device. The event's details show it the same way, "Garden |" before
+    the device ID (`event-device-camera-name`). The name is the event's
+    `cameraName`; an older camera event without it (before 2026-10-18)
+    takes its `detail` when its `os` is `Blink`, `GoPro` or `Reolink`
+    (its detail was always the camera's name, `AppEvent.cameraNameOf`).
+    Test: `camera_name_test.dart`.
   - The icon is the event's **operating system**'s (`DeviceOs.iconOf`:
     Android, iPhone, Mac laptop, Windows desktop, a computer for Linux, a
     globe for the web); its name isn't shown, so the ID has the room
@@ -205,6 +226,38 @@
   - **Opening a hidden system event** from elsewhere turns it on, so the
     event can show.
   - It only filters the timeline: every event is still saved and synced.
+- **Show events with no one: off.** A second toggle icon
+  (`ShowEventsWithNoOne`, a dimmed paw outline, `Icons.pets_outlined`, the
+  accent color filled while on; no label, its tooltip says "Show events
+  with no one in them" or "Hide events with no one in them"; a 40 dp
+  target), right after the system events toggle, in the same top row:
+  - **off (at launch, in DEV and RBAC):** the grabs with **no person or
+    pet** on them don't show (`EventTimeline.hasSomeone`, the
+    `withSomeone` step). A clip has someone when recognition saw a person
+    or **any animal** on it, an [object tag](recognition.md) of
+    `isPersonOrAnimal` (`human`, and `animalLabels`: `bird`, `cat`, `dog`,
+    `horse`, `sheep`, `cow`, `elephant`, `bear`, `zebra`, `giraffe`, the
+    animals the streamer's detector keeps; a `car` or a `truck` alone
+    isn't someone), or someone is **tagged** on
+    it. A clip not searched for objects yet (no object tags at all, not
+    even none) may have someone, so it shows; one searched with nothing
+    or no one found (object tags `[]`, as Blink, GoPro and Reolink clips
+    with no one are kept) is hidden. A recognition suggestion ("Is this
+    Rex?") is about someone, so it shows.
+  - **It applies to grabs only.** The system events (a Startup clip
+    included) aren't affected: the system events toggle alone decides
+    whether they show.
+  - **on:** every grab, as before.
+  - Recognition seeing someone on a clip later shows it at once (the step
+    is worked out again when a clip's object tags or tags change).
+  - The choice stays while switching tabs, but not across restarts (like
+    the system events toggle, it isn't saved).
+  - With nothing left but clips with no one, the timeline says "No one
+    seen yet: events with no one are hidden" (with the system events
+    hidden and no grabs at all, "No grabs yet" comes first).
+  - **Opening a hidden clip with no one** from elsewhere turns it on, so
+    the event can show.
+  - It only filters the timeline: every event is still saved and synced.
 - When a new event arrives at the top, the timeline scrolls back up to
   show it, but only when it's scrolled less than 200 dp down
   (`EventTimeline.followNewWithin`): further down, the user is reading
@@ -222,7 +275,7 @@
   - It's a **one-shot request**: handled once, by the timeline on screen
     or, if the tab isn't built yet, by the next one built, after its first
     frame. Coming back to the tab later doesn't open it again, so a
-    search or system events choice made since is kept. Asking
+    search or a toggle choice made since is kept. Asking
     again, even for the same event, opens it again.
 - On launch, the app pushes an **Application started** event.
 - Every event carries the **device** it was recorded on (`deviceId`) and

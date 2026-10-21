@@ -33,7 +33,8 @@ record) says which part of the file the clip is; players start there. See
   key, AES-256-GCM in chunks; see [Media encryption](encryption.md)) in
   storage and in the bucket: the formats below are what's inside.
 - **Images** are JPEG: the clip's **thumbnail** (the camera's frame when
-  the clip was asked for, about 20 KB) and each **tagged frame** (the frame
+  the clip was asked for, about 20 KB, or a later frame of the recording
+  when that one was black) and each **tagged frame** (the frame
   someone tagged on, at most 960 px wide, about 50 KB; at most 1280 px for
   frames recognition tagged, a few times bigger, as sharp as the
   recording for later matching).
@@ -82,7 +83,9 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
 | `location` | object | `{lat, lng, accuracy, source, time}`: where the device was (see [Device location](device-location.md)); may be null |
 | `memoryMb` | number | the recording device's total memory in MB (Android's `ActivityManager`, iOS's `physicalMemory`, a browser's `navigator.deviceMemory`, rounded); missing where it doesn't say, and on events saved before 2026-10-14 |
-| `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
+| `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, `Blink`, `GoPro`, `Reolink`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
+| `cameraName` | string | the camera's own name, on the events of a camera a [streamer](streamer.md) fetches clips from (Blink, GoPro, Reolink: "Garden"), each its own device; shown before the device, "Garden \| device" ([Events](events.md)); missing on other events and on those stored before 2026-10-18 (the app then takes `detail` when `os` is `Blink`, `GoPro` or `Reolink`) |
+| `storedAt` | integer (ms, UTC) | when a [streamer](streamer.md) stored the event; a camera's clip may be fetched long after it was recorded (`time`). Synced clips recorded or stored within a day are recognized ([Subject recognition](recognition.md#when-it-runs)); missing on the app's own events and older ones |
 | `deletedAt` | integer (ms, UTC) | when the event was deleted, alone from its details or with its device ([Device deletion](device-deletion.md)): the event is hidden on every device; missing on events that aren't deleted. Once set it stays (a copy without it doesn't undo it) |
 
 Clip events (`clip_requested`) add:
@@ -118,6 +121,12 @@ One per clip, about 400 bytes, in the same day partition as its event:
 | `supported` | boolean | whether the camera could record |
 | `state` | string | `recording`, `complete` or `failed`; only `complete` clips are uploaded |
 | `full` (or `past`) | object | the recording: `{mediaId, startMs, endMs, mimeType}`, the window inside the file and its type; `past` when only the before part was saved |
+| `thumbnailRedone` | integer (ms, UTC) | when the thumbnail, black or missing, was made again from the recording ([Clips](clips.md)); absent otherwise |
+
+The local record also has `thumbnail` (the sealed JPEG) and
+`thumbnailCheck` (`ok`, `dark` or `noRecording`: how the thumbnail was
+found, so it's checked once), neither uploaded; one fetched or received
+is checked again here.
 
 ### Device settings — `devices/<deviceId>/settings.json`
 
@@ -165,7 +174,7 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
 - **Content types:** `application/json`, and `application/octet-stream`
   for sealed media (the extension, and the clip record's `mimeType`, say
   what's inside). Objects are stored in Intelligent-Tiering and
-  expire after 90 days ([Production deploy](deploy.md)).
+  are archived after 67 days (over 128 KB) and erased after 365 ([Production deploy](deploy.md)).
 - **Before 2026-10-02** clip records were `clips/<clipId>.json`, next to
   `clips/<clipId>.webm`, `.jpg` and `clips/<clipId>/frames/`. The buckets
   were emptied then; a device that uploaded something under an old key

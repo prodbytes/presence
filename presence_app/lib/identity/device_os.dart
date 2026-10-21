@@ -25,6 +25,12 @@ abstract final class DeviceOs {
       'Linux' => Icons.computer,
       // A Blink camera a streamer fetches for (specs/blink.md).
       'Blink' => Icons.videocam_outlined,
+      // A GoPro camera a streamer fetches for (specs/gopro.md).
+      'GoPro' => Icons.videocam_outlined,
+      // A Reolink camera a streamer fetches for (specs/reolink.md).
+      'Reolink' => Icons.videocam_outlined,
+      // A camera plugged into a streamer by USB (specs/usb-cameras.md).
+      'USB camera' => Icons.videocam_outlined,
       _ => Icons.devices_other,
     };
   }

@@ -26,12 +26,12 @@ their data.
 **App**
 
 - [Navigation](navigation.md): bottom navigation bar (Help for signed-in members, Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
-  with its mode button (Normal / All / Unattended / Stopped), Flip and Clip buttons (Clip's color is its readiness).
+  with its mode menu in the app bar (This camera / All devices / Unattended / Stopped), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states;
-  the mode button (Normal / All / Unattended / Stopped: this camera, the
+  the mode menu (This camera / All devices / Unattended / Stopped: this camera, the
   All grid, the screen off while capturing, or no capturing or syncing); the All grid: this camera top left, then every device in the
   profile with its latest image; Clip there is Capture all, a clip on
   every device, asked through cloud sync.
@@ -50,12 +50,27 @@ their data.
   profile from the device list, keeping its videos (it only leaves the
   list) or not (its events move to a deleted state, `deletedAt`, synced,
   and are hidden on every device); this device can't be, and a device
-  that records again reappears. One event is deleted from the end of its
+  that records again reappears; a camera's device is removed from the
+  streamer that fetches it too. One event is deleted from the end of its
   details (the clip player).
 - [Blink cameras](blink.md): a Linux streamer the Settings pick logs in
   to a Blink account (blinkpy; the login sealed to it, the 2FA PIN from
   the app) and fetches its cameras' clips, each camera a device of its own
-  through the streamer's pipeline.
+  through the streamer's pipeline; a camera can be removed.
+- [GoPro cameras](gopro.md): a Linux streamer the Settings pick reaches
+  GoPro cameras on its network (the Open GoPro HTTP API; the address and
+  password sealed to it) and fetches their new videos, each camera a
+  device of its own through the streamer's pipeline.
+- [Reolink cameras](reolink.md): a Linux streamer the Settings pick logs
+  in to Reolink cameras or an NVR's channels on its network (their HTTP
+  API over HTTPS; the login sealed to it) and fetches their motion
+  recordings, each camera a device of its own; shares GoPro's `netcam`
+  code.
+- [USB cameras](usb-cameras.md): cameras plugged into a Linux streamer by
+  USB (PTP/MTP: a GoPro HERO5–8, most digital cameras), with no address:
+  the streamer detects them (gphoto2), the Settings add one by name (known
+  by its USB serial), and it fetches their new videos, each camera a
+  device of its own; a udev rule keeps the desktop from mounting them.
 - [Hiding a device](device-hiding.md): the Profile tab's device list's
   eye button hides or shows a device's events, on this device only,
   remembered across restarts.
@@ -181,8 +196,8 @@ their data.
   with the profile's credentials), metadata only; S3 keeps everything, and
   clips and thumbnails still come from it.
 - [Device presence](device-presence.md): devices ping each other over
-  live sync; a green (answered within 90 s), yellow (heard from or an
-  event within 24 h) or red dot by each device in the All grid and the
+  live sync; a green (active within 5 sync timeouts), yellow (within
+  10) or red dot by each device in the All grid and the
   account sheet's devices list.
 - [Event copies](event-copies.md): each event card and the event's
   details count the copies of the event (this device, the cloud, other
@@ -211,7 +226,7 @@ their data.
   full screen from boot (cage on tty1, the web app in Chromium, since the
   native Linux app has no camera layer or Google sign-in yet).
 - [Streamer](streamer.md): `presence-streamer`, a CLI (Go) for Raspberry
-  Pis, 32- and 64-bit, with no screen. The app's **Create command** gives
+  Pis, 32- and 64-bit, with no screen. The app's **Get command** gives
   one command with the profile, a new device ID and its stream key, so
   the Pi needs no Google sign-in (a profile ID and a Google device
   sign-in still work); only premium profiles (a free one ends it). It
@@ -224,6 +239,11 @@ their data.
   less, the app's score) are deleted on the Pi before any upload; a Pi
   under 2 GB of memory has the cloud search its chunks (presence_ingest, a
   Python Lambda the bucket notifies). No live sync yet.
+- [Streamer leadership](streamer-leader.md): at most one of a profile's
+  streamers, the leader, streams to the cloud; the others wait, recording
+  nothing, until the auth API grants them the lead (a lease every 5
+  minutes); a leader offline for more than an hour, or deleted, is
+  replaced by a waiting one. The profile view labels the leader.
 
 **Backend**
 
@@ -247,7 +267,8 @@ their data.
 - [Origin check](origin-check.md): the APIs (auth, payments, health)
   answer only through the site's CloudFront, which adds a secret header
   (`x-presence-origin-verify`); direct calls to their `execute-api` hosts
-  get 403. Enforced from the deploy after the site starts sending it.
+  get 403. Enforced from the deploy after the site starts sending it
+  (live in prod). App attestation is on the [roadmap](../ROADMAP.md).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which
@@ -260,6 +281,9 @@ their data.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Cost report](cost-report.md): `scripts/cost-report.py`'s HTML page
+  of profiles, devices, profiles per device and AWS costs per device and
+  in all.
 - [Test data](test-data.md): real photos and clips (Suerte the cat, other
   cats) in `presence_app/test/data/`, cleaned for a public repo and
   labelled in `labels.csv`, with `import.sh` to add more.
@@ -274,6 +298,8 @@ their data.
 - [Store readiness](store-readiness.md): what the App Store and Google
   Play require that Presence meets, and what it doesn't yet (the
   stores' subscription setup, Sign in with Apple, release signing).
+- [App Store listing](app-store-listing.md): the App Store product page
+  kept in `store/app-store/`, and the script that pushes it.
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).

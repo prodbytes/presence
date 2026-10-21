@@ -121,6 +121,7 @@ void main() {
 
   Finder opener() => find.byKey(const Key('event-search-open'));
   Finder system() => find.byKey(const Key('show-system-events'));
+  Finder noOneToggle() => find.byKey(const Key('show-events-with-no-one'));
 
   /// Types [text] in the search, opening it first if it's folded.
   Future<void> type(WidgetTester tester, String text) async {
@@ -408,6 +409,69 @@ void main() {
     expect(titles(tester), ['Clip requested', 'Clip requested']);
   });
 
+  /// A clip searched for objects, with no one seen on it.
+  ClipRequested noOne(int minute) => clipOf(
+    'Garden',
+    minute: minute,
+  )..annotations.setObjects([const ObjectTag(label: 'car', ms: 0, score: 0.9)]);
+
+  testWidgets('the events with no one toggle sits beside the system events '
+      'one, and hides the clips with no one while off', (tester) async {
+    log.addHistory([noOne(4)]);
+    final filters = EventFilters(showEventsWithNoOne: false);
+    addTearDown(filters.dispose);
+    await show(tester, width: 390, filters: filters);
+    final toggle = tester.getRect(noOneToggle());
+    final systemToggle = tester.getRect(system());
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('monitoring-filters')),
+        matching: noOneToggle(),
+      ),
+      findsOneWidget,
+    );
+    expect(toggle.left, greaterThanOrEqualTo(systemToggle.right));
+    expect(toggle.center.dy, closeTo(systemToggle.center.dy, 1));
+    expect(toggle.height, greaterThanOrEqualTo(40));
+    expect(find.text('Show events with no one in them'), findsNothing);
+    expect(find.byTooltip('Show events with no one in them'), findsOneWidget);
+    expect(tester.widget<IconButton>(noOneToggle()).isSelected, isFalse);
+    expect(inEvents(find.text('Garden')), findsNothing);
+    expect(titles(tester), [
+      'Clip requested',
+      'Clip requested',
+      'Door opened',
+      'Application started',
+    ]);
+
+    await tester.tap(noOneToggle());
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(noOneToggle()).isSelected, isTrue);
+    expect(find.byTooltip('Hide events with no one in them'), findsOneWidget);
+    expect(inEvents(find.text('Garden')), findsOneWidget);
+    expect(titles(tester), hasLength(5));
+  });
+
+  testWidgets('with only clips with no one left, it says so', (tester) async {
+    log.remove({'event-3', 'event-2'});
+    log.addHistory([noOne(4)]);
+    final filters = EventFilters(
+      showSystemEvents: false,
+      showEventsWithNoOne: false,
+    );
+    addTearDown(filters.dispose);
+    await show(tester, filters: filters);
+    expect(
+      find.text('No one seen yet: events with no one are hidden'),
+      findsOneWidget,
+    );
+
+    // With the system events hidden too, and none left, that comes first.
+    log.remove({'event-4'});
+    await tester.pumpAndSettle();
+    expect(find.text('No grabs yet: system events are hidden'), findsOneWidget);
+  });
+
   for (final width in [320.0]) {
     testWidgets('fits a ${width.toInt()} dp phone, one row on top', (
       tester,
@@ -438,7 +502,10 @@ void main() {
         tester.getRect(find.byKey(const Key('event-search-clear'))).right,
         lessThanOrEqualTo(search.right),
       );
-      expect(tester.getRect(system()).right, lessThanOrEqualTo(width - 12));
+      expect(
+        tester.getRect(noOneToggle()).right,
+        lessThanOrEqualTo(width - 12),
+      );
     });
   }
 
@@ -500,6 +567,23 @@ void main() {
       await show(tester, filters: filters);
       expect(filters.search.value, 'milo');
       expect(find.byKey(const Key('event-highlight')), findsNothing);
+    });
+
+    testWidgets('a clip with no one, with them hidden: they show', (
+      tester,
+    ) async {
+      log.addHistory([noOne(4)]);
+      filters.showEventsWithNoOne.value = false;
+      await show(tester, filters: filters);
+      expect(inEvents(find.text('Garden')), findsNothing);
+
+      filters.focus('event-4');
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(filters.showEventsWithNoOne.value, isTrue);
+      expect(filters.showSystemEvents.value, isFalse);
+      expect(inEvents(find.text('Garden')), findsOneWidget);
+      expect(find.byKey(const Key('event-highlight')), findsOneWidget);
     });
 
     testWidgets('asked for again, even the same event, it shows again', (

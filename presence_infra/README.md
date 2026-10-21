@@ -29,7 +29,7 @@ It mirrors the local Floci one ([presence_floci/](../presence_floci)):
 | Path | Origin |
 |---|---|
 | default (`/`) | S3 `index.html`, the [index page](../presence_index) that redirects to `/app/` |
-| `/app*` | S3 `app/`, the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/app/*`, `/app` | S3 `app/`, the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/*` | The [auth API](../presence_api_auth)'s HTTP API (stack `presence-auth-api`), not cached, with every viewer header but `Host` forwarded |
 | `/health` | The [health check](../presence_health)'s HTTP API (stack `presence-health`), not cached |
 

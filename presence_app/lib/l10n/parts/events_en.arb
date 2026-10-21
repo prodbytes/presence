@@ -55,6 +55,9 @@
   "eventsShowEveryDevice": "Show every device's events",
   "eventsShowSystem": "Show system events",
   "eventsHideSystem": "Hide system events",
+  "eventsShowNoOne": "Show events with no one in them",
+  "eventsHideNoOne": "Hide events with no one in them",
+  "eventsNoOneHidden": "No one seen yet: events with no one are hidden",
   "eventFlagUnidentified": "Unidentified subject",
   "eventFlagUnidentifiedTooltip": "Unidentified subject — identify",
   "eventFlagIdentify": "{label} · Identify",
@@ -424,6 +427,8 @@
     }
   },
   "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventCloudColdStorage": "Its recording is in cold storage: it can't be played from the cloud",
+  "eventCopiesCloudColdStorage": "Cloud (cold storage)",
   "eventRecognitionTapToRerun": "Tap to run recognition",
   "eventRecognitionRerunning": "Running recognition…",
   "eventCloudTapToPut": "Tap to put it in the cloud",
