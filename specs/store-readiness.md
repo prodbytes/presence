@@ -3,11 +3,11 @@
 What the App Store (iOS) and Google Play (Android) require that Presence
 does and doesn't meet yet. Audited 2026-10-14 against the code on `main`,
 and updated as items are fixed.
-Presence isn't in either store: Android ships as a side-loaded APK, iOS as
-an unsigned development build ([Release builds](release.md)). The release
-workflow can now make signed store builds (an `.aab` and an App Store
-`.ipa`) once their keys are in its secrets ([Store
-signing](release.md#store-signing)).
+On the App Store, Presence was submitted to App Review on 2026-10-16
+(below). On Google Play it isn't yet: the developer account awaits
+verification, and Android ships as a side-loaded APK meanwhile. RC and GA
+releases make the signed store builds (an `.aab` and an App Store `.ipa`)
+([Store signing](release.md#store-signing)).
 
 ## Blockers: both stores
 
@@ -88,8 +88,8 @@ signing](release.md#store-signing)).
   app, turn on Play App Signing and upload the first `.aab` ([Store
   signing](release.md#google-play-android)). The `assetlinks.json` for
   [App Links](add-device.md), which the site doesn't serve yet, must then
-  list Play's app signing certificate, and Google sign-in's Android
-  client its SHA-1.
+  list Play's app signing certificate, and Play's app signing key needs
+  its own Google sign-in Android client ([release](release.md#google-play-android)).
 
 ## Declarations and reviews needed
 

@@ -7459,3 +7459,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      to `/app/`), in `presence_infra/site.yaml` and the local Floci
      CloudFront alike. See [deploy](deploy.md) and
      [local CDN](local-cdn.md).
+509. **Spec corrections from TabCam's store fixes.** (2026-10-21) Google
+     sign-in needs one Android OAuth client per signing key (a client
+     takes one SHA-1), in presence-492410 ([release](release.md),
+     [sign-in](sign-in.md), [store readiness](store-readiness.md)); and
+     store readiness's intro no longer says Presence is in neither store:
+     it was submitted to App Review on 2026-10-16.

@@ -461,8 +461,10 @@ app, and the web bundle is readable, so `.env` can also hold secrets such
 as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
 uses and never receives: only a future backend would. Without `.env`, the
 account sheet says sign-in isn't set up. The Android client is registered with the development Mac's debug-key
-SHA-1 (recorded in the private repo). A release key will need its own
-Android client.
+SHA-1 (recorded in the private repo). Each other signing key needs its
+own Android client in presence-492410 (a client takes one SHA-1): the
+upload key's (side-loaded RC and GA builds) and Play's app signing key's
+(Play installs), once Play signs the app.
 
 The iOS client (its ID is `GOOGLE_IOS_CLIENT_ID` in the private `.env`) was created
 with bundle ID `com.nu01.presence` and no App Store ID or Team ID (neither
