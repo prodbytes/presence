@@ -39,6 +39,10 @@ their data.
   subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus;
   searching "do a barrel roll" spins the screen.
+- [Event files](event-files.md): Download on each event card saves the
+  event, its clip and recording as one JSON file (opened, readable
+  anywhere); Upload in the events' top row takes such a file in, into the
+  signed-in profile.
 - [Event flags](event-flags.md): flags on an event's card, worked out from
   its data; a yellow **unidentified** flag on a clip showing a person or
   pet (cat, dog) nobody's named, with **Identify** to name them, and a

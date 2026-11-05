@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
@@ -633,6 +634,25 @@ class _PresenceAppState extends State<PresenceApp> {
     return deleted;
   }
 
+  /// [event] as a file of its own (`Persistence.exportEvent`): its card's
+  /// Download.
+  Future<Uint8List> _exportEvent(AppEvent event) =>
+      _persistence.exportEvent(event.id);
+
+  /// Takes in an event's file (`Persistence.importEvent`): the events
+  /// list's Upload. The event joins the signed-in profile (none signed
+  /// out, as in DEV) and shows; one already here shows as uploaded.
+  Future<List<AppEvent>> _importEvent(Uint8List bytes) async {
+    final events = await _persistence.importEvent(
+      bytes,
+      profileId: _roles.profile,
+    );
+    _log
+      ..addHistory(events)
+      ..replace(events);
+    return events;
+  }
+
   void _joinHandled() {
     clearLaunchQuery();
     setState(() => _join = null);
@@ -852,6 +872,8 @@ class _PresenceAppState extends State<PresenceApp> {
               tiles: widget.mapTiles,
               deleteEvent: _deleteEvent,
               deleteEvents: _deleteEvents,
+              exportEvent: _exportEvent,
+              importEvent: _importEvent,
               now: widget.now,
               child: app!,
             ),

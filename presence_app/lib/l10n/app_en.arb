@@ -969,6 +969,8 @@
   },
   "eventDevice": "Device",
   "eventDeviceUnknown": "Device unknown",
+  "eventDownload": "Download event",
+  "eventDownloadFailed": "Couldn't download the event",
   "eventFlagIdentify": "{label} · Identify",
   "@eventFlagIdentify": {
     "placeholders": {
@@ -1129,6 +1131,10 @@
   "eventsShowEveryDevice": "Show every device's events",
   "eventsShowNoOne": "Show events with no one in them",
   "eventsShowSystem": "Show system events",
+  "eventsUpload": "Upload an event",
+  "eventsUploadFailed": "Couldn't upload the event",
+  "eventsUploadNotEvent": "That file isn't a Presence event",
+  "eventsUploaded": "Event uploaded",
   "feedbackAdmin": "Admin",
   "feedbackAnswered": "Answered",
   "feedbackAwaitingReply": "Awaiting a reply",

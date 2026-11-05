@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'cloud/live_sync.dart';
 import 'device_events.dart';
 import 'device_presence.dart';
+import 'event_transfer.dart';
 import 'events.dart';
 import 'identity/device_os.dart';
 import 'l10n/l10n.dart';
@@ -36,6 +37,8 @@ class EventDetailsScope extends InheritedWidget {
     this.tiles,
     this.deleteEvent,
     this.deleteEvents,
+    this.exportEvent,
+    this.importEvent,
     this.now,
   });
 
@@ -50,6 +53,12 @@ class EventDetailsScope extends InheritedWidget {
   final Widget? tiles;
   final DeleteEvent? deleteEvent;
   final DeleteEvents? deleteEvents;
+
+  /// Makes an event's file (its card's Download); null: no Download.
+  final ExportEvent? exportEvent;
+
+  /// Takes in an event's file (the events list's Upload); null: no Upload.
+  final ImportEvent? importEvent;
   final DateTime Function()? now;
 
   /// Whether [event] can be deleted here: signed in with its profile.
@@ -68,6 +77,8 @@ class EventDetailsScope extends InheritedWidget {
       tiles != old.tiles ||
       deleteEvent != old.deleteEvent ||
       deleteEvents != old.deleteEvents ||
+      exportEvent != old.exportEvent ||
+      importEvent != old.importEvent ||
       now != old.now;
 }
 

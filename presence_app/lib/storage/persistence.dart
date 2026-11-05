@@ -20,6 +20,7 @@ import '../identity/device_os.dart';
 import '../location/device_location.dart';
 import '../recognition/suggestion.dart';
 import '../recognition/subject_request.dart';
+import 'event_file.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -662,6 +663,38 @@ class Persistence implements DeviceSettings {
   /// is complete, when its tags change, and for the events a sign-in
   /// claims. Empty after a settings change.
   Stream<Set<String>> get changes => _changes.stream;
+
+  /// Event [eventId] as a file of its own ([EventFile.export]): the event
+  /// card's Download. A recording that isn't here is fetched from the
+  /// cloud ([fetchMissingMedia]) first.
+  Future<Uint8List> exportEvent(String eventId) async => EventFile.export(
+    store: await _store,
+    media: await _media,
+    seal: seal,
+    eventId: eventId,
+    now: _now(),
+    fetchMissing: fetchMissingMedia,
+  );
+
+  /// Takes in a file made by [exportEvent] (the events list's Upload): its
+  /// event joins [profileId], is stored with its clip and recordings
+  /// sealed with this device's key, and named changed, so cloud sync
+  /// uploads it. Returns it, ready for `EventLog.addHistory`. Throws
+  /// [EventFileException] when [bytes] isn't such a file.
+  Future<List<AppEvent>> importEvent(
+    Uint8List bytes, {
+    required String? profileId,
+  }) async {
+    final (:event, :clip) = await EventFile.import(
+      bytes: bytes,
+      media: await _media,
+      seal: seal,
+      profileId: profileId,
+    );
+    final events = await importRemote(events: [event], clips: [?clip]);
+    _changed({event['id']! as String});
+    return events;
+  }
 
   /// Saves records downloaded from the cloud (another device's clips and
   /// events) without publishing them, and returns their events, ready for

@@ -14,6 +14,7 @@ import 'copies_badge.dart';
 import 'event_details.dart';
 import 'event_filters.dart';
 import 'event_flags.dart';
+import 'event_transfer.dart';
 import 'identity/device_os.dart';
 import 'l10n/l10n.dart';
 import 'location/device_location.dart';
@@ -1005,13 +1006,17 @@ class _EventTimelineState extends State<EventTimeline> {
                   ),
                   const SizedBox(width: 8),
                   // Every button of the card together, top right, in one
-                  // row: the indicators (each does something when tapped)
-                  // and delete. Their full size, always: the device's
-                  // name gives way (it ellipsizes) on a narrow card.
+                  // row: download, the indicators (each does something
+                  // when tapped) and delete. Their full size, always: the
+                  // device's name gives way (it ellipsizes) on a narrow
+                  // card.
                   Row(
                     key: Key('event-actions-${event.id}'),
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (EventDetailsScope.maybeOf(context)?.exportEvent
+                          case final export?)
+                        EventDownloadButton(event: event, export: export),
                       EventIndicators(event: event),
                       if (EventDetailsScope.maybeOf(context) case final scope?
                           when scope.canDelete(event))

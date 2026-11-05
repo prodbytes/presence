@@ -1295,6 +1295,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventDeviceUnknown => 'Device unknown';
 
   @override
+  String get eventDownload => 'Download event';
+
+  @override
+  String get eventDownloadFailed => 'Couldn\'t download the event';
+
+  @override
   String eventFlagIdentify(String label) {
     return '$label · Identify';
   }
@@ -1536,6 +1542,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventsShowSystem => 'Show system events';
+
+  @override
+  String get eventsUpload => 'Upload an event';
+
+  @override
+  String get eventsUploadFailed => 'Couldn\'t upload the event';
+
+  @override
+  String get eventsUploadNotEvent => 'That file isn\'t a Presence event';
+
+  @override
+  String get eventsUploaded => 'Event uploaded';
 
   @override
   String get feedbackAdmin => 'Admin';
