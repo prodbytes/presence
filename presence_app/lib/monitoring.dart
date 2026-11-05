@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'config.dart';
+import 'event_transfer.dart';
 import 'events.dart';
 import 'l10n/l10n.dart';
 import 'subjects.dart';
@@ -167,6 +168,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                             ],
                           ),
                         ),
+                        const UploadEventButton(),
                         DeleteShownEvents(
                           log: widget.log,
                           filters: _filters,

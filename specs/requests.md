@@ -7501,3 +7501,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Recognition](recognition.md), [Subjects](subjects.md),
        [Events](events.md), [Data formats](data-formats.md),
        [Device deletion](device-deletion.md), [README](README.md).
+
+512. **Download an event from its card; upload one from the top row.** (2026-11-05)
+     - Asked: a button at the top of each event card that downloads that
+       event, and one in the events' top row, with the other buttons,
+       that uploads one event; and reinstall the app on the iPhone.
+     - Changed: each card's header now starts its buttons with
+       **Download**: the event, its clip's record and its media (frames,
+       thumbnail, recordings), opened, in one JSON file, saved through
+       the browser, the share sheet (iOS, Android) or a save dialog. The
+       top row has **Upload** before Delete all: it picks such a file,
+       seals its media with this device's key, stores the event in the
+       signed-in profile and lets cloud sync upload it. New
+       [Event files](event-files.md); [Events](events.md) and
+       [Monitoring](monitoring.md) name the buttons. Adds the
+       `file_selector` package (Flutter ≥ 3.47.0).
+     - Also: the test "failed passes back off…" (`cloud_sync_test.dart`)
+       read `CloudSync.backoff` once, while the timer counts it down, and
+       failed now and then; it now checks the backoff's peak (PR #453).

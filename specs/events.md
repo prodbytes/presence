@@ -6,9 +6,11 @@
   `feed-card`, rounded, bg2), with no dot or rail beside it: a **header
   row** on top with the device it was taken on at the left and **every
   button of the card together at the top right**, in one row
-  (`event-actions-<id>`): its indicators (recognition, the cloud, the
-  copies; each does something when tapped) and, for the profile's
-  events, delete (`event-delete-<id>`), side by side with no gap but
+  (`event-actions-<id>`): **download** (`event-download-<id>`, the
+  event as a file: [Event files](event-files.md)), its indicators
+  (recognition, the cloud, the copies; each does something when tapped)
+  and, for the profile's events, delete (`event-delete-<id>`), side by
+  side with no gap but
   their own; the device's name gives way (it ellipsizes) so they keep
   their full size, on a 320 dp phone at 2x text too. Then the
   event's own card (`EventCard`, the clip's, a suggestion's), drawn

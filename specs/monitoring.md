@@ -22,7 +22,9 @@ the separate Events and Subjects tabs.
 - **At the top,** one compact row (40 dp): on the left the **events
   search**, a search icon that opens into a field when tapped (see
   [Events](events.md)), and its small **matching / all** event count
-  beside it; at the far right, **Delete all**, which deletes the events
+  beside it; then **Upload** (`events-upload`), which takes in one
+  event's file ([Event files](event-files.md)); at the far right,
+  **Delete all**, which deletes the events
   shown after asking ([Device deletion](device-deletion.md#delete-all)),
   then **Sync** (`SyncAllButton`, a sync icon, tooltip "Sync all
   devices"; with cloud sync): this device runs a full pass now (every day

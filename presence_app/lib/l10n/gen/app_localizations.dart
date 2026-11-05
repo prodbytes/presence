@@ -2176,6 +2176,18 @@ abstract class AppLocalizations {
   /// **'Device unknown'**
   String get eventDeviceUnknown;
 
+  /// No description provided for @eventDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download event'**
+  String get eventDownload;
+
+  /// No description provided for @eventDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download the event'**
+  String get eventDownloadFailed;
+
   /// No description provided for @eventFlagIdentify.
   ///
   /// In en, this message translates to:
@@ -2571,6 +2583,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show system events'**
   String get eventsShowSystem;
+
+  /// No description provided for @eventsUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload an event'**
+  String get eventsUpload;
+
+  /// No description provided for @eventsUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t upload the event'**
+  String get eventsUploadFailed;
+
+  /// No description provided for @eventsUploadNotEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'That file isn\'t a Presence event'**
+  String get eventsUploadNotEvent;
+
+  /// No description provided for @eventsUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Event uploaded'**
+  String get eventsUploaded;
 
   /// No description provided for @feedbackAdmin.
   ///
