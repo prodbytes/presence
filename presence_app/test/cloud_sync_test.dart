@@ -271,6 +271,7 @@ void main() {
 
   test('failed passes back off, doubling the wait up to maxBackoff, log '
       'the stack once, and keep what was to go up', () async {
+    const maxWait = Duration(milliseconds: 40);
     final logs = <String>[];
     final print = debugPrint;
     debugPrint = (message, {wrapWidth}) => logs.add('$message');
@@ -302,10 +303,18 @@ void main() {
     });
     changes.add({'e3'});
     await Future<void>.delayed(const Duration(milliseconds: 300));
+    // The backoff counts down as the timer skips its ticks: at its cap,
+    // it reads maxWait right after each failed pass, less in between.
+    var longest = Duration.zero;
+    for (var i = 0; i < 200 && longest < maxWait; i++) {
+      if (sync.backoff > longest) longest = sync.backoff;
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
     await sync.idle();
     // Waits of 1, 2, 4, 4… intervals: about 9 tries in 30, not 30.
     expect(backend.tokens.length, inInclusiveRange(4, 15));
-    expect(sync.backoff, const Duration(milliseconds: 40));
+    expect(longest, maxWait);
+    expect(sync.backoff, lessThanOrEqualTo(maxWait));
     expect(logs.where((l) => l.contains('\n')), hasLength(1));
     expect(
       logs.where((l) => l.contains('failed again')).length,
